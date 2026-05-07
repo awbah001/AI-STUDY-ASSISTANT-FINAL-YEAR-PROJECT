@@ -1,0 +1,62 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1776127077921,
+      "tag": "0000_volatile_nicolaos",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1776127082894,
+      "tag": "0001_cynical_franklin_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776168324255,
+      "tag": "0002_bizarre_power_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1776168397343,
+      "tag": "0003_complex_imperial_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1776168528718,
+      "tag": "0004_nosy_random",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1776813081671,
+      "tag": "0005_bored_devos",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1776813224084,
+      "tag": "0006_blushing_elektra",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1776818179430,
+      "tag": "0007_cool_thunderbolts",
+      "breakpoints": true
+    }
+  ]
+}
