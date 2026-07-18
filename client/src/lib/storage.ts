@@ -3,6 +3,8 @@
  * Uses the built-in Manus storage API
  */
 
+import { apiUrl } from "@/lib/apiBaseUrl";
+
 const STORAGE_API_URL = import.meta.env.VITE_FRONTEND_FORGE_API_URL;
 const STORAGE_API_KEY = import.meta.env.VITE_FRONTEND_FORGE_API_KEY;
 
@@ -20,7 +22,7 @@ export async function storagePut(
         : new TextEncoder().encode(String(blobData));
     // Copy to ensure an `ArrayBuffer`-backed view for TS/DOM types.
     const bodyCopy = new Uint8Array(bodyBytes);
-    const response = await fetch(`/api/storage/put?key=${encodeURIComponent(key)}`, {
+    const response = await fetch(apiUrl(`/api/storage/put?key=${encodeURIComponent(key)}`), {
       method: "POST",
       headers: {
         "Content-Type": contentType,

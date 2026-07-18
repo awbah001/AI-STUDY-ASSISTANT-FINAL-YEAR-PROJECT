@@ -7,6 +7,17 @@ dist/
 build/
 *.dist
 
+# Capacitor native projects (generated; run cap add locally)
+# Uncomment to commit android/ios to the repo:
+# !android/
+# !ios/
+android/.gradle/
+android/app/build/
+android/build/
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+
 # Environment variables
 .env
 .env.local

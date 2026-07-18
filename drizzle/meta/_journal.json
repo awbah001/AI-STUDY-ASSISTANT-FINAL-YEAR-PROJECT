@@ -57,6 +57,13 @@
       "when": 1776818179430,
       "tag": "0007_cool_thunderbolts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1779235419144,
+      "tag": "0008_gigantic_living_lightning",
+      "breakpoints": true
     }
   ]
 }

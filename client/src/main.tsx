@@ -7,6 +7,7 @@ import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import { getAuthToken } from "@/lib/authToken";
+import { apiUrl } from "@/lib/apiBaseUrl";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -41,7 +42,7 @@ queryClient.getMutationCache().subscribe(event => {
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
-      url: "/api/trpc",
+      url: apiUrl("/api/trpc"),
       transformer: superjson,
       fetch(input, init) {
         const token = getAuthToken();

@@ -1,6 +1,8 @@
 import { ONE_YEAR_MS } from "../shared/const";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure, adminProcedure } from "./_core/trpc";
+import { lecturerRouter, studentCoursesRouter } from "./lecturerRouter";
+import { canAccessDocument } from "./documentAccess";
 import { sql } from "drizzle-orm";
 import { users, documents, flashcards, quizzes, progressTracking } from "../drizzle/schema";
 import { z } from "zod";
@@ -16,6 +18,14 @@ import * as documentAi from "./documentAiService";
 function stripSensitiveUser(u: User) {
   const { passwordHash: _p, ...safe } = u;
   return safe;
+}
+
+async function assertDocumentAccess(userId: number, documentId: number) {
+  const doc = await queries.getDocumentById(documentId);
+  if (!doc || !(await canAccessDocument(userId, doc))) {
+    throw new TRPCError({ code: "NOT_FOUND" });
+  }
+  return doc;
 }
 
 export const appRouter = router({
@@ -184,16 +194,14 @@ export const appRouter = router({
       .query(({ ctx, input }) => queries.searchUserDocuments(ctx.user.id, input.query)),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ ctx, input }) => {
-        const doc = await queries.getDocumentById(input.id);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
-        return doc;
-      }),
+      .query(async ({ ctx, input }) => assertDocumentAccess(ctx.user.id, input.id)),
     toggleFavorite: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        const doc = await queries.getDocumentById(input.id);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        const doc = await assertDocumentAccess(ctx.user.id, input.id);
+        if (doc.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Can only favorite your own documents." });
+        }
         return queries.toggleDocumentFavorite(input.id);
       }),
     create: protectedProcedure
@@ -245,16 +253,14 @@ export const appRouter = router({
     history: protectedProcedure
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
-        const doc = await queries.getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertDocumentAccess(ctx.user.id, input.documentId);
         const messages = await queries.getDocumentChatHistory(input.documentId);
         return messages.reverse();
       }),
     send: protectedProcedure
       .input(z.object({ documentId: z.number(), message: z.string() }))
       .mutation(async ({ ctx, input }) => {
-        const doc = await queries.getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        const doc = await assertDocumentAccess(ctx.user.id, input.documentId);
         await queries.createChatMessage({
           documentId: input.documentId,
           userId: ctx.user.id,
@@ -318,8 +324,7 @@ export const appRouter = router({
     get: protectedProcedure
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
-        const doc = await queries.getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertDocumentAccess(ctx.user.id, input.documentId);
         return queries.getDocumentSummary(input.documentId);
       }),
     generate: protectedProcedure
@@ -335,8 +340,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const doc = await queries.getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertDocumentAccess(ctx.user.id, input.documentId);
         return documentAi.generateSummaryForDocument(input.documentId, input.topic);
       }),
   }),
@@ -345,8 +349,7 @@ export const appRouter = router({
     list: protectedProcedure
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
-        const doc = await queries.getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertDocumentAccess(ctx.user.id, input.documentId);
         return queries.getDocumentFlashcards(input.documentId);
       }),
     generate: protectedProcedure
@@ -357,8 +360,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const doc = await queries.getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertDocumentAccess(ctx.user.id, input.documentId);
         return documentAi.generateFlashcardsForDocument(
           input.documentId,
           ctx.user.id,
@@ -368,17 +370,27 @@ export const appRouter = router({
     toggleFavorite: protectedProcedure
       .input(z.object({ flashcardId: z.number() }))
       .mutation(async ({ ctx, input }) => {
+        const existing = await queries.getFlashcardById(input.flashcardId);
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+        const doc = await queries.getDocumentById(existing.documentId);
+        if (!doc || !(await canAccessDocument(ctx.user.id, doc))) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
         const card = await queries.toggleFlashcardFavorite(input.flashcardId);
         if (!card) throw new TRPCError({ code: "NOT_FOUND" });
-        if (card.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
         return card;
       }),
     markReviewed: protectedProcedure
       .input(z.object({ flashcardId: z.number(), studyTimeMinutes: z.number().optional() }))
       .mutation(async ({ ctx, input }) => {
+        const existing = await queries.getFlashcardById(input.flashcardId);
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+        const doc = await queries.getDocumentById(existing.documentId);
+        if (!doc || !(await canAccessDocument(ctx.user.id, doc))) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
         const card = await queries.updateFlashcardReview(input.flashcardId);
         if (!card) throw new TRPCError({ code: "NOT_FOUND" });
-        if (card.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
         const progress = await queries.getOrCreateProgress(card.documentId, ctx.user.id);
         const reviewedCount = (progress.flashcardsReviewed || 0) + 1;
 
@@ -413,8 +425,7 @@ export const appRouter = router({
     list: protectedProcedure
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
-        const doc = await queries.getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertDocumentAccess(ctx.user.id, input.documentId);
         return queries.getDocumentQuizzes(input.documentId);
       }),
     generate: protectedProcedure
@@ -425,8 +436,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const doc = await queries.getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertDocumentAccess(ctx.user.id, input.documentId);
         return documentAi.generateQuizForDocument(
           input.documentId,
           ctx.user.id,
@@ -438,14 +448,16 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         const quiz = await queries.getQuizById(input.quizId);
         if (!quiz) throw new TRPCError({ code: "NOT_FOUND" });
-        const doc = await queries.getDocumentById(quiz.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertDocumentAccess(ctx.user.id, quiz.documentId);
         const questions = await queries.getQuizQuestions(input.quizId);
         return { ...quiz, questions };
       }),
     submitQuiz: protectedProcedure
       .input(z.object({ quizId: z.number(), score: z.number(), studyTimeMinutes: z.number().optional() }))
       .mutation(async ({ ctx, input }) => {
+        const existingQuiz = await queries.getQuizById(input.quizId);
+        if (!existingQuiz) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertDocumentAccess(ctx.user.id, existingQuiz.documentId);
         const quiz = await queries.updateQuizScore(input.quizId, input.score, new Date());
         if (!quiz) throw new TRPCError({ code: "NOT_FOUND" });
         const progress = await queries.getOrCreateProgress(quiz.documentId, ctx.user.id);
@@ -485,8 +497,7 @@ export const appRouter = router({
     get: protectedProcedure
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
-        const doc = await queries.getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertDocumentAccess(ctx.user.id, input.documentId);
         return queries.getOrCreateProgress(input.documentId, ctx.user.id);
       }),
     stats: protectedProcedure.query(({ ctx }) => queries.getUserProgress(ctx.user.id)),
@@ -728,6 +739,9 @@ export const appRouter = router({
       };
     }),
   }),
+
+  lecturer: lecturerRouter,
+  studentCourses: studentCoursesRouter,
 });
 
 export type AppRouter = typeof appRouter;

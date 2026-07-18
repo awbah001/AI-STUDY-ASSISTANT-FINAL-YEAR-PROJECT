@@ -23,7 +23,7 @@ export const users = sqliteTable("users", {
   passwordHash: text("passwordHash"),
   /** Public URL for profile image (e.g. /uploads/avatars/...). */
   avatarUrl: text("avatarUrl"),
-  role: text("role", { enum: ["user", "admin"] }).default("user").notNull(),
+  role: text("role", { enum: ["user", "admin", "lecturer"] }).default("user").notNull(),
   isBanned: integer("isBanned", { mode: "boolean" }).default(false).notNull(),
   createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
   updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
@@ -48,10 +48,16 @@ export const documents = sqliteTable("documents", {
   extractedText: text("extractedText"),
   isFavorite: integer("isFavorite", { mode: "boolean" }).default(false).notNull(),
   isPublic: integer("isPublic", { mode: "boolean" }).default(false).notNull(),
+  /** When set, document belongs to a lecturer course; enrolled students may access. */
+  courseId: integer("courseId"),
+  materialType: text("materialType", {
+    enum: ["notes", "pdf", "slides", "assignment", "other"],
+  }).default("other"),
   createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
   updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
 }, (table) => ({
   userIdIdx: index("userIdIdx").on(table.userId),
+  courseIdIdx: index("documents_courseId_idx").on(table.courseId),
 }));
 
 export type Document = typeof documents.$inferSelect;
@@ -184,3 +190,65 @@ export const progressTracking = sqliteTable("progressTracking", {
 
 export type ProgressTracking = typeof progressTracking.$inferSelect;
 export type InsertProgressTracking = typeof progressTracking.$inferInsert;
+
+// Lecturer courses
+export const courses = sqliteTable("courses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  lecturerId: integer("lecturerId").notNull(),
+  title: text("title").notNull(),
+  code: text("code").notNull().unique(),
+  subject: text("subject"),
+  description: text("description"),
+  isActive: integer("isActive", { mode: "boolean" }).default(true).notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+}, (table) => ({
+  lecturerIdIdx: index("courses_lecturerId_idx").on(table.lecturerId),
+}));
+
+export type Course = typeof courses.$inferSelect;
+export type InsertCourse = typeof courses.$inferInsert;
+
+export const courseEnrollments = sqliteTable("courseEnrollments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  courseId: integer("courseId").notNull(),
+  studentId: integer("studentId").notNull(),
+  enrolledAt: integer("enrolledAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+}, (table) => ({
+  courseIdIdx: index("enrollments_courseId_idx").on(table.courseId),
+  studentIdIdx: index("enrollments_studentId_idx").on(table.studentId),
+}));
+
+export type CourseEnrollment = typeof courseEnrollments.$inferSelect;
+export type InsertCourseEnrollment = typeof courseEnrollments.$inferInsert;
+
+export const assignments = sqliteTable("assignments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  courseId: integer("courseId").notNull(),
+  lecturerId: integer("lecturerId").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  dueDate: integer("dueDate", { mode: "timestamp_ms" }),
+  documentId: integer("documentId"),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+}, (table) => ({
+  courseIdIdx: index("assignments_courseId_idx").on(table.courseId),
+}));
+
+export type Assignment = typeof assignments.$inferSelect;
+export type InsertAssignment = typeof assignments.$inferInsert;
+
+export const announcements = sqliteTable("announcements", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  courseId: integer("courseId").notNull(),
+  lecturerId: integer("lecturerId").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+}, (table) => ({
+  courseIdIdx: index("announcements_courseId_idx").on(table.courseId),
+}));
+
+export type Announcement = typeof announcements.$inferSelect;
+export type InsertAnnouncement = typeof announcements.$inferInsert;

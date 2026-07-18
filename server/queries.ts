@@ -1,10 +1,11 @@
-import { eq, and, desc, like, sql } from "drizzle-orm";
+import { eq, and, desc, like, sql, inArray } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 import { vectorStorePath } from "./rag/faissFlat";
 import {
   users,
   documents,
+  courseEnrollments,
   chatMessages,
   documentSummaries,
   flashcards,
@@ -56,11 +57,36 @@ export async function getUserDocuments(userId: number): Promise<Document[]> {
   const db = await getDb();
   if (!db) return [];
 
-  return db
+  const owned = await db
     .select()
     .from(documents)
     .where(sql`${documents.userId} = ${userId} OR ${documents.isPublic} = true`)
     .orderBy(desc(documents.createdAt));
+
+  const enrollments = await db
+    .select({ courseId: courseEnrollments.courseId })
+    .from(courseEnrollments)
+    .where(eq(courseEnrollments.studentId, userId));
+
+  if (enrollments.length === 0) return owned;
+
+  const courseIds = enrollments.map((e) => e.courseId);
+  const courseDocs = await db
+    .select()
+    .from(documents)
+    .where(inArray(documents.courseId, courseIds))
+    .orderBy(desc(documents.createdAt));
+
+  const seen = new Set(owned.map((d) => d.id));
+  const merged = [...owned];
+  for (const doc of courseDocs) {
+    if (!seen.has(doc.id)) {
+      seen.add(doc.id);
+      merged.push(doc);
+    }
+  }
+  merged.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+  return merged;
 }
 
 export async function listPublicDocuments(): Promise<Document[]> {
@@ -236,6 +262,13 @@ export async function createFlashcard(data: InsertFlashcard): Promise<Flashcard>
   const cards = await db.select().from(flashcards).orderBy(desc(flashcards.id)).limit(1);
   if (!cards[0]) throw new Error("Failed to create flashcard");
   return cards[0];
+}
+
+export async function getFlashcardById(id: number): Promise<Flashcard | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(flashcards).where(eq(flashcards.id, id)).limit(1);
+  return rows[0];
 }
 
 export async function getDocumentFlashcards(documentId: number): Promise<Flashcard[]> {

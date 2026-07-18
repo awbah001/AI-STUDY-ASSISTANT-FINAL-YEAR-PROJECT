@@ -33,6 +33,11 @@ import {
   TrendingUp,
   Sun,
   Moon,
+  GraduationCap,
+  Megaphone,
+  ClipboardList,
+  BarChart3,
+  BookMarked,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -49,9 +54,22 @@ const getMenuItems = (role: string = "user") => {
       { icon: SettingsIcon, label: "Settings", path: "/settings" },
     ];
   }
+  if (role === "lecturer") {
+    return [
+      { icon: LayoutDashboard, label: "Dashboard", path: "/lecturer/dashboard" },
+      { icon: BookMarked, label: "Courses", path: "/lecturer/courses" },
+      { icon: Users, label: "Students", path: "/lecturer/students" },
+      { icon: BarChart3, label: "Analytics", path: "/lecturer/analytics" },
+      { icon: Megaphone, label: "Announcements", path: "/lecturer/announcements" },
+      { icon: ClipboardList, label: "Reports", path: "/lecturer/reports" },
+      { icon: User, label: "Profile", path: "/profile" },
+      { icon: SettingsIcon, label: "Settings", path: "/settings" },
+    ];
+  }
   return [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: BookOpen, label: "Documents", path: "/documents" },
+    { icon: GraduationCap, label: "My Courses", path: "/courses" },
     { icon: Layers, label: "Flashcards", path: "/flashcards" },
     { icon: TrendingUp, label: "Progress", path: "/progress" },
     { icon: User, label: "Profile", path: "/profile" },

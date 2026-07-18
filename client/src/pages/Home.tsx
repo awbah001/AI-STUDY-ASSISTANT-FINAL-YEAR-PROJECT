@@ -2,7 +2,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
-import { BookOpen, Zap, ArrowRight } from "lucide-react";
+import { getDashboardPathForRole } from "@shared/const";
+import { BookOpen, Zap, ArrowRight, Brain } from "lucide-react";
 import { useEffect } from "react";
 
 export default function Home() {
@@ -11,7 +12,7 @@ export default function Home() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      setLocation(user?.role === "admin" ? "/admin" : "/dashboard");
+      setLocation(getDashboardPathForRole(user?.role ?? "user"));
     }
   }, [isAuthenticated, user, setLocation]);
 

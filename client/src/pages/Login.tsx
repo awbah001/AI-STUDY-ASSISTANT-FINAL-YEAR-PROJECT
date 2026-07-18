@@ -10,6 +10,7 @@ import { Link, useLocation } from "wouter";
 import { z } from "zod";
 import { toast } from "sonner";
 import { setAuthToken } from "@/lib/authToken";
+import { getDashboardPathForRole } from "@shared/const";
 import { Mail, Lock } from "lucide-react";
 
 const schema = z.object({
@@ -31,10 +32,17 @@ export default function Login() {
 
   const login = trpc.auth.login.useMutation({
     onSuccess: (data) => {
+      // Students must use the mobile app — block them on the web
+      if (data.user.role === "user") {
+        toast.error(
+          "Students must use the Cognify mobile app. Please download it on your phone."
+        );
+        return;
+      }
       setAuthToken(data.token);
       utils.auth.me.setData(undefined, data.user);
       toast.success("Signed in");
-      setLocation(data.user.role === "admin" ? "/admin" : "/dashboard");
+      setLocation(getDashboardPathForRole(data.user.role));
     },
     onError: (err) => toast.error(err.message || "Failed to sign in"),
   });
@@ -108,11 +116,18 @@ export default function Login() {
           {login.isPending ? "Signing in..." : "Sign in"}
         </Button>
 
-        <div className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
-          <Link href="/signup" className="text-emerald-600 underline-offset-4 hover:underline">
-            Sign up
-          </Link>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <strong>Students:</strong> This portal is for staff only. Please use the{" "}
+          <span className="font-semibold">Cognify mobile app</span> on your phone to access your courses.
+        </div>
+
+        <div className="text-center text-sm text-muted-foreground space-y-2">
+          <div>
+            Teaching staff?{" "}
+            <Link href="/lecturer/signup" className="text-indigo-600 underline-offset-4 hover:underline">
+              Lecturer registration
+            </Link>
+          </div>
         </div>
       </form>
     </AuthLayout>

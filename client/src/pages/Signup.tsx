@@ -9,6 +9,7 @@ import { Link, useLocation } from "wouter";
 import { z } from "zod";
 import { toast } from "sonner";
 import { setAuthToken } from "@/lib/authToken";
+import { getDashboardPathForRole } from "@shared/const";
 import { User, Mail, Lock } from "lucide-react";
 
 const schema = z
@@ -39,7 +40,7 @@ export default function Signup() {
       setAuthToken(data.token);
       utils.auth.me.setData(undefined, data.user);
       toast.success("Account created");
-      setLocation(data.user.role === "admin" ? "/admin" : "/dashboard");
+      setLocation(getDashboardPathForRole(data.user.role));
     },
     onError: (err) => toast.error(err.message || "Failed to create account"),
   });
