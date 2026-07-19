@@ -352,6 +352,70 @@ export const lecturerRouter = router({
       lecturerQueries.getLecturerEngagementOverview(ctx.user.id)
     ),
   }),
+
+  quizzes: router({
+    list: lecturerProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(({ ctx, input }) =>
+        lecturerQueries.getCourseQuizzes(input.courseId, ctx.user.id)
+      ),
+    get: lecturerProcedure
+      .input(z.object({ quizId: z.number(), courseId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const quiz = await lecturerQueries.getCourseQuizWithQuestions(
+          input.quizId,
+          input.courseId,
+          ctx.user.id
+        );
+        if (!quiz) throw new TRPCError({ code: "NOT_FOUND" });
+        return quiz;
+      }),
+    generate: lecturerProcedure
+      .input(
+        z.object({
+          courseId: z.number(),
+          documentId: z.number(),
+          questionCount: z.number().min(3).max(20).default(5),
+          title: z.string().max(200).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const course = await lecturerQueries.getCourseOwnedBy(ctx.user.id, input.courseId);
+        if (!course) throw new TRPCError({ code: "NOT_FOUND" });
+        const doc = await queries.getDocumentById(input.documentId);
+        if (!doc || doc.courseId !== input.courseId) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+        const quiz = await documentAi.generateQuizForDocument(
+          input.documentId,
+          ctx.user.id,
+          input.questionCount
+        );
+        // Optionally rename the quiz
+        if (input.title?.trim()) {
+          const dbConn = await db.getDb();
+          if (dbConn) {
+            const { quizzes: quizzesTable } = await import("../drizzle/schema");
+            await dbConn
+              .update(quizzesTable)
+              .set({ title: input.title.trim() })
+              .where((await import("drizzle-orm")).eq(quizzesTable.id, quiz.id));
+          }
+        }
+        return quiz;
+      }),
+    delete: lecturerProcedure
+      .input(z.object({ quizId: z.number(), courseId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await lecturerQueries.deleteCourseQuiz(
+          input.quizId,
+          input.courseId,
+          ctx.user.id
+        );
+        if (!ok) throw new TRPCError({ code: "NOT_FOUND" });
+        return { success: true as const };
+      }),
+  }),
 });
 
 /** Student-facing course enrollment */
@@ -378,4 +442,9 @@ export const studentCoursesRouter = router({
       if (!course) throw new TRPCError({ code: "NOT_FOUND" });
       return lecturerQueries.getCourseAnnouncements(input.courseId, course.lecturerId);
     }),
+  quizzes: protectedProcedure
+    .input(z.object({ courseId: z.number() }))
+    .query(({ ctx, input }) =>
+      lecturerQueries.getStudentCourseQuizzes(ctx.user.id, input.courseId)
+    ),
 });

@@ -654,3 +654,123 @@ export async function getStudentCourseDocuments(studentId: number, courseId: num
     .where(eq(documents.courseId, courseId))
     .orderBy(desc(documents.createdAt));
 }
+
+// ── Quiz management for lecturers ─────────────────────────────────────────────
+
+import { quizQuestions } from "../drizzle/schema";
+
+/** All quizzes for documents belonging to a course the lecturer owns */
+export async function getCourseQuizzes(courseId: number, lecturerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const owned = await getCourseOwnedBy(lecturerId, courseId);
+  if (!owned) return [];
+
+  const courseDocs = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(eq(documents.courseId, courseId));
+  const docIds = courseDocs.map((d) => d.id);
+  if (docIds.length === 0) return [];
+
+  return db
+    .select({
+      id: quizzes.id,
+      title: quizzes.title,
+      totalQuestions: quizzes.totalQuestions,
+      documentId: quizzes.documentId,
+      createdAt: quizzes.createdAt,
+    })
+    .from(quizzes)
+    .where(inArray(quizzes.documentId, docIds))
+    .orderBy(desc(quizzes.createdAt));
+}
+
+/** Quiz with all questions — used to preview a quiz the lecturer created */
+export async function getCourseQuizWithQuestions(
+  quizId: number,
+  courseId: number,
+  lecturerId: number
+) {
+  const db = await getDb();
+  if (!db) return null;
+  const owned = await getCourseOwnedBy(lecturerId, courseId);
+  if (!owned) return null;
+
+  const quizRows = await db.select().from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
+  const quiz = quizRows[0];
+  if (!quiz) return null;
+
+  // Verify the quiz belongs to a document in this course
+  const docRows = await db
+    .select({ courseId: documents.courseId })
+    .from(documents)
+    .where(eq(documents.id, quiz.documentId))
+    .limit(1);
+  if (docRows[0]?.courseId !== courseId) return null;
+
+  const questions = await db
+    .select()
+    .from(quizQuestions)
+    .where(eq(quizQuestions.quizId, quizId))
+    .orderBy(quizQuestions.id);
+
+  return { ...quiz, questions };
+}
+
+/** Delete a quiz and its questions — lecturer only */
+export async function deleteCourseQuiz(
+  quizId: number,
+  courseId: number,
+  lecturerId: number
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const owned = await getCourseOwnedBy(lecturerId, courseId);
+  if (!owned) return false;
+
+  const quizRows = await db.select().from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
+  const quiz = quizRows[0];
+  if (!quiz) return false;
+
+  const docRows = await db
+    .select({ courseId: documents.courseId })
+    .from(documents)
+    .where(eq(documents.id, quiz.documentId))
+    .limit(1);
+  if (docRows[0]?.courseId !== courseId) return false;
+
+  await db.delete(quizQuestions).where(eq(quizQuestions.quizId, quizId));
+  await db.delete(quizzes).where(eq(quizzes.id, quizId));
+  return true;
+}
+
+/** Student: list quizzes for a course they are enrolled in */
+export async function getStudentCourseQuizzes(studentId: number, courseId: number) {
+  const enrolled = await isStudentEnrolled(studentId, courseId);
+  if (!enrolled) return [];
+
+  const db = await getDb();
+  if (!db) return [];
+
+  const courseDocs = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(eq(documents.courseId, courseId));
+  const docIds = courseDocs.map((d) => d.id);
+  if (docIds.length === 0) return [];
+
+  return db
+    .select({
+      id: quizzes.id,
+      title: quizzes.title,
+      totalQuestions: quizzes.totalQuestions,
+      documentId: quizzes.documentId,
+      score: quizzes.score,
+      completedAt: quizzes.completedAt,
+      createdAt: quizzes.createdAt,
+    })
+    .from(quizzes)
+    .where(inArray(quizzes.documentId, docIds))
+    .orderBy(desc(quizzes.createdAt));
+}
