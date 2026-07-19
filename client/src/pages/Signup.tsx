@@ -134,7 +134,7 @@ export default function Signup() {
         </div>
 
         <Button
-          className="w-full h-11 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white"
+          className="w-full h-11 rounded-2xl text-white"
           type="submit"
           disabled={signup.isPending}
         >
