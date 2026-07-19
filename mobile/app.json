@@ -3,23 +3,14 @@
     "name": "Cognify",
     "slug": "cognify-mobile",
     "version": "1.0.0",
+    "sdkVersion": "54.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#10b981"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.cognify.studyassistant"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#10b981"
-      },
       "package": "com.cognify.studyassistant"
     },
     "plugins": [

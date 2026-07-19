@@ -556,6 +556,44 @@ export const appRouter = router({
   }),
 
   admin: router({
+    createLecturer: adminProcedure
+      .input(
+        z.object({
+          name: z.string().min(1).max(100),
+          email: z.string().email(),
+          password: z.string().min(8).max(200),
+          department: z.string().max(120).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const email = normalizeEmail(input.email);
+        const existing = await db.getUserByEmail(email);
+        if (existing) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "An account with this email already exists.",
+          });
+        }
+        const passwordHash = await hashPassword(input.password);
+        const openId = localOpenIdForEmail(email);
+        const user = await db.createUser({
+          openId,
+          name: input.name,
+          email,
+          loginMethod: "local",
+          passwordHash,
+          role: "lecturer",
+          lastSignedIn: new Date(),
+        });
+        if (!user) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to create lecturer account.",
+          });
+        }
+        return stripSensitiveUser(user);
+      }),
+
     getAnalytics: adminProcedure.query(async () => {
       const dbConn = await db.getDb();
       if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
@@ -659,6 +697,8 @@ export const appRouter = router({
           userId: users.id,
           userEmail: users.email,
           userName: users.name,
+          role: users.role,
+          isBanned: users.isBanned,
           userInitials: sql<string>`case when instr(${users.name}, ' ') > 0 then substr(${users.name}, 1, 1) || substr(${users.name}, instr(${users.name}, ' ') + 1, 1) else substr(${users.name}, 1, 1) end`,
           engagementScore: sql<number>`cast((coalesce(${progressTracking.quizzesAttempted}, 0) * 50 + coalesce(${progressTracking.flashcardsReviewed}, 0) * 30) as integer)`,
           quizzesAttempted: sql`coalesce(${progressTracking.quizzesAttempted}, 0)`,

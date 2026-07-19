@@ -19,7 +19,7 @@ async function hashPassword(password: string) {
 }
 
 async function restoreAdmin() {
-  const email = "awbah001@gmail.com";
+  const email = "awbah001@central.edu.sl";
   const password = "easy24006";
   const name = "Admin User";
   

@@ -121,13 +121,8 @@ export default function Login() {
           <span className="font-semibold">Cognify mobile app</span> on your phone to access your courses.
         </div>
 
-        <div className="text-center text-sm text-muted-foreground space-y-2">
-          <div>
-            Teaching staff?{" "}
-            <Link href="/lecturer/signup" className="text-indigo-600 underline-offset-4 hover:underline">
-              Lecturer registration
-            </Link>
-          </div>
+        <div className="text-center text-sm text-muted-foreground">
+          Lecturer accounts are created by the administrator.
         </div>
       </form>
     </AuthLayout>

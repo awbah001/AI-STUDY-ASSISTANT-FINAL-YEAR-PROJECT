@@ -1,24 +1,33 @@
 /**
  * tRPC client for the Cognify backend.
  *
- * The API_URL should point to your running server.
- * For local dev on Android emulator: http://10.0.2.2:5000
- * For local dev on iOS simulator:    http://localhost:5000
- * For a physical device on the same Wi-Fi, use your PC's LAN IP.
- * For production: your deployed server URL.
+ * API_URL points to your running server:
+ *   Android emulator : http://10.0.2.2:5000
+ *   iOS simulator    : http://localhost:5000
+ *   Physical device  : http://<your-pc-lan-ip>:5000
+ *   Production       : https://your-domain.com
  */
 
 import { createTRPCReact } from "@trpc/react-query";
 import { httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 import * as SecureStore from "expo-secure-store";
-import type { AppRouter } from "../../../server/routers";
 
+// ─── Router type ─────────────────────────────────────────────────────────────
+// Import ONLY the type — never the implementation — so no Node.js modules
+// get bundled into the React Native app.
+import type { AppRouter } from "../types/router";
+
+export { type AppRouter };
+
+// ─── tRPC React client ───────────────────────────────────────────────────────
 export const trpc = createTRPCReact<AppRouter>();
 
 export const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? "http://10.0.2.2:5000";
+  (process.env.EXPO_PUBLIC_API_URL as string | undefined) ??
+  "http://10.0.2.2:5000";
 
+// ─── Token helpers ────────────────────────────────────────────────────────────
 const TOKEN_KEY = "cognify_auth_token";
 
 export async function getToken(): Promise<string | null> {
@@ -33,11 +42,12 @@ export async function clearToken(): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
+// ─── Client factory ───────────────────────────────────────────────────────────
 export function createTrpcClient() {
   return trpc.createClient({
     links: [
       httpBatchLink({
-        url: `${API_URL}/trpc`,
+        url: `${API_URL}/api/trpc`,
         transformer: superjson,
         async headers() {
           const token = await getToken();

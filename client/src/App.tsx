@@ -60,8 +60,7 @@ function Router() {
         <Route path={"/"} component={Home} />
         <Route path={"/login"} component={Login} />
         <Route path="/lecturer/signup" component={LecturerSignup} />
-        <Route path="/student-blocked" component={StudentBlocked} />
-        {/* Lecturer */}
+        <Route path="/student-blocked" component={StudentBlocked} />        {/* Lecturer */}
         <Route path="/lecturer/dashboard" component={LecturerDashboard} />
         <Route path="/lecturer/courses" component={LecturerCourses} />
         <Route path="/lecturer/courses/:id" component={LecturerCourseDetail} />
