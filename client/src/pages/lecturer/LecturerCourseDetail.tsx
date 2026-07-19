@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { trpc } from "@/lib/trpc";
 import { storagePut } from "@/lib/storage";
@@ -183,12 +182,17 @@ export default function LecturerCourseDetail() {
           <ArrowLeft className="h-4 w-4" /> Back to courses
         </Button>
 
-        <div className="rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-6">
-          <h1 className="text-2xl font-bold">{course.title}</h1>
-          {course.subject ? <p className="text-indigo-600 font-medium">{course.subject}</p> : null}
-          <p className="text-sm text-muted-foreground mt-2">
-            Enrollment code: <span className="font-mono font-bold text-indigo-700">{course.code}</span>
-          </p>
+        <div className="rounded-2xl border border-indigo-100 bg-white px-6 py-5 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">{course.title}</h1>
+              {course.subject ? <p className="text-indigo-600 font-medium mt-0.5">{course.subject}</p> : null}
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Enrollment code</p>
+              <p className="font-mono font-bold text-indigo-700 text-lg tracking-widest">{course.code}</p>
+            </div>
+          </div>
         </div>
 
         <Tabs defaultValue="materials">
@@ -201,22 +205,27 @@ export default function LecturerCourseDetail() {
           </TabsList>
 
           <TabsContent value="materials" className="space-y-4 mt-4">
-            <Card className="rounded-3xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Upload className="h-5 w-5 text-indigo-600" /> Upload material
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            {/* Upload form */}
+            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
+                  <Upload className="h-4 w-4 text-indigo-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Upload Material</p>
+                  <p className="text-xs text-slate-500">PDF, DOCX, or PPTX — max 60 MB</p>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label>Title</Label>
-                    <Input value={materialTitle} onChange={(e) => setMaterialTitle(e.target.value)} placeholder="Lecture 3 - Neural Networks" />
+                    <Input value={materialTitle} onChange={(e) => setMaterialTitle(e.target.value)} placeholder="Lecture 3 - Neural Networks" className="rounded-xl border-slate-200" />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label>Type</Label>
                     <Select value={materialType} onValueChange={(v) => setMaterialType(v as typeof materialType)}>
-                      <SelectTrigger className="rounded-2xl"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="rounded-xl border-slate-200"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="pdf">PDF / Notes</SelectItem>
                         <SelectItem value="slides">Slides</SelectItem>
@@ -227,58 +236,60 @@ export default function LecturerCourseDetail() {
                     </Select>
                   </div>
                 </div>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  className="hidden"
+                <input ref={fileRef} type="file" className="hidden"
                   accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void handleUpload(f);
-                  }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleUpload(f); }}
                 />
-                <Button
-                  className="rounded-2xl bg-indigo-600"
-                  disabled={uploading}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  {uploading ? "Uploading..." : "Select PDF, DOCX, or PPTX"}
+                <Button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white gap-2" disabled={uploading} onClick={() => fileRef.current?.click()}>
+                  <Upload className="h-4 w-4" />
+                  {uploading ? "Uploading..." : "Select file to upload"}
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <div className="space-y-3">
-              {materials?.map((doc) => (
-                <Card key={doc.id} className="rounded-2xl">
-                  <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <FileText className="h-5 w-5 text-indigo-600 mt-0.5" />
-                      <div>
-                        <p className="font-semibold">{doc.title}</p>
-                        <p className="text-xs text-muted-foreground">{doc.fileName} · {doc.materialType}</p>
+            {/* Materials list */}
+            {materials && materials.length > 0 && (
+              <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+                <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                    <FileText className="h-4 w-4 text-slate-600" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800">Uploaded Materials ({materials.length})</p>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {materials.map((doc) => (
+                    <div key={doc.id} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50">
+                          <FileText className="h-4 w-4 text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-900">{doc.title}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{doc.fileName} · <span className="capitalize">{doc.materialType}</span></p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button size="sm" variant="outline" className="rounded-xl border-slate-200 gap-1.5 text-xs" disabled={genSummary.isPending} onClick={() => genSummary.mutate({ documentId: doc.id, courseId })}>
+                          <Brain className="h-3.5 w-3.5 text-violet-600" /> Summary
+                        </Button>
+                        <Button size="sm" variant="outline" className="rounded-xl border-slate-200 gap-1.5 text-xs" disabled={genFlashcards.isPending} onClick={() => genFlashcards.mutate({ documentId: doc.id, courseId, count: 10 })}>
+                          <Layers className="h-3.5 w-3.5 text-blue-600" /> Flashcards
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteMaterial.mutate({ documentId: doc.id, courseId })}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" className="rounded-xl gap-1" disabled={genSummary.isPending} onClick={() => genSummary.mutate({ documentId: doc.id, courseId })}>
-                        <Brain className="h-3.5 w-3.5" /> Summary
-                      </Button>
-                      <Button size="sm" variant="outline" className="rounded-xl gap-1" disabled={genFlashcards.isPending} onClick={() => genFlashcards.mutate({ documentId: doc.id, courseId, count: 10 })}>
-                        <Layers className="h-3.5 w-3.5" /> Flashcards
-                      </Button>
-                      <Button size="sm" variant="outline" className="rounded-xl gap-1" disabled={genQuiz.isPending} onClick={() => genQuiz.mutate({ documentId: doc.id, courseId, questionCount: 5 })}>
-                        <Brain className="h-3.5 w-3.5" /> Quiz
-                      </Button>
-                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteMaterial.mutate({ documentId: doc.id, courseId })}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {materials?.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No materials uploaded yet.</p>
-              ) : null}
-            </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {materials?.length === 0 && (
+              <div className="rounded-2xl border-2 border-dashed border-slate-200 py-12 text-center">
+                <FileText className="mx-auto h-10 w-10 text-slate-300 mb-3" />
+                <p className="text-sm text-slate-500">No materials uploaded yet.</p>
+              </div>
+            )}
           </TabsContent>
 
           {/* ── Quizzes tab ── */}
@@ -411,72 +422,155 @@ export default function LecturerCourseDetail() {
           </TabsContent>
 
           <TabsContent value="students" className="mt-4 space-y-4">
-            <Card className="rounded-3xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Enroll student</CardTitle>
-              </CardHeader>
-              <CardContent className="flex gap-2">
-                <Input placeholder="student@university.edu" value={enrollEmail} onChange={(e) => setEnrollEmail(e.target.value)} />
-                <Button className="bg-indigo-600 rounded-2xl" onClick={() => enrollStudent.mutate({ courseId, email: enrollEmail })}>Add</Button>
-              </CardContent>
-            </Card>
-            {students?.map((s) => (
-              <Card key={s.studentId} className="rounded-2xl">
-                <CardContent className="p-4 flex justify-between items-center">
-                  <div>
-                    <p className="font-medium">{s.name}</p>
-                    <p className="text-sm text-muted-foreground">{s.email}</p>
-                  </div>
-                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeStudent.mutate({ courseId, studentId: s.studentId })}>Remove</Button>
-                </CardContent>
-              </Card>
-            ))}
+            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
+                  <Users className="h-4 w-4 text-indigo-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Enroll Student</p>
+                  <p className="text-xs text-slate-500">Enter student email to add them to this course</p>
+                </div>
+              </div>
+              <div className="flex gap-2 p-6">
+                <Input placeholder="student@university.edu" value={enrollEmail} onChange={(e) => setEnrollEmail(e.target.value)} className="rounded-xl border-slate-200" />
+                <Button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shrink-0" onClick={() => enrollStudent.mutate({ courseId, email: enrollEmail })}>Add</Button>
+              </div>
+            </div>
+
+            {students && students.length > 0 && (
+              <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+                <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+                  <p className="text-sm font-semibold text-slate-800">Enrolled Students ({students.length})</p>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {students.map((s) => (
+                    <div key={s.studentId} className="flex items-center justify-between gap-4 px-6 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
+                          {s.name?.charAt(0).toUpperCase() ?? "?"}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{s.name}</p>
+                          <p className="text-xs text-slate-500">{s.email}</p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" className="rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 text-xs gap-1" onClick={() => removeStudent.mutate({ courseId, studentId: s.studentId })}>
+                        <Trash2 className="h-3.5 w-3.5" /> Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {students?.length === 0 && (
+              <div className="rounded-2xl border-2 border-dashed border-slate-200 py-12 text-center">
+                <Users className="mx-auto h-10 w-10 text-slate-300 mb-3" />
+                <p className="text-sm text-slate-500">No students enrolled yet.</p>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="assignments" className="mt-4 space-y-4">
-            <Card className="rounded-3xl">
-              <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> New assignment</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <Input placeholder="Title" value={assignTitle} onChange={(e) => setAssignTitle(e.target.value)} />
-                <Textarea placeholder="Description" value={assignDesc} onChange={(e) => setAssignDesc(e.target.value)} />
-                <Input type="datetime-local" value={assignDue} onChange={(e) => setAssignDue(e.target.value)} />
-                <Button className="bg-indigo-600 rounded-2xl" onClick={() => createAssignment.mutate({
-                  courseId,
-                  title: assignTitle,
-                  description: assignDesc || undefined,
-                  dueDate: assignDue ? new Date(assignDue) : undefined,
-                })}>Create assignment</Button>
-              </CardContent>
-            </Card>
-            {assignments?.map((a) => (
-              <Card key={a.id} className="rounded-2xl">
-                <CardContent className="p-4">
-                  <p className="font-semibold">{a.title}</p>
-                  {a.description ? <p className="text-sm text-muted-foreground mt-1">{a.description}</p> : null}
-                  {a.dueDate ? <p className="text-xs text-indigo-600 mt-2">Due: {new Date(a.dueDate).toLocaleString()}</p> : null}
-                </CardContent>
-              </Card>
-            ))}
+            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50">
+                  <ClipboardList className="h-4 w-4 text-cyan-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">New Assignment</p>
+                  <p className="text-xs text-slate-500">Create a task or project for enrolled students</p>
+                </div>
+              </div>
+              <div className="p-6 space-y-3">
+                <Input placeholder="Title" value={assignTitle} onChange={(e) => setAssignTitle(e.target.value)} className="rounded-xl border-slate-200" />
+                <Textarea placeholder="Description (optional)" value={assignDesc} onChange={(e) => setAssignDesc(e.target.value)} className="rounded-xl border-slate-200" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">Due date (optional)</Label>
+                  <Input type="datetime-local" value={assignDue} onChange={(e) => setAssignDue(e.target.value)} className="rounded-xl border-slate-200" />
+                </div>
+                <Button className="rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white gap-2" disabled={!assignTitle.trim() || createAssignment.isPending} onClick={() => createAssignment.mutate({ courseId, title: assignTitle, description: assignDesc || undefined, dueDate: assignDue ? new Date(assignDue) : undefined })}>
+                  <ClipboardList className="h-4 w-4" />
+                  {createAssignment.isPending ? "Creating..." : "Create assignment"}
+                </Button>
+              </div>
+            </div>
+
+            {assignments && assignments.length > 0 && (
+              <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+                <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+                  <p className="text-sm font-semibold text-slate-800">Assignments ({assignments.length})</p>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {assignments.map((a) => (
+                    <div key={a.id} className="px-6 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">{a.title}</p>
+                          {a.description && <p className="text-sm text-slate-500 mt-1">{a.description}</p>}
+                          {a.dueDate && (
+                            <p className="text-xs text-cyan-600 font-medium mt-1.5">
+                              Due: {new Date(a.dueDate).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {assignments?.length === 0 && (
+              <div className="rounded-2xl border-2 border-dashed border-slate-200 py-12 text-center">
+                <ClipboardList className="mx-auto h-10 w-10 text-slate-300 mb-3" />
+                <p className="text-sm text-slate-500">No assignments yet.</p>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="announcements" className="mt-4 space-y-4">
-            <Card className="rounded-3xl">
-              <CardHeader><CardTitle className="flex items-center gap-2"><Megaphone className="h-5 w-5" /> Post announcement</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <Input placeholder="Title" value={annTitle} onChange={(e) => setAnnTitle(e.target.value)} />
-                <Textarea placeholder="Message to students" value={annContent} onChange={(e) => setAnnContent(e.target.value)} rows={4} />
-                <Button className="bg-indigo-600 rounded-2xl" onClick={() => createAnnouncement.mutate({ courseId, title: annTitle, content: annContent })}>Publish</Button>
-              </CardContent>
-            </Card>
-            {announcements?.map((a) => (
-              <Card key={a.id} className="rounded-2xl">
-                <CardContent className="p-4">
-                  <p className="font-semibold">{a.title}</p>
-                  <p className="text-sm mt-2 whitespace-pre-wrap">{a.content}</p>
-                  <p className="text-xs text-muted-foreground mt-2">{new Date(a.createdAt).toLocaleString()}</p>
-                </CardContent>
-              </Card>
-            ))}
+            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50">
+                  <Megaphone className="h-4 w-4 text-rose-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Post Announcement</p>
+                  <p className="text-xs text-slate-500">Send an update to all students in this course</p>
+                </div>
+              </div>
+              <div className="p-6 space-y-3">
+                <Input placeholder="Title" value={annTitle} onChange={(e) => setAnnTitle(e.target.value)} className="rounded-xl border-slate-200" />
+                <Textarea placeholder="Message to students..." value={annContent} onChange={(e) => setAnnContent(e.target.value)} rows={4} className="rounded-xl border-slate-200" />
+                <Button className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white gap-2" disabled={!annTitle.trim() || !annContent.trim() || createAnnouncement.isPending} onClick={() => createAnnouncement.mutate({ courseId, title: annTitle, content: annContent })}>
+                  <Megaphone className="h-4 w-4" />
+                  {createAnnouncement.isPending ? "Publishing..." : "Publish announcement"}
+                </Button>
+              </div>
+            </div>
+
+            {announcements && announcements.length > 0 && (
+              <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+                <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+                  <p className="text-sm font-semibold text-slate-800">Posted Announcements ({announcements.length})</p>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {announcements.map((a) => (
+                    <div key={a.id} className="px-6 py-4">
+                      <p className="font-semibold text-slate-900">{a.title}</p>
+                      <p className="text-sm text-slate-600 mt-1.5 whitespace-pre-wrap">{a.content}</p>
+                      <p className="text-xs text-slate-400 mt-2">{new Date(a.createdAt).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {announcements?.length === 0 && (
+              <div className="rounded-2xl border-2 border-dashed border-slate-200 py-12 text-center">
+                <Megaphone className="mx-auto h-10 w-10 text-slate-300 mb-3" />
+                <p className="text-sm text-slate-500">No announcements posted yet.</p>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
