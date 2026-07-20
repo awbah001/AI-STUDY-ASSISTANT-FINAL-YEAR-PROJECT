@@ -240,7 +240,7 @@ export default function LecturerCourseDetail() {
                   accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleUpload(f); }}
                 />
-                <Button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white gap-2" disabled={uploading} onClick={() => fileRef.current?.click()}>
+                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={uploading} onClick={() => fileRef.current?.click()}>
                   <Upload className="h-4 w-4" />
                   {uploading ? "Uploading..." : "Select file to upload"}
                 </Button>
@@ -269,10 +269,10 @@ export default function LecturerCourseDetail() {
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Button size="sm" className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white gap-1.5 text-xs" disabled={genSummary.isPending} onClick={() => genSummary.mutate({ documentId: doc.id, courseId })}>
+                        <Button size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs" disabled={genSummary.isPending} onClick={() => genSummary.mutate({ documentId: doc.id, courseId })}>
                           <Brain className="h-3.5 w-3.5" /> Summary
                         </Button>
-                        <Button size="sm" className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white gap-1.5 text-xs" disabled={genFlashcards.isPending} onClick={() => genFlashcards.mutate({ documentId: doc.id, courseId, count: 10 })}>
+                        <Button size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs" disabled={genFlashcards.isPending} onClick={() => genFlashcards.mutate({ documentId: doc.id, courseId, count: 10 })}>
                           <Layers className="h-3.5 w-3.5" /> Flashcards
                         </Button>
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteMaterial.mutate({ documentId: doc.id, courseId })}>
@@ -358,7 +358,7 @@ export default function LecturerCourseDetail() {
                       />
                     </div>
                     <Button
-                      className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white gap-2"
+                      className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
                       disabled={!quizDocId || genQuiz.isPending}
                       onClick={() => {
                         if (!quizDocId) return;
@@ -434,7 +434,7 @@ export default function LecturerCourseDetail() {
               </div>
               <div className="flex gap-2 p-6">
                 <Input placeholder="student@university.edu" value={enrollEmail} onChange={(e) => setEnrollEmail(e.target.value)} className="rounded-xl border-slate-200" />
-                <Button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shrink-0" onClick={() => enrollStudent.mutate({ courseId, email: enrollEmail })}>Add</Button>
+                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0" onClick={() => enrollStudent.mutate({ courseId, email: enrollEmail })}>Add</Button>
               </div>
             </div>
 
@@ -489,7 +489,7 @@ export default function LecturerCourseDetail() {
                   <Label className="text-xs text-slate-500">Due date (optional)</Label>
                   <Input type="datetime-local" value={assignDue} onChange={(e) => setAssignDue(e.target.value)} className="rounded-xl border-slate-200" />
                 </div>
-                <Button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white gap-2" disabled={!assignTitle.trim() || createAssignment.isPending} onClick={() => createAssignment.mutate({ courseId, title: assignTitle, description: assignDesc || undefined, dueDate: assignDue ? new Date(assignDue) : undefined })}>
+                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={!assignTitle.trim() || createAssignment.isPending} onClick={() => createAssignment.mutate({ courseId, title: assignTitle, description: assignDesc || undefined, dueDate: assignDue ? new Date(assignDue) : undefined })}>
                   <ClipboardList className="h-4 w-4" />
                   {createAssignment.isPending ? "Creating..." : "Create assignment"}
                 </Button>
@@ -542,7 +542,7 @@ export default function LecturerCourseDetail() {
               <div className="p-6 space-y-3">
                 <Input placeholder="Title" value={annTitle} onChange={(e) => setAnnTitle(e.target.value)} className="rounded-xl border-slate-200" />
                 <Textarea placeholder="Message to students..." value={annContent} onChange={(e) => setAnnContent(e.target.value)} rows={4} className="rounded-xl border-slate-200" />
-                <Button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white gap-2" disabled={!annTitle.trim() || !annContent.trim() || createAnnouncement.isPending} onClick={() => createAnnouncement.mutate({ courseId, title: annTitle, content: annContent })}>
+                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={!annTitle.trim() || !annContent.trim() || createAnnouncement.isPending} onClick={() => createAnnouncement.mutate({ courseId, title: annTitle, content: annContent })}>
                   <Megaphone className="h-4 w-4" />
                   {createAnnouncement.isPending ? "Publishing..." : "Publish announcement"}
                 </Button>

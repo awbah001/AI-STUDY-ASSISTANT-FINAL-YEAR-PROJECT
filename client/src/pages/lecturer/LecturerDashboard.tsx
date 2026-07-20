@@ -40,7 +40,7 @@ export default function LecturerDashboard() {
             Manage courses, upload academic materials, and monitor student learning with AI-powered insights.
           </p>
           <Button
-            className="mt-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+            className="mt-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
             size="sm"
             onClick={() => setLocation("/lecturer/courses")}
           >

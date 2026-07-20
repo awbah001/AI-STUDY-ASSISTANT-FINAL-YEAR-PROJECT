@@ -63,7 +63,7 @@ export default function LecturerAnnouncements() {
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white gap-2">
+              <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
                 <Plus className="h-4 w-4" /> New announcement
               </Button>
             </DialogTrigger>
@@ -92,7 +92,7 @@ export default function LecturerAnnouncements() {
                   <Textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write your announcement..." className="rounded-xl" />
                 </div>
                 <Button
-                  className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white"
+                  className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
                   disabled={!courseId || !title.trim() || !content.trim() || createAnnouncement.isPending}
                   onClick={() => createAnnouncement.mutate({ courseId: Number(courseId), title, content })}
                 >
