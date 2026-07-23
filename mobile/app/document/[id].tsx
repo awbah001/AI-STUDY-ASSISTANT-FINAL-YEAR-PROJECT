@@ -15,7 +15,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useRef } from "react";
-import * as WebBrowser from "expo-web-browser";
 import { Linking } from "react-native";
 import { trpc } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
@@ -70,16 +69,14 @@ export default function DocumentDetailScreen() {
 
   const openDocument = async () => {
     try {
-      const result = await WebBrowser.openBrowserAsync(docUrl, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-      });
-    } catch {
-      // Fallback to system browser if WebBrowser fails
-      try {
+      const canOpen = await Linking.canOpenURL(docUrl);
+      if (canOpen) {
         await Linking.openURL(docUrl);
-      } catch {
-        Alert.alert("Error", "Could not open the document.");
+      } else {
+        Alert.alert("Cannot open", "No app available to open this document.");
       }
+    } catch {
+      Alert.alert("Error", "Could not open the document.");
     }
   };
 
