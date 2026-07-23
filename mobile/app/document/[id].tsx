@@ -15,9 +15,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useRef } from "react";
+import * as WebBrowser from "expo-web-browser";
 import { trpc } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
 import { useAuth } from "../../src/contexts/AuthContext";
+import { API_URL } from "../../src/lib/api";
 
 type Tab = "chat" | "flashcards" | "quiz";
 
@@ -60,6 +62,21 @@ export default function DocumentDetailScreen() {
     );
   }
 
+  // Build the full URL for the document
+  const docUrl = doc.fileUrl.startsWith("http")
+    ? doc.fileUrl
+    : `${API_URL}${doc.fileUrl}`;
+
+  const openDocument = async () => {
+    try {
+      await WebBrowser.openBrowserAsync(docUrl, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+      });
+    } catch {
+      Alert.alert("Error", "Could not open the document.");
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       {/* Header */}
@@ -70,6 +87,43 @@ export default function DocumentDetailScreen() {
         <Text style={styles.docTitle} numberOfLines={1}>
           {doc.title}
         </Text>
+        <TouchableOpacity
+          style={styles.viewBtn}
+          onPress={openDocument}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="eye-outline" size={16} color={colors.white} />
+          <Text style={styles.viewBtnText}>View</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Document info strip */}
+      <View style={styles.docInfoStrip}>
+        <View style={styles.docInfoLeft}>
+          <View style={styles.docIconSmall}>
+            <Ionicons
+              name={doc.mimeType?.includes("pdf") ? "document-text" : "document"}
+              size={16}
+              color={colors.primary}
+            />
+          </View>
+          <View>
+            <Text style={styles.docFileName} numberOfLines={1}>
+              {doc.fileName}
+            </Text>
+            <Text style={styles.docFileMeta}>
+              {(doc.fileSize / 1024).toFixed(0)} KB · {doc.mimeType?.split("/")[1]?.toUpperCase() ?? "FILE"}
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={styles.previewBtn}
+          onPress={openDocument}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="open-outline" size={14} color={colors.primary} />
+          <Text style={styles.previewBtnText}>Open PDF</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Tabs */}
@@ -492,6 +546,70 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: colors.text,
+  },
+  viewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  viewBtnText: { fontSize: 13, fontWeight: "700", color: colors.white },
+  // Document info strip
+  docInfoStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: colors.primaryLight,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: 12,
+  },
+  docInfoLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
+  docIconSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  docFileName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.text,
+    maxWidth: 180,
+  },
+  docFileMeta: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  previewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: colors.surface,
+  },
+  previewBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary,
   },
   tabBar: {
     flexDirection: "row",
