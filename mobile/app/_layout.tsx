@@ -5,18 +5,18 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import * as Notifications from "expo-notifications";
 import { AuthProvider } from "../src/contexts/AuthContext";
 import { trpc, createTrpcClient } from "../src/lib/api";
-import { registerForPushNotifications } from "../src/lib/notifications";
+import {
+  registerForPushNotifications,
+  addNotificationListener,
+} from "../src/lib/notifications";
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [queryClient] = useState(() => new QueryClient());
   const [trpcClient] = useState(() => createTrpcClient());
-  const notificationListener = useRef<Notifications.EventSubscription>();
-  const responseListener = useRef<Notifications.EventSubscription>();
 
   const [loaded] = useFonts({});
 
@@ -25,27 +25,16 @@ export default function RootLayout() {
   }, [loaded]);
 
   useEffect(() => {
-    // Request push permission on mount
+    // Request push permission on mount (no-ops if expo-notifications not installed)
     registerForPushNotifications();
 
-    // Listen for notifications received while app is open
-    notificationListener.current = Notifications.addNotificationReceivedListener(
-      (notification) => {
-        console.log("Notification received:", notification);
-      }
+    // Listen for notifications
+    const cleanup = addNotificationListener(
+      (notification) => console.log("Notification received:", notification.request.content.title),
+      (response) => console.log("Notification tapped:", response.notification.request.content.title)
     );
 
-    // Listen for user tapping a notification
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        console.log("Notification tapped:", response);
-      }
-    );
-
-    return () => {
-      notificationListener.current?.remove();
-      responseListener.current?.remove();
-    };
+    return cleanup;
   }, []);
 
   if (!loaded) return null;
