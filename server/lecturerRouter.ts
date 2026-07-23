@@ -327,9 +327,26 @@ export const lecturerRouter = router({
           content: z.string().min(1).max(5000),
         })
       )
-      .mutation(({ ctx, input }) =>
-        lecturerQueries.createAnnouncement(ctx.user.id, input)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const announcement = await lecturerQueries.createAnnouncement(ctx.user.id, input);
+
+        // Fire push notifications to all enrolled students asynchronously
+        lecturerQueries.getEnrolledStudentPushTokens(input.courseId, ctx.user.id)
+          .then(async (tokens) => {
+            if (tokens.length === 0) return;
+            const { sendPushNotifications } = await import("./pushNotifications");
+            const course = await lecturerQueries.getCourseById(input.courseId);
+            await sendPushNotifications(
+              tokens,
+              `📢 ${course?.title ?? "Your course"}`,
+              input.title,
+              { type: "announcement", courseId: input.courseId }
+            );
+          })
+          .catch((err) => console.error("[Push] Failed to send announcement notifications:", err));
+
+        return announcement;
+      }),
     delete: lecturerProcedure
       .input(z.object({ announcementId: z.number() }))
       .mutation(async ({ ctx, input }) => {

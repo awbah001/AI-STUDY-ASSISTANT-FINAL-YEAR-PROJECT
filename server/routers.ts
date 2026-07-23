@@ -114,6 +114,15 @@ export const appRouter = router({
       }),
     logout: publicProcedure.mutation(() => ({ success: true } as const)),
 
+    savePushToken: protectedProcedure
+      .input(z.object({ token: z.string().max(300) }))
+      .mutation(async ({ ctx, input }) => {
+        await db.updateUserByOpenId(ctx.user.openId, {
+          expoPushToken: input.token,
+        } as any);
+        return { success: true as const };
+      }),
+
     updateProfile: protectedProcedure
       .input(
         z.object({

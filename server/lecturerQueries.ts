@@ -841,3 +841,34 @@ export async function getQuizAttemptsByCourse(courseId: number, lecturerId: numb
 
   return results;
 }
+
+// ── Push notification helpers ──────────────────────────────────────────────────
+
+/**
+ * Returns Expo push tokens for all students enrolled in a course.
+ * Filters out nulls and duplicate tokens.
+ */
+export async function getEnrolledStudentPushTokens(
+  courseId: number,
+  lecturerId: number
+): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const owned = await getCourseOwnedBy(lecturerId, courseId);
+  if (!owned) return [];
+
+  const rows = await db
+    .select({ expoPushToken: users.expoPushToken })
+    .from(courseEnrollments)
+    .innerJoin(users, eq(courseEnrollments.studentId, users.id))
+    .where(eq(courseEnrollments.courseId, courseId));
+
+  return [
+    ...new Set(
+      rows
+        .map((r) => r.expoPushToken)
+        .filter((t): t is string => typeof t === "string" && t.startsWith("ExponentPushToken["))
+    ),
+  ];
+}

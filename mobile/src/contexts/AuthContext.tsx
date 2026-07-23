@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import * as SecureStore from "expo-secure-store";
 import { trpc } from "../lib/api";
+import { registerForPushNotifications } from "../lib/notifications";
 
 const TOKEN_KEY = "cognify_auth_token";
 
@@ -40,13 +41,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const utils = trpc.useUtils();
 
-  // On mount, restore token and fetch current user
+  const savePushToken = trpc.auth.savePushToken.useMutation();
+
+  // On mount, restore token from secure store
   useEffect(() => {
     (async () => {
       const stored = await SecureStore.getItemAsync(TOKEN_KEY);
-      if (stored) {
-        setTokenState(stored);
-      }
+      if (stored) setTokenState(stored);
       setLoading(false);
     })();
   }, []);
@@ -62,10 +63,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (meQuery.data) {
       setUser(meQuery.data as AuthUser);
     } else if (!meQuery.isLoading && token) {
-      // Token invalid — clear it
       setUser(null);
     }
   }, [meQuery.data, meQuery.isLoading, token]);
+
+  // When a student is logged in, register their push token with the server
+  useEffect(() => {
+    if (!user || user.role !== "user") return;
+    registerForPushNotifications().then((pushToken) => {
+      if (pushToken) {
+        savePushToken.mutate({ token: pushToken });
+      }
+    });
+  }, [user?.id]);
 
   const login = useCallback(async (newToken: string, newUser: AuthUser) => {
     await SecureStore.setItemAsync(TOKEN_KEY, newToken);

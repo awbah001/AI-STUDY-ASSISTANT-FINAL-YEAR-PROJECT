@@ -25,6 +25,8 @@ export const users = sqliteTable("users", {
   avatarUrl: text("avatarUrl"),
   role: text("role", { enum: ["user", "admin", "lecturer"] }).default("user").notNull(),
   isBanned: integer("isBanned", { mode: "boolean" }).default(false).notNull(),
+  /** Expo push token — saved when student registers their device */
+  expoPushToken: text("expoPushToken"),
   createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
   updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
   lastSignedIn: integer("lastSignedIn", { mode: "timestamp_ms" }).notNull().default(new Date()),
