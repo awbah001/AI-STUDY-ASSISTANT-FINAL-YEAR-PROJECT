@@ -386,39 +386,91 @@ function QuizTab({ docId }: { docId: number }) {
     onError: (err) => Alert.alert("Error", err.message),
   });
 
+  const handleSubmit = () => {
+    if (!quizId || !activeQuiz) return;
+    const questions = activeQuiz.questions ?? [];
+    const correct = questions.filter((q) => answers[q.id] === q.correctAnswer).length;
+    const s = (correct / questions.length) * 100;
+    submit.mutate({ quizId, score: s });
+  };
+
   if (quizId && activeQuiz) {
     const questions = activeQuiz.questions ?? [];
     const correctCount = submitted
       ? questions.filter((q) => answers[q.id] === q.correctAnswer).length
       : 0;
-    const score =
-      questions.length > 0 ? (correctCount / questions.length) * 100 : 0;
+    const score = questions.length > 0 ? (correctCount / questions.length) * 100 : 0;
 
     return (
       <ScrollView contentContainerStyle={styles.tabContent}>
         {submitted ? (
-          <View style={styles.scoreCard}>
-            <Text style={styles.scoreEmoji}>
-              {score >= 70 ? "🎉" : score >= 50 ? "📚" : "💪"}
-            </Text>
-            <Text style={styles.scoreValue}>{score.toFixed(0)}%</Text>
-            <Text style={styles.scoreLabel}>
-              {correctCount}/{questions.length} correct
-            </Text>
+          <>
+            {/* Score summary */}
+            <View style={styles.scoreCard}>
+              <Text style={styles.scoreEmoji}>
+                {score >= 70 ? "🎉" : score >= 50 ? "📚" : "💪"}
+              </Text>
+              <Text style={styles.scoreValue}>{score.toFixed(0)}%</Text>
+              <Text style={styles.scoreLabel}>{correctCount}/{questions.length} correct</Text>
+              <View style={styles.scoreBar}>
+                <View style={[styles.scoreBarFill, { width: `${score}%` as any }]} />
+              </View>
+            </View>
+
+            {/* Per-question breakdown */}
+            <Text style={styles.reviewTitle}>Answer Review</Text>
+            {questions.map((q, idx) => {
+              const userAns = answers[q.id];
+              const isCorrect = userAns === q.correctAnswer;
+              return (
+                <View key={q.id} style={[styles.reviewCard, isCorrect ? styles.reviewCorrect : styles.reviewWrong]}>
+                  <View style={styles.reviewHeader}>
+                    <Text style={styles.questionNumber}>Q{idx + 1}</Text>
+                    <View style={[styles.resultBadge, isCorrect ? styles.resultBadgeCorrect : styles.resultBadgeWrong]}>
+                      <Text style={[styles.resultBadgeText, isCorrect ? styles.resultBadgeTextCorrect : styles.resultBadgeTextWrong]}>
+                        {isCorrect ? "✓ Correct" : "✗ Wrong"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.questionText}>{q.question}</Text>
+
+                  {/* Your answer */}
+                  {!isCorrect && (
+                    <View style={styles.answerRow}>
+                      <Text style={styles.answerLabel}>Your answer: </Text>
+                      <Text style={styles.answerWrong}>{userAns ?? "Not answered"}</Text>
+                    </View>
+                  )}
+
+                  {/* Correct answer */}
+                  <View style={styles.answerRow}>
+                    <Text style={styles.answerLabel}>Correct answer: </Text>
+                    <Text style={styles.answerCorrect}>{q.correctAnswer}</Text>
+                  </View>
+
+                  {/* Explanation if available */}
+                  {q.explanation ? (
+                    <View style={styles.explanationBox}>
+                      <Text style={styles.explanationLabel}>💡 Explanation</Text>
+                      <Text style={styles.explanationText}>{q.explanation}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+
             <TouchableOpacity
-              style={styles.genBtn}
-              onPress={() => {
-                setQuizId(null);
-                setAnswers({});
-                setSubmitted(false);
-              }}
+              style={[styles.genBtn, { marginTop: 8 }]}
+              onPress={() => { setQuizId(null); setAnswers({}); setSubmitted(false); }}
             >
               <Text style={styles.genBtnText}>Back to quizzes</Text>
             </TouchableOpacity>
-          </View>
+          </>
         ) : (
           <>
             <Text style={styles.quizTitle}>{activeQuiz.title}</Text>
+            <Text style={styles.quizMeta}>{questions.length} questions · {Object.keys(answers).length}/{questions.length} answered</Text>
+
             {questions.map((q, idx) => (
               <View key={q.id} style={styles.questionCard}>
                 <Text style={styles.questionNumber}>Q{idx + 1}</Text>
@@ -426,55 +478,25 @@ function QuizTab({ docId }: { docId: number }) {
                 {(q.options as string[]).map((opt) => (
                   <TouchableOpacity
                     key={opt}
-                    style={[
-                      styles.option,
-                      answers[q.id] === opt && styles.optionSelected,
-                    ]}
-                    onPress={() =>
-                      setAnswers((prev) => ({ ...prev, [q.id]: opt }))
-                    }
+                    style={[styles.option, answers[q.id] === opt && styles.optionSelected]}
+                    onPress={() => setAnswers((prev) => ({ ...prev, [q.id]: opt }))}
                   >
-                    <View
-                      style={[
-                        styles.optionDot,
-                        answers[q.id] === opt && styles.optionDotSelected,
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.optionText,
-                        answers[q.id] === opt && styles.optionTextSelected,
-                      ]}
-                    >
-                      {opt}
-                    </Text>
+                    <View style={[styles.optionDot, answers[q.id] === opt && styles.optionDotSelected]} />
+                    <Text style={[styles.optionText, answers[q.id] === opt && styles.optionTextSelected]}>{opt}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             ))}
+
             <TouchableOpacity
-              style={[
-                styles.genBtn,
-                Object.keys(answers).length < questions.length &&
-                  styles.genBtnDisabled,
-              ]}
-              disabled={
-                Object.keys(answers).length < questions.length ||
-                submit.isPending
-              }
-              onPress={() => {
-                const correct = questions.filter(
-                  (q) => answers[q.id] === q.correctAnswer
-                ).length;
-                const s = (correct / questions.length) * 100;
-                submit.mutate({ quizId: quizId!, score: s });
-              }}
+              style={[styles.genBtn, Object.keys(answers).length < questions.length && styles.genBtnDisabled]}
+              disabled={Object.keys(answers).length < questions.length || submit.isPending}
+              onPress={handleSubmit}
             >
-              {submit.isPending ? (
-                <ActivityIndicator color={colors.white} size="small" />
-              ) : (
-                <Text style={styles.genBtnText}>Submit quiz</Text>
-              )}
+              {submit.isPending
+                ? <ActivityIndicator color={colors.white} size="small" />
+                : <Text style={styles.genBtnText}>Submit quiz</Text>
+              }
             </TouchableOpacity>
           </>
         )}
@@ -777,10 +799,80 @@ const styles = StyleSheet.create({
   optionDotSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
   optionText: { fontSize: 14, color: colors.text, flex: 1 },
   optionTextSelected: { color: colors.primary, fontWeight: "600" },
-  scoreCard: { alignItems: "center", marginTop: 32, gap: 8 },
+  scoreCard: { alignItems: "center", marginTop: 16, marginBottom: 8, gap: 8 },
   scoreEmoji: { fontSize: 52 },
   scoreValue: { fontSize: 52, fontWeight: "800", color: colors.primary },
   scoreLabel: { fontSize: 16, color: colors.textMuted },
+  scoreBar: {
+    width: "80%",
+    height: 8,
+    backgroundColor: "#e2e8f0",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginTop: 4,
+  },
+  scoreBarFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+  },
+  reviewTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.text,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  reviewCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1.5,
+  },
+  reviewCorrect: {
+    backgroundColor: "#f0fdf4",
+    borderColor: "#86efac",
+  },
+  reviewWrong: {
+    backgroundColor: "#fff7f7",
+    borderColor: "#fca5a5",
+  },
+  reviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  resultBadge: {
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  resultBadgeCorrect: { backgroundColor: "#dcfce7" },
+  resultBadgeWrong: { backgroundColor: "#fee2e2" },
+  resultBadgeText: { fontSize: 12, fontWeight: "700" },
+  resultBadgeTextCorrect: { color: "#16a34a" },
+  resultBadgeTextWrong: { color: "#dc2626" },
+  answerRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 6,
+    alignItems: "flex-start",
+  },
+  answerLabel: { fontSize: 13, color: colors.textMuted, fontWeight: "500" },
+  answerCorrect: { fontSize: 13, color: "#16a34a", fontWeight: "700", flex: 1 },
+  answerWrong: { fontSize: 13, color: "#dc2626", fontWeight: "700", flex: 1 },
+  explanationBox: {
+    marginTop: 10,
+    backgroundColor: "#fffbeb",
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#fde68a",
+  },
+  explanationLabel: { fontSize: 12, fontWeight: "700", color: "#92400e", marginBottom: 4 },
+  explanationText: { fontSize: 13, color: "#78350f", lineHeight: 18 },
+  quizMeta: { fontSize: 13, color: colors.textMuted, marginBottom: 16, marginTop: -8 },
   quizItem: {
     flexDirection: "row",
     alignItems: "center",

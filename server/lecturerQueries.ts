@@ -774,3 +774,70 @@ export async function getStudentCourseQuizzes(studentId: number, courseId: numbe
     .where(inArray(quizzes.documentId, docIds))
     .orderBy(desc(quizzes.createdAt));
 }
+
+// ── Quiz attempts per quiz for lecturer view ───────────────────────────────────
+
+export async function getQuizAttemptsByCourse(courseId: number, lecturerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const owned = await getCourseOwnedBy(lecturerId, courseId);
+  if (!owned) return [];
+
+  const courseDocs = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(eq(documents.courseId, courseId));
+  const docIds = courseDocs.map((d) => d.id);
+  if (docIds.length === 0) return [];
+
+  // Get all quizzes for this course
+  const courseQuizzes = await db
+    .select({
+      id: quizzes.id,
+      title: quizzes.title,
+      totalQuestions: quizzes.totalQuestions,
+      createdAt: quizzes.createdAt,
+    })
+    .from(quizzes)
+    .where(inArray(quizzes.documentId, docIds))
+    .orderBy(desc(quizzes.createdAt));
+
+  // For each quiz, get all student attempts with scores
+  const results = await Promise.all(
+    courseQuizzes.map(async (quiz) => {
+      const attempts = await db
+        .select({
+          quizId: quizzes.id,
+          studentId: users.id,
+          studentName: users.name,
+          studentEmail: users.email,
+          score: quizzes.score,
+          completedAt: quizzes.completedAt,
+        })
+        .from(quizzes)
+        .innerJoin(users, eq(quizzes.userId, users.id))
+        .where(eq(quizzes.id, quiz.id));
+
+      const completed = attempts.filter((a) => a.completedAt !== null);
+      const avgScore =
+        completed.length > 0
+          ? completed.reduce((s, a) => s + Number(a.score ?? 0), 0) / completed.length
+          : 0;
+
+      return {
+        ...quiz,
+        attempts: completed.map((a) => ({
+          studentId: a.studentId,
+          studentName: a.studentName,
+          studentEmail: a.studentEmail,
+          score: a.score ? Number(a.score) : null,
+          completedAt: a.completedAt,
+        })),
+        attemptCount: completed.length,
+        avgScore: Math.round(avgScore * 10) / 10,
+      };
+    })
+  );
+
+  return results;
+}

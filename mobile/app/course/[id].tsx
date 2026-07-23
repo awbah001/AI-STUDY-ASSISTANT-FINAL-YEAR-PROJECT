@@ -10,16 +10,18 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
 import { useAuth } from "../../src/contexts/AuthContext";
+import { showLocalNotification } from "../../src/lib/notifications";
 
 export default function CourseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
   const courseId = Number(id);
+  const prevAnnouncementCount = useRef<number | null>(null);
 
   const { data: courses } = trpc.studentCourses.list.useQuery();
   const course = courses?.find((c) => c.id === courseId);
@@ -41,6 +43,20 @@ export default function CourseDetailScreen() {
       { courseId },
       { enabled: !Number.isNaN(courseId) }
     );
+
+  // Fire a local notification when new announcements arrive
+  useEffect(() => {
+    if (!announcements) return;
+    const count = announcements.length;
+    if (prevAnnouncementCount.current !== null && count > prevAnnouncementCount.current) {
+      const newest = announcements[0];
+      showLocalNotification(
+        `📢 New announcement: ${course?.title ?? "Your course"}`,
+        newest?.title ?? "Check your course for updates."
+      );
+    }
+    prevAnnouncementCount.current = count;
+  }, [announcements]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>

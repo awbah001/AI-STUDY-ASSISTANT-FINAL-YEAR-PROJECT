@@ -351,6 +351,11 @@ export const lecturerRouter = router({
     engagement: lecturerProcedure.query(({ ctx }) =>
       lecturerQueries.getLecturerEngagementOverview(ctx.user.id)
     ),
+    quizAttempts: lecturerProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(({ ctx, input }) =>
+        lecturerQueries.getQuizAttemptsByCourse(input.courseId, ctx.user.id)
+      ),
   }),
 
   quizzes: router({
