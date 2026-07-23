@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useRef } from "react";
 import * as WebBrowser from "expo-web-browser";
+import { Linking } from "react-native";
 import { trpc } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -69,11 +70,16 @@ export default function DocumentDetailScreen() {
 
   const openDocument = async () => {
     try {
-      await WebBrowser.openBrowserAsync(docUrl, {
+      const result = await WebBrowser.openBrowserAsync(docUrl, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
       });
     } catch {
-      Alert.alert("Error", "Could not open the document.");
+      // Fallback to system browser if WebBrowser fails
+      try {
+        await Linking.openURL(docUrl);
+      } catch {
+        Alert.alert("Error", "Could not open the document.");
+      }
     }
   };
 
