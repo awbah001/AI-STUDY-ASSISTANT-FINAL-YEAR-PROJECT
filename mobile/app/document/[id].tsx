@@ -14,7 +14,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -112,6 +112,7 @@ export default function DocumentDetailScreen() {
 
 function ChatTab({ docId }: { docId: number }) {
   const [message, setMessage] = useState("");
+  const flatListRef = useRef<FlatList>(null);
   const utils = trpc.useUtils();
 
   const { data: history, isLoading } = trpc.chat.history.useQuery({ documentId: docId });
@@ -124,6 +125,11 @@ function ChatTab({ docId }: { docId: number }) {
     onError: (err) => Alert.alert("Error", err.message),
   });
 
+  // Messages come oldest-first from the server.
+  // We reverse so newest is index 0, then use inverted FlatList
+  // so newest appears at the bottom and oldest at the top.
+  const messages = [...(history ?? [])].reverse();
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -134,9 +140,11 @@ function ChatTab({ docId }: { docId: number }) {
         <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
       ) : (
         <FlatList
-          data={history ?? []}
+          ref={flatListRef}
+          data={messages}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.chatList}
+          inverted={messages.length > 0}
           renderItem={({ item }) => (
             <View
               style={[
@@ -165,7 +173,6 @@ function ChatTab({ docId }: { docId: number }) {
               </Text>
             </View>
           }
-          inverted={false}
         />
       )}
 
