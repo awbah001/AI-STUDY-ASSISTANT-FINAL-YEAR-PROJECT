@@ -125,10 +125,10 @@ function ChatTab({ docId }: { docId: number }) {
     onError: (err) => Alert.alert("Error", err.message),
   });
 
-  // Messages come oldest-first from the server.
-  // We reverse so newest is index 0, then use inverted FlatList
-  // so newest appears at the bottom and oldest at the top.
-  const messages = [...(history ?? [])].reverse();
+  // Server returns messages newest-first (it calls .reverse() before returning).
+  // FlatList with inverted=true renders index 0 at the bottom,
+  // so newest message appears at the bottom, oldest at the top — correct order.
+  const messages = history ?? [];
 
   return (
     <KeyboardAvoidingView
@@ -165,7 +165,7 @@ function ChatTab({ docId }: { docId: number }) {
             </View>
           )}
           ListEmptyComponent={
-            <View style={styles.chatEmpty}>
+            <View style={[styles.chatEmpty, { transform: [{ scaleY: -1 }] }]}>
               <Ionicons name="chatbubbles-outline" size={40} color={colors.primaryLight} />
               <Text style={styles.chatEmptyText}>Ask anything about this document</Text>
               <Text style={styles.chatEmptyHint}>
