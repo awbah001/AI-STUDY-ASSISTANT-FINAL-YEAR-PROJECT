@@ -16,7 +16,7 @@ function TabIcon({ name, label, focused, color }: TabIconProps) {
       <Ionicons
         name={focused ? (name.replace("-outline", "") as any) : (name as any)}
         size={focused ? 22 : 20}
-        color={focused ? colors.white : colors.textLight}
+        color={focused ? colors.white : "#0369a1"}
       />
       {focused && (
         <Text style={styles.tabLabel}>{label}</Text>
@@ -86,16 +86,19 @@ const styles = StyleSheet.create({
     right: 24,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#0f172a", // dark slate
+    backgroundColor: "rgba(186, 230, 253, 0.55)", // light blue transparent
     borderTopWidth: 0,
-    shadowColor: "#000",
+    shadowColor: "#7dd3fc",
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.3,
     shadowRadius: 20,
     elevation: 12,
     paddingHorizontal: 8,
     paddingBottom: 0,
     paddingTop: 0,
+    borderWidth: 1,
+    borderColor: "rgba(186, 230, 253, 0.4)",
+    overflow: "hidden",
   },
   tabItem: {
     flexDirection: "row",
