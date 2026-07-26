@@ -73,7 +73,7 @@ export default function Home() {
               </div>
               <div className="mt-6 rounded-[1.75rem] bg-slate-950/5 p-5 text-center shadow-inner dark:bg-slate-700/10">
                 <div className="mb-4 flex items-center justify-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(99,102,241,0.45)]" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.45)]" />
                   <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                     Ready to help you learn faster.
                   </p>

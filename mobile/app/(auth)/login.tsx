@@ -9,13 +9,17 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Animated,
   Image,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { trpc } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
+
+const brandLogo = require("../../assets/logo.png");
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -23,6 +27,23 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(40));
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 900,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: async (data) => {
@@ -59,38 +80,69 @@ export default function LoginScreen() {
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         {/* Logo */}
-        <View style={styles.logoSection}>
+        <Animated.View
+          style={[
+            styles.logoSection,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
           <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>C</Text>
+            <Image source={brandLogo} style={styles.logoImage} resizeMode="cover" />
           </View>
           <Text style={styles.appName}>Cognify</Text>
           <Text style={styles.tagline}>Your AI study companion</Text>
-        </View>
+        </Animated.View>
 
         {/* Form */}
-        <View style={styles.card}>
+        <Animated.View
+          style={[
+            styles.card,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
           <Text style={styles.title}>Welcome back</Text>
           <Text style={styles.subtitle}>Sign in to your student account</Text>
 
           <View style={styles.field}>
             <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="name@example.com"
-              placeholderTextColor={colors.textLight}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+            <View style={styles.inputContainer}>
+              <Ionicons
+                name="mail-outline"
+                size={20}
+                color={colors.textLight}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="name@example.com"
+                placeholderTextColor={colors.textLight}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
           </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordRow}>
+            <View style={styles.inputContainer}>
+              <Ionicons
+                name="lock-closed-outline"
+                size={20}
+                color={colors.textLight}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={[styles.input, styles.passwordInput]}
                 value={password}
@@ -103,10 +155,13 @@ export default function LoginScreen() {
               <TouchableOpacity
                 onPress={() => setShowPassword((v) => !v)}
                 style={styles.showBtn}
+                activeOpacity={0.7}
               >
-                <Text style={styles.showBtnText}>
-                  {showPassword ? "Hide" : "Show"}
-                </Text>
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={colors.textMuted}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -129,11 +184,14 @@ export default function LoginScreen() {
 
           <View style={styles.signupRow}>
             <Text style={styles.signupText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
+            <TouchableOpacity
+              onPress={() => router.push("/(auth)/signup")}
+              activeOpacity={0.7}
+            >
               <Text style={styles.signupLink}>Sign up</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -152,133 +210,124 @@ const styles = StyleSheet.create({
   },
   logoSection: {
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: 36,
   },
   logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: 14,
     shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  logoText: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: colors.white,
+  logoImage: {
+    width: "100%",
+    height: "100%",
   },
   appName: {
-    fontSize: 26,
+    fontSize: 30,
     fontWeight: "800",
     color: colors.text,
-    letterSpacing: -0.5,
+    letterSpacing: -0.75,
   },
   tagline: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textMuted,
-    marginTop: 4,
+    marginTop: 6,
   },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: 28,
+    padding: 28,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 6,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
     color: colors.text,
     marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textMuted,
-    marginBottom: 24,
+    marginBottom: 28,
   },
   field: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   label: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
     color: colors.text,
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  input: {
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: colors.text,
-    backgroundColor: "#f8fafc",
-  },
-  passwordRow: {
+  inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  passwordInput: {
-    flex: 1,
-    borderTopRightRadius: 0,
-    borderBottomRightRadius: 0,
-  },
-  showBtn: {
     borderWidth: 1.5,
-    borderLeftWidth: 0,
     borderColor: colors.border,
-    borderTopRightRadius: 14,
-    borderBottomRightRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 16,
     backgroundColor: "#f8fafc",
   },
-  showBtnText: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontWeight: "600",
+  inputIcon: {
+    paddingLeft: 16,
+  },
+  input: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: colors.text,
+  },
+  passwordInput: {
+    paddingRight: 4,
+  },
+  showBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   loginBtn: {
     backgroundColor: colors.primary,
-    borderRadius: 16,
-    paddingVertical: 15,
+    borderRadius: 18,
+    paddingVertical: 16,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 10,
     shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
   },
   loginBtnDisabled: {
     opacity: 0.7,
   },
   loginBtnText: {
     color: colors.white,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
   },
   signupRow: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 20,
+    marginTop: 24,
   },
   signupText: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textMuted,
   },
   signupLink: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
     color: colors.primary,
   },

@@ -70,7 +70,7 @@ export default function Dashboard() {
             value={progressLoading ? null : totalQuizzes}
             hint="Total completed"
             icon={<Brain className="h-5 w-5 text-white" />}
-            accent="from-violet-500 to-violet-600"
+            accent="from-purple-500 to-purple-600"
           />
         </div>
 
@@ -236,8 +236,8 @@ function StatCard(props: {
     ? "shadow-emerald-600/20" 
     : props.accent.includes("blue") 
     ? "shadow-blue-600/20" 
-    : props.accent.includes("violet") 
-    ? "shadow-violet-600/20" 
+    : props.accent.includes("purple") 
+    ? "shadow-purple-600/20" 
     : "shadow-slate-600/20";
 
   return (

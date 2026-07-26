@@ -1,73 +1,124 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { View, Text, StyleSheet, Platform } from "react-native";
 import { colors } from "../../src/theme/colors";
+
+type TabIconProps = {
+  name: string;
+  label: string;
+  focused: boolean;
+  color: string;
+};
+
+function TabIcon({ name, label, focused, color }: TabIconProps) {
+  return (
+    <View style={[styles.tabItem, focused && styles.tabItemActive]}>
+      <Ionicons
+        name={focused ? (name.replace("-outline", "") as any) : (name as any)}
+        size={focused ? 22 : 20}
+        color={focused ? colors.white : colors.textLight}
+      />
+      {focused && (
+        <Text style={styles.tabLabel}>{label}</Text>
+      )}
+    </View>
+  );
+}
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textLight,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          paddingBottom: 6,
-          paddingTop: 6,
-          height: 62,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
-        },
+        tabBarShowLabel: false,
+        tabBarStyle: styles.tabBar,
       }}
     >
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon name="home-outline" label="Home" focused={focused} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="courses"
         options={{
-          title: "Courses",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book-outline" size={size} color={color} />
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon name="book-outline" label="Courses" focused={focused} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="documents"
         options={{
-          title: "Documents",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="document-text-outline" size={size} color={color} />
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon name="document-text-outline" label="Docs" focused={focused} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="flashcards"
         options={{
-          title: "Flashcards",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="layers-outline" size={size} color={color} />
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon name="layers-outline" label="Cards" focused={focused} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="progress"
         options={{
-          title: "Progress",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="trending-up-outline" size={size} color={color} />
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon name="trending-up-outline" label="Progress" focused={focused} color={color} />
           ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    position: "absolute",
+    bottom: Platform.OS === "ios" ? 24 : 16,
+    left: 24,
+    right: 24,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#0f172a", // dark slate
+    borderTopWidth: 0,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 12,
+    paddingHorizontal: 8,
+    paddingBottom: 0,
+    paddingTop: 0,
+  },
+  tabItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 24,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minWidth: 44,
+    gap: 6,
+  },
+  tabItemActive: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  tabLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.white,
+  },
+});

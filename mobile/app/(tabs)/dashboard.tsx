@@ -6,9 +6,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -19,6 +20,7 @@ export default function DashboardScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const fadeAnim = useState(new Animated.Value(0))[0];
 
   const { data: documents, isLoading: docsLoading, refetch: refetchDocs } =
     trpc.documents.list.useQuery();
@@ -34,6 +36,14 @@ export default function DashboardScreen() {
   const totalStudyMins =
     progress?.reduce((s, p) => s + (p.totalStudyTimeMinutes ?? 0), 0) ?? 0;
 
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([refetchDocs(), refetchProgress()]);
@@ -45,6 +55,7 @@ export default function DashboardScreen() {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -53,124 +64,147 @@ export default function DashboardScreen() {
           />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Welcome back 👋</Text>
-            <Text style={styles.name}>Hi, {firstName}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.avatarBtn}
-            onPress={() => router.push("/profile")}
-          >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {user?.name?.charAt(0).toUpperCase() ?? "?"}
-              </Text>
+        <Animated.View style={{ opacity: fadeAnim }}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.greeting}>Welcome back 👋</Text>
+              <Text style={styles.name}>Hi, {firstName}</Text>
             </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Stats grid */}
-        <View style={styles.statsGrid}>
-          <StatCard
-            label="Documents"
-            value={docsLoading ? null : totalDocuments}
-            icon="document-text"
-            accent={colors.primary}
-          />
-          <StatCard
-            label="Flashcards"
-            value={progressLoading ? null : totalFlashcards}
-            icon="layers"
-            accent="#3b82f6"
-          />
-          <StatCard
-            label="Quizzes"
-            value={progressLoading ? null : totalQuizzes}
-            icon="help-circle"
-            accent="#8b5cf6"
-          />
-          <StatCard
-            label="Study time"
-            value={
-              progressLoading
-                ? null
-                : `${Math.floor(totalStudyMins / 60)}h ${totalStudyMins % 60}m`
-            }
-            icon="time"
-            accent="#f59e0b"
-          />
-        </View>
-
-        {/* Quick actions */}
-        <Text style={styles.sectionTitle}>Quick actions</Text>
-        <View style={styles.actions}>
-          <QuickAction
-            icon="book"
-            label="My Courses"
-            accent={colors.primary}
-            onPress={() => router.push("/(tabs)/courses")}
-          />
-          <QuickAction
-            icon="layers"
-            label="Flashcards"
-            accent="#3b82f6"
-            onPress={() => router.push("/(tabs)/flashcards")}
-          />
-          <QuickAction
-            icon="document-text"
-            label="Documents"
-            accent="#8b5cf6"
-            onPress={() => router.push("/(tabs)/documents")}
-          />
-          <QuickAction
-            icon="trending-up"
-            label="Progress"
-            accent="#f59e0b"
-            onPress={() => router.push("/(tabs)/progress")}
-          />
-        </View>
-
-        {/* Recent documents */}
-        <Text style={styles.sectionTitle}>Recent documents</Text>
-        {docsLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />
-        ) : documents && documents.length > 0 ? (
-          documents.slice(0, 5).map((doc) => (
             <TouchableOpacity
-              key={doc.id}
-              style={styles.docItem}
-              onPress={() =>
-                router.push({ pathname: "/document/[id]", params: { id: doc.id } })
-              }
+              style={styles.avatarBtn}
+              onPress={() => router.push("/profile")}
               activeOpacity={0.7}
             >
-              <View style={styles.docIconWrap}>
-                <Ionicons name="document-text" size={20} color={colors.primary} />
-              </View>
-              <View style={styles.docInfo}>
-                <Text style={styles.docTitle} numberOfLines={1}>
-                  {doc.title}
-                </Text>
-                <Text style={styles.docMeta}>
-                  {new Date(doc.createdAt).toLocaleDateString(undefined, {
-                    dateStyle: "medium",
-                  })}
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {user?.name?.charAt(0).toUpperCase() ?? "?"}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textLight} />
             </TouchableOpacity>
-          ))
-        ) : (
-          <View style={styles.emptyBox}>
-            <Ionicons name="cloud-upload-outline" size={36} color={colors.primaryLight} />
-            <Text style={styles.emptyText}>No documents yet</Text>
-            <Text style={styles.emptySubtext}>
-              Your lecturer will share course materials here.
-            </Text>
           </View>
-        )}
+
+          {/* Welcome Card */}
+          <View style={styles.welcomeCard}>
+            <View style={styles.welcomeContent}>
+              <View>
+                <Text style={styles.welcomeTitle}>Ready to learn?</Text>
+                <Text style={styles.welcomeSubtitle}>
+                  Pick up where you left off or explore new content
+                </Text>
+              </View>
+              <View style={styles.welcomeIcon}>
+                <Ionicons name="sparkles" size={32} color={colors.white} />
+              </View>
+            </View>
+          </View>
+
+          {/* Stats grid */}
+          <Text style={styles.sectionTitle}>Your stats</Text>
+          <View style={styles.statsGrid}>
+            <StatCard
+              label="Documents"
+              value={docsLoading ? null : totalDocuments}
+              icon="document-text"
+              accent={colors.primary}
+            />
+            <StatCard
+              label="Flashcards"
+              value={progressLoading ? null : totalFlashcards}
+              icon="layers"
+              accent="#3b82f6"
+            />
+            <StatCard
+              label="Quizzes"
+              value={progressLoading ? null : totalQuizzes}
+              icon="help-circle"
+              accent="#8b5cf6"
+            />
+            <StatCard
+              label="Study time"
+              value={
+                progressLoading
+                  ? null
+                  : `${Math.floor(totalStudyMins / 60)}h ${totalStudyMins % 60}m`
+              }
+              icon="time"
+              accent="#f59e0b"
+            />
+          </View>
+
+          {/* Quick actions */}
+          <Text style={styles.sectionTitle}>Quick actions</Text>
+          <View style={styles.actions}>
+            <QuickAction
+              icon="book"
+              label="My Courses"
+              accent={colors.primary}
+              onPress={() => router.push("/(tabs)/courses")}
+            />
+            <QuickAction
+              icon="layers"
+              label="Flashcards"
+              accent="#3b82f6"
+              onPress={() => router.push("/(tabs)/flashcards")}
+            />
+            <QuickAction
+              icon="document-text"
+              label="Documents"
+              accent="#8b5cf6"
+              onPress={() => router.push("/(tabs)/documents")}
+            />
+            <QuickAction
+              icon="trending-up"
+              label="Progress"
+              accent="#f59e0b"
+              onPress={() => router.push("/(tabs)/progress")}
+            />
+          </View>
+
+          {/* Recent documents */}
+          <Text style={styles.sectionTitle}>Recent documents</Text>
+          {docsLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color={colors.primary} size="large" />
+            </View>
+          ) : documents && documents.length > 0 ? (
+            documents.slice(0, 5).map((doc) => (
+              <TouchableOpacity
+                key={doc.id}
+                style={styles.docItem}
+                onPress={() =>
+                  router.push({ pathname: "/document/[id]", params: { id: doc.id } })
+                }
+                activeOpacity={0.7}
+              >
+                <View style={styles.docIconWrap}>
+                  <Ionicons name="document-text" size={24} color={colors.primary} />
+                </View>
+                <View style={styles.docInfo}>
+                  <Text style={styles.docTitle} numberOfLines={2}>
+                    {doc.title}
+                  </Text>
+                  <Text style={styles.docMeta}>
+                    {new Date(doc.createdAt).toLocaleDateString(undefined, {
+                      dateStyle: "medium",
+                    })}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textLight} />
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyBox}>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons name="cloud-upload-outline" size={48} color={colors.primary} />
+              </View>
+              <Text style={styles.emptyText}>No documents yet</Text>
+              <Text style={styles.emptySubtext}>
+                Your lecturer will share course materials here.
+              </Text>
+            </View>
+          )}
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -187,18 +221,38 @@ function StatCard({
   icon: string;
   accent: string;
 }) {
+  const [scale] = useState(new Animated.Value(1));
+
+  const handlePressIn = () => {
+    Animated.spring(scale, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
+
   return (
-    <View style={[styles.statCard, { borderTopColor: accent }]}>
-      <View style={[styles.statIcon, { backgroundColor: accent + "20" }]}>
-        <Ionicons name={icon as any} size={18} color={accent} />
+    <Animated.View
+      style={[styles.statCard, { transform: [{ scale }] }]}
+      onTouchStart={handlePressIn}
+      onTouchEnd={handlePressOut}
+    >
+      <View style={[styles.statIcon, { backgroundColor: accent + "15" }]}>
+        <Ionicons name={icon as any} size={22} color={accent} />
       </View>
       {value === null ? (
-        <ActivityIndicator size="small" color={accent} style={{ marginVertical: 4 }} />
+        <ActivityIndicator size="small" color={accent} style={{ marginVertical: 8 }} />
       ) : (
         <Text style={styles.statValue}>{value}</Text>
       )}
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -213,16 +267,36 @@ function QuickAction({
   accent: string;
   onPress: () => void;
 }) {
+  const [scale] = useState(new Animated.Value(1));
+
+  const handlePressIn = () => {
+    Animated.spring(scale, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
+
   return (
     <TouchableOpacity
-      style={styles.quickAction}
+      style={styles.quickActionPressable}
+      activeOpacity={1}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       onPress={onPress}
-      activeOpacity={0.75}
     >
-      <View style={[styles.qaIcon, { backgroundColor: accent + "15" }]}>
-        <Ionicons name={icon as any} size={22} color={accent} />
-      </View>
-      <Text style={styles.qaLabel}>{label}</Text>
+      <Animated.View style={[styles.quickAction, { transform: [{ scale }] }]}>
+        <View style={[styles.qaIcon, { backgroundColor: accent + "12" }]}>
+          <Ionicons name={icon as any} size={26} color={accent} />
+        </View>
+        <Text style={styles.qaLabel}>{label}</Text>
+      </Animated.View>
     </TouchableOpacity>
   );
 }
@@ -235,26 +309,67 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 20,
-    paddingBottom: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
-  greeting: { fontSize: 13, color: colors.textMuted, fontWeight: "500" },
+  greeting: { fontSize: 14, color: colors.textMuted, fontWeight: "500" },
   name: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "800",
     color: colors.text,
-    letterSpacing: -0.5,
+    letterSpacing: -0.75,
   },
   avatarBtn: {},
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  avatarText: { fontSize: 18, fontWeight: "800", color: colors.white },
+  avatarText: { fontSize: 20, fontWeight: "800", color: colors.white },
+  welcomeCard: {
+    backgroundColor: colors.primary,
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 28,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  welcomeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  welcomeTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.white,
+    marginBottom: 4,
+  },
+  welcomeSubtitle: {
+    fontSize: 14,
+    color: "#d1fae5",
+    maxWidth: "75%",
+    lineHeight: 20,
+  },
+  welcomeIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -264,35 +379,34 @@ const styles = StyleSheet.create({
   statCard: {
     width: "47%",
     backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 16,
-    borderTopWidth: 3,
+    borderRadius: 20,
+    padding: 18,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   statIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: "800",
     color: colors.text,
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  statLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
+  statLabel: { fontSize: 13, color: colors.textMuted, fontWeight: "500" },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "700",
     color: colors.text,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   actions: {
     flexDirection: "row",
@@ -300,62 +414,88 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 28,
   },
-  quickAction: {
+  quickActionPressable: {
     width: "47%",
+  },
+  quickAction: {
     backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 20,
+    padding: 18,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   qaIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 56,
+    height: 56,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  qaLabel: { fontSize: 13, fontWeight: "600", color: colors.text },
+  qaLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+    textAlign: "center",
+    lineHeight: 20,
+  },
   docItem: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   docIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 14,
   },
   docInfo: { flex: 1 },
-  docTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
-  docMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  docTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+    lineHeight: 22,
+  },
+  docMeta: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+  loadingContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+  },
   emptyBox: {
     alignItems: "center",
-    paddingVertical: 32,
-    gap: 8,
+    paddingVertical: 40,
+    gap: 12,
   },
-  emptyText: { fontSize: 15, fontWeight: "600", color: colors.text },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: { fontSize: 16, fontWeight: "600", color: colors.text },
   emptySubtext: {
-    fontSize: 13,
+    fontSize: 14,
     color: colors.textMuted,
     textAlign: "center",
     maxWidth: 260,
+    lineHeight: 20,
   },
 });

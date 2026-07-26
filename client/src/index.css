@@ -55,7 +55,7 @@
   --chart-3: #059669; /* emerald-600 */
   --chart-4: #047857; /* emerald-700 */
   --chart-5: #065f46; /* emerald-800 */
-  --radius: 0.65rem;
+  --radius: 0.875rem; /* 14px radius for cards/buttons */
   --background: oklch(1 0 0);
   --foreground: oklch(0.235 0.015 65);
   --card: oklch(1 0 0);
@@ -249,7 +249,7 @@
 }
 
 .dark .animate-gradient-x {
-  background: linear-gradient(to right, #312e81, #047857, #312e81) !important;
+  background: linear-gradient(to right, #064e3b, #059669, #064e3b) !important;
 }
 
 @keyframes gradient-x-modern {
