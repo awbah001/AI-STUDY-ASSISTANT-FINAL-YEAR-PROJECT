@@ -305,3 +305,42 @@
 [data-slot="sidebar"].animate-gradient-x [data-slot="sidebar-inner"] {
   background: transparent !important;
 }
+
+/* ── Sidebar glass shimmer animation ── */
+@keyframes sidebar-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes nav-item-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes dot-pop {
+  0%   { transform: translateY(-50%) scale(0); opacity: 0; }
+  60%  { transform: translateY(-50%) scale(1.4); opacity: 1; }
+  100% { transform: translateY(-50%) scale(1); opacity: 1; }
+}
+
+/* Applied to sidebar nav items on mount */
+.sidebar-nav-item {
+  animation: nav-item-in 0.2s ease both;
+}
+
+/* Applied to the active dot */
+.sidebar-active-dot {
+  animation: dot-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Subtle glass shimmer on the sidebar background */
+.sidebar-glass {
+  background-image: linear-gradient(
+    135deg,
+    rgba(186, 230, 253, 0.6) 0%,
+    rgba(224, 242, 254, 0.5) 40%,
+    rgba(186, 230, 253, 0.65) 100%
+  );
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}

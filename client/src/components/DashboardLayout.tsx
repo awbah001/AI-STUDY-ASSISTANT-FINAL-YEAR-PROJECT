@@ -18,41 +18,41 @@ import { Button } from "./ui/button";
 
 const ROLE_THEME = {
   admin: {
-    sidebar: "bg-slate-900",
-    sidebarBorder: "border-slate-800",
+    sidebar: "bg-sky-100/60 backdrop-blur-xl",
+    sidebarBorder: "border-sky-200/50",
     logoBg: "bg-red-500 shadow-red-500/30",
-    activeItem: "bg-slate-700/80 text-white",
-    activeIcon: "text-red-400",
-    activeDot: "bg-red-400",
-    inactiveItem: "text-slate-400 hover:bg-slate-800 hover:text-white",
-    inactiveIcon: "text-slate-500 group-hover:text-slate-300",
-    helpCard: "bg-slate-800 border-slate-700",
-    helpText: "text-slate-300",
-    helpSubtext: "text-slate-500",
-    helpBtn: "bg-red-500 hover:bg-red-600",
-    logoutText: "text-slate-400 hover:bg-slate-800 hover:text-white",
-    logoBorderBottom: "border-slate-800",
-    logoutBorderTop: "border-slate-800",
-    breadcrumb: "text-red-400 hover:text-red-300",
+    activeItem: "bg-sky-500 text-white shadow-md shadow-sky-500/30",
+    activeIcon: "text-white",
+    activeDot: "bg-white",
+    inactiveItem: "text-sky-900 hover:bg-sky-200/60 hover:text-sky-950",
+    inactiveIcon: "text-sky-500 group-hover:text-sky-700",
+    helpCard: "bg-sky-200/50 border-sky-300/40",
+    helpText: "text-sky-900",
+    helpSubtext: "text-sky-600",
+    helpBtn: "bg-sky-500 hover:bg-sky-600",
+    logoutText: "text-sky-700 hover:bg-sky-200/60 hover:text-sky-950",
+    logoBorderBottom: "border-sky-200/50",
+    logoutBorderTop: "border-sky-200/50",
+    breadcrumb: "text-sky-600 hover:text-sky-800",
     label: "Admin Portal",
   },
   lecturer: {
-    sidebar: "bg-indigo-950",
-    sidebarBorder: "border-indigo-900",
+    sidebar: "bg-sky-100/60 backdrop-blur-xl",
+    sidebarBorder: "border-sky-200/50",
     logoBg: "bg-indigo-500 shadow-indigo-500/30",
-    activeItem: "bg-indigo-800/70 text-white",
-    activeIcon: "text-indigo-300",
-    activeDot: "bg-indigo-400",
-    inactiveItem: "text-indigo-300 hover:bg-indigo-900 hover:text-white",
-    inactiveIcon: "text-indigo-600 group-hover:text-indigo-400",
-    helpCard: "bg-indigo-900 border-indigo-800",
-    helpText: "text-indigo-200",
-    helpSubtext: "text-indigo-500",
-    helpBtn: "bg-indigo-500 hover:bg-indigo-400",
-    logoutText: "text-indigo-400 hover:bg-indigo-900 hover:text-white",
-    logoBorderBottom: "border-indigo-900",
-    logoutBorderTop: "border-indigo-900",
-    breadcrumb: "text-indigo-500 hover:text-indigo-400",
+    activeItem: "bg-indigo-500 text-white shadow-md shadow-indigo-500/30",
+    activeIcon: "text-white",
+    activeDot: "bg-white",
+    inactiveItem: "text-sky-900 hover:bg-sky-200/60 hover:text-sky-950",
+    inactiveIcon: "text-sky-500 group-hover:text-sky-700",
+    helpCard: "bg-sky-200/50 border-sky-300/40",
+    helpText: "text-sky-900",
+    helpSubtext: "text-sky-600",
+    helpBtn: "bg-indigo-500 hover:bg-indigo-600",
+    logoutText: "text-sky-700 hover:bg-sky-200/60 hover:text-sky-950",
+    logoBorderBottom: "border-sky-200/50",
+    logoutBorderTop: "border-sky-200/50",
+    breadcrumb: "text-indigo-500 hover:text-indigo-700",
     label: "Lecturer Portal",
   },
   user: {
@@ -166,7 +166,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       {/* ── Sidebar ── */}
       <aside className={[
         "fixed inset-y-0 left-0 z-40 flex w-[220px] flex-col border-r transition-transform duration-300",
-        t.sidebar, t.sidebarBorder,
+        role !== "user" ? "sidebar-glass" : t.sidebar,
+        t.sidebarBorder,
         isMobile ? (mobileOpen ? "translate-x-0" : "-translate-x-full") : "translate-x-0",
       ].join(" ")}>
 
@@ -175,7 +176,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-md ${t.logoBg}`}>
             <img src="/logo.png" alt="Cognify" className="h-full w-full object-cover rounded-xl" />
           </div>
-          <span className={`text-[17px] font-bold tracking-tight ${role === "user" ? "text-slate-900" : "text-white"}`}>
+          <span className={`text-[17px] font-bold tracking-tight ${role === "user" ? "text-slate-900" : "text-sky-900"}`}>
             Cognify
           </span>
         </div>
@@ -198,7 +199,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                     type="button"
                     onClick={() => { setLocation(item.path); setMobileOpen(false); }}
                     className={[
-                      "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium",
+                      "sidebar-nav-item group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium",
                       "transition-all duration-200",
                       isActive ? t.activeItem : t.inactiveItem,
                     ].join(" ")}
@@ -211,11 +212,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                       ].join(" ")}
                     />
                     <span className="flex-1 text-left">{item.label}</span>
-                    {/* Animated active dot */}
-                    <span className={[
-                      "absolute right-2.5 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full transition-all duration-300",
-                      isActive ? `${t.activeDot} opacity-100 scale-100` : "opacity-0 scale-0",
-                    ].join(" ")} />
+                    {/* Animated active dot — pops in when active */}
+                    {isActive && (
+                      <span className={`sidebar-active-dot absolute right-2.5 top-1/2 h-1.5 w-1.5 rounded-full ${t.activeDot}`} />
+                    )}
                   </button>
                 </li>
               );
