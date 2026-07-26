@@ -20,7 +20,7 @@ const ROLE_THEME = {
   admin: {
     sidebar: "bg-sky-100/60 backdrop-blur-xl",
     sidebarBorder: "border-sky-200/50",
-    logoBg: "bg-red-500 shadow-red-500/30",
+    logoBg: "bg-sky-600 shadow-sky-500/30",
     activeItem: "bg-sky-500 text-white shadow-md shadow-sky-500/30",
     activeIcon: "text-white",
     activeDot: "bg-white",
@@ -290,7 +290,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white pl-1.5 pr-3 py-1 shadow-sm">
               <Avatar className="h-7 w-7 rounded-lg">
                 {user?.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" className="object-cover rounded-lg" /> : null}
-                <AvatarFallback className={`rounded-lg text-xs font-bold text-white ${role === "admin" ? "bg-red-500" : role === "lecturer" ? "bg-indigo-500" : "bg-emerald-600"}`}>
+                <AvatarFallback className={`rounded-lg text-xs font-bold text-white ${role === "admin" ? "bg-sky-600" : role === "lecturer" ? "bg-indigo-500" : "bg-emerald-600"}`}>
                   {user?.name?.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
