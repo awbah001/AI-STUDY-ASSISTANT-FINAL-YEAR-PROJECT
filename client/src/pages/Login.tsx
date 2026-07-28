@@ -109,7 +109,7 @@ export default function Login() {
         </div>
 
         <Button
-          className="w-full h-11 rounded-2xl text-white"
+          className="w-full h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white"
           type="submit"
           disabled={login.isPending}
         >

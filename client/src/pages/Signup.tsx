@@ -51,90 +51,90 @@ export default function Signup() {
 
   return (
     <AuthLayout title="Create account" subtitle="Get started in less than a minute.">
-      <form onSubmit={onSubmit} className="space-y-5">
-        <div className="space-y-2">
-          <Label htmlFor="name">Name</Label>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="name" className="text-sm">Name</Label>
           <div className="relative group">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-emerald-600">
-              <User className="h-4 w-4" />
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-emerald-600">
+              <User className="h-3.5 w-3.5" />
             </div>
             <Input
               id="name"
               autoComplete="name"
-              className="h-11 rounded-2xl pl-11 bg-slate-50/50 border-slate-200 focus:bg-white transition-all"
+              className="h-9 rounded-xl pl-9 bg-slate-50/50 border-slate-200 focus:bg-white transition-all text-sm"
               placeholder="John Doe"
               {...form.register("name")}
             />
           </div>
           {form.formState.errors.name ? (
-            <p className="text-sm text-destructive mt-1">{form.formState.errors.name.message}</p>
+            <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
           ) : null}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+        <div className="space-y-1.5">
+          <Label htmlFor="email" className="text-sm">Email</Label>
           <div className="relative group">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-emerald-600">
-              <Mail className="h-4 w-4" />
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-emerald-600">
+              <Mail className="h-3.5 w-3.5" />
             </div>
             <Input
               id="email"
               type="email"
               autoComplete="email"
-              className="h-11 rounded-2xl pl-11 bg-slate-50/50 border-slate-200 focus:bg-white transition-all"
+              className="h-9 rounded-xl pl-9 bg-slate-50/50 border-slate-200 focus:bg-white transition-all text-sm"
               placeholder="name@example.com"
               {...form.register("email")}
             />
           </div>
           {form.formState.errors.email ? (
-            <p className="text-sm text-destructive mt-1">{form.formState.errors.email.message}</p>
+            <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
           ) : null}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+        <div className="space-y-1.5">
+          <Label htmlFor="password" className="text-sm">Password</Label>
           <div className="relative group">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-emerald-600">
-              <Lock className="h-4 w-4" />
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-emerald-600">
+              <Lock className="h-3.5 w-3.5" />
             </div>
             <Input
               id="password"
               type="password"
               autoComplete="new-password"
-              className="h-11 rounded-2xl pl-11 bg-slate-50/50 border-slate-200 focus:bg-white transition-all"
-              placeholder="••••••••"
+              className="h-9 rounded-xl pl-9 bg-slate-50/50 border-slate-200 focus:bg-white transition-all text-sm"
+              placeholder="Min. 8 characters"
               {...form.register("password")}
             />
           </div>
           {form.formState.errors.password ? (
-            <p className="text-sm text-destructive mt-1">{form.formState.errors.password.message}</p>
+            <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
           ) : null}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="confirmPassword">Confirm password</Label>
+        <div className="space-y-1.5">
+          <Label htmlFor="confirmPassword" className="text-sm">Confirm password</Label>
           <div className="relative group">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-emerald-600">
-              <Lock className="h-4 w-4" />
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-emerald-600">
+              <Lock className="h-3.5 w-3.5" />
             </div>
             <Input
               id="confirmPassword"
               type="password"
               autoComplete="new-password"
-              className="h-11 rounded-2xl pl-11 bg-slate-50/50 border-slate-200 focus:bg-white transition-all"
+              className="h-9 rounded-xl pl-9 bg-slate-50/50 border-slate-200 focus:bg-white transition-all text-sm"
               placeholder="••••••••"
               {...form.register("confirmPassword")}
             />
           </div>
           {form.formState.errors.confirmPassword ? (
-            <p className="text-sm text-destructive mt-1">
+            <p className="text-xs text-destructive">
               {form.formState.errors.confirmPassword.message}
             </p>
           ) : null}
         </div>
 
         <Button
-          className="w-full h-11 rounded-2xl text-white"
+          className="w-full h-10 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white mt-1"
           type="submit"
           disabled={signup.isPending}
         >
