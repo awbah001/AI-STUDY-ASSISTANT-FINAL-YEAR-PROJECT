@@ -11,12 +11,13 @@ import {
   ActivityIndicator,
   Animated,
   Image,
+  Modal,
 } from "react-native";
 import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../src/contexts/AuthContext";
-import { trpc } from "../../src/lib/api";
+import { trpc, getServerUrl, saveServerUrl, getDefaultUrl } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
 
 const brandLogo = require("../../assets/logo.png");
@@ -30,20 +31,34 @@ export default function LoginScreen() {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(40));
 
+  // Server URL config
+  const [serverModalVisible, setServerModalVisible] = useState(false);
+  const [serverUrlInput, setServerUrlInput] = useState("");
+  const [currentServerUrl, setCurrentServerUrl] = useState(getDefaultUrl());
+
   useEffect(() => {
+    // Load saved server URL
+    getServerUrl().then((url) => {
+      setCurrentServerUrl(url);
+      setServerUrlInput(url);
+    });
+
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 900,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 900,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 900, useNativeDriver: true }),
     ]).start();
-  }, [fadeAnim, slideAnim]);
+  }, []);
+
+  const handleSaveServerUrl = async () => {
+    if (!serverUrlInput.trim()) {
+      Alert.alert("Invalid URL", "Please enter a server URL.");
+      return;
+    }
+    await saveServerUrl(serverUrlInput.trim());
+    setCurrentServerUrl(serverUrlInput.trim());
+    setServerModalVisible(false);
+    Alert.alert("Saved", "Server URL updated. Try signing in again.");
+  };
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: async (data) => {
@@ -184,15 +199,77 @@ export default function LoginScreen() {
 
           <View style={styles.signupRow}>
             <Text style={styles.signupText}>Don't have an account? </Text>
-            <TouchableOpacity
-              onPress={() => router.push("/(auth)/signup")}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity onPress={() => router.push("/(auth)/signup")} activeOpacity={0.7}>
               <Text style={styles.signupLink}>Sign up</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Server config link */}
+          <TouchableOpacity
+            style={styles.serverConfigBtn}
+            onPress={() => setServerModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="server-outline" size={13} color={colors.textLight} />
+            <Text style={styles.serverConfigText}>
+              Server: {currentServerUrl.replace("http://", "").replace("https://", "")}
+            </Text>
+          </TouchableOpacity>
         </Animated.View>
       </ScrollView>
+
+      {/* ── Server URL modal ── */}
+      <Modal
+        visible={serverModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setServerModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Server Settings</Text>
+              <TouchableOpacity onPress={() => setServerModalVisible(false)}>
+                <Ionicons name="close" size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              Enter your PC's IP address and port. Run{" "}
+              <Text style={{ fontWeight: "700" }}>ipconfig</Text> on your PC to find it.
+            </Text>
+
+            <View style={styles.urlExamples}>
+              <Text style={styles.urlExampleLabel}>Examples:</Text>
+              <Text style={styles.urlExample}>http://192.168.1.45:3000</Text>
+              <Text style={styles.urlExample}>http://10.0.2.2:3000 (Android emulator)</Text>
+            </View>
+
+            <TextInput
+              style={styles.urlInput}
+              value={serverUrlInput}
+              onChangeText={setServerUrlInput}
+              placeholder="http://192.168.x.x:3000"
+              placeholderTextColor={colors.textLight}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.resetBtn}
+                onPress={() => setServerUrlInput(getDefaultUrl())}
+              >
+                <Text style={styles.resetBtnText}>Reset to default</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveServerUrl}>
+                <Text style={styles.saveBtnText}>Save & close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -330,5 +407,115 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: colors.primary,
+  },
+  // Server config
+  serverConfigBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    marginTop: 20,
+    paddingVertical: 6,
+  },
+  serverConfigText: {
+    fontSize: 11,
+    color: colors.textLight,
+    fontFamily: "monospace",
+  },
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 28,
+    paddingBottom: 40,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  urlExamples: {
+    backgroundColor: "#f1f5f9",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 4,
+  },
+  urlExampleLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.textMuted,
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  urlExample: {
+    fontSize: 12,
+    fontFamily: "monospace",
+    color: "#0369a1",
+  },
+  urlInput: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 14,
+    color: colors.text,
+    backgroundColor: "#f8fafc",
+    fontFamily: "monospace",
+    marginBottom: 16,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  resetBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+  resetBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textMuted,
+  },
+  saveBtn: {
+    flex: 2,
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+  saveBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.white,
   },
 });
