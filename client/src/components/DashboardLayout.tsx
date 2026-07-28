@@ -240,7 +240,12 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         <div className={`border-t px-3 py-3 ${t.logoutBorderTop}`}>
           <button
             type="button"
-            onClick={async () => { await logout(); setLocation("/login"); }}
+            onClick={async () => {
+              await logout();
+              // Use replace() so the browser history entry is cleared —
+              // pressing Back after logout will NOT return to protected pages
+              window.location.replace("/login");
+            }}
             className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-medium transition-all duration-200 ${t.logoutText}`}
           >
             <LogOut strokeWidth={2} className="h-[18px] w-[18px] shrink-0" />

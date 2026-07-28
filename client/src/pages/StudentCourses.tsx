@@ -50,7 +50,7 @@ export default function StudentCourses() {
               maxLength={6}
             />
             <Button
-              className="rounded-2xl bg-emerald-600 hover:bg-emerald-700"
+              className="rounded-2xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25"
               disabled={code.length < 4 || enroll.isPending}
               onClick={() => enroll.mutate({ code })}
             >

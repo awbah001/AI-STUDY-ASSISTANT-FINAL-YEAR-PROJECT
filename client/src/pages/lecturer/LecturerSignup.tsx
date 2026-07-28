@@ -104,7 +104,7 @@ export default function LecturerSignup() {
         <Button
           type="submit"
           disabled={signup.isPending}
-          className="w-full h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="w-full h-11 rounded-2xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800"
         >
           {signup.isPending ? "Creating..." : "Create lecturer account"}
         </Button>

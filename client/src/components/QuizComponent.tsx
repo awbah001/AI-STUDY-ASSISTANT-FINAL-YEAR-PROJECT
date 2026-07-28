@@ -196,7 +196,7 @@ export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
           <Button
             onClick={handleSubmit}
             disabled={submitQuizMutation.isPending}
-            className="bg-emerald-600 hover:bg-emerald-700 rounded-2xl"
+            className="bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 rounded-2xl"
           >
             {submitQuizMutation.isPending ? "Submitting..." : "Submit Quiz"}
           </Button>

@@ -91,7 +91,7 @@ export default function LecturerCourses() {
           </div>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
-              <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+              <Button className="rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 gap-2">
                 <Plus className="h-4 w-4" /> New course
               </Button>
             </DialogTrigger>
@@ -239,7 +239,7 @@ function CourseForm({ title, setTitle, subject, setSubject, description, setDesc
         <Textarea value={description} onChange={(e: any) => setDescription(e.target.value)} rows={3} className="rounded-xl" />
       </div>
       <Button
-        className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+        className="w-full rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800"
         disabled={!title.trim() || pending}
         onClick={onSubmit}
       >

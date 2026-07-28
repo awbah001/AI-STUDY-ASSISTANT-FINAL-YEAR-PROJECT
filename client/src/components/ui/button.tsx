@@ -10,11 +10,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-500 dark:hover:bg-emerald-600",
+          "bg-emerald-400 text-white shadow-sm hover:bg-emerald-500 active:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
-          "border-2 border-emerald-200 bg-card text-emerald-800 shadow-xs hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-900 dark:border-emerald-700 dark:bg-transparent dark:text-emerald-100 dark:hover:bg-emerald-950 dark:hover:border-emerald-600",
+          "border border-emerald-300 bg-white text-emerald-700 shadow-xs hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-800 dark:border-emerald-700 dark:bg-transparent dark:text-emerald-300 dark:hover:bg-emerald-950",
         secondary:
           "bg-emerald-50 text-emerald-900 border border-emerald-100/90 hover:bg-emerald-100/90 dark:bg-emerald-950/60 dark:text-emerald-50 dark:border-emerald-800 dark:hover:bg-emerald-900/80",
         ghost:

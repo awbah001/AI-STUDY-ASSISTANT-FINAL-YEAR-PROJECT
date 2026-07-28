@@ -156,7 +156,7 @@ export default function Profile() {
                     type="button"
                     onClick={handleSaveName}
                     disabled={saving || name.trim() === (user?.name ?? "")}
-                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                    className="rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 gap-2"
                     size="sm"
                   >
                     {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
@@ -262,7 +262,7 @@ export default function Profile() {
                 <Button
                   type="submit"
                   disabled={pwBusy || !currentPw || !newPw || !confirmPw}
-                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                  className="rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 gap-2"
                   size="sm"
                 >
                   {pwBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
