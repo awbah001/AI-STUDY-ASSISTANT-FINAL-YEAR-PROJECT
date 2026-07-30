@@ -45,18 +45,14 @@ export default function Home() {
               Meet your study buddy
             </span>
             <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-              Hi, I'm <span className="text-primary">Nova</span>, your learning bot.
+              Hi, I&apos;m <span className="text-primary">Nova</span>, your learning bot.
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto lg:mx-0">
-              I’ll guide you through smarter study sessions, flashcards, quizzes,
-              and document insights. Tap signup and let’s get your first learning plan started.
+              Your AI-powered study space for smarter learning &mdash; summaries, flashcards, quizzes, and document chat.
             </p>
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-center lg:justify-start">
-              <Button size="lg" onClick={() => setLocation("/signup")} className="gap-2">
-                Create your free account <ArrowRight className="w-4 h-4" />
-              </Button>
-              <Button size="lg" variant="outline" asChild>
-                <a href={getLoginUrl()}>Already have an account?</a>
+              <Button size="lg" onClick={() => setLocation("/login")} className="gap-2">
+                Sign in <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -80,10 +76,10 @@ export default function Home() {
                 </div>
                 <div className="space-y-3">
                   <div className="rounded-2xl bg-white/90 p-4 text-left text-sm text-slate-600 shadow-sm dark:bg-slate-900/90 dark:text-slate-300">
-                    Upload a note and I'll build your study path.
+                    Upload a note and I&apos;ll build your study path.
                   </div>
                   <div className="rounded-2xl bg-white/90 p-4 text-left text-sm text-slate-600 shadow-sm dark:bg-slate-900/90 dark:text-slate-300">
-                    Click signup to start your first session.
+                    Sign in to start your first session.
                   </div>
                 </div>
               </div>
@@ -126,7 +122,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
           <h2 className="text-3xl font-bold">Ready to Transform Your Learning?</h2>
           <p className="text-lg opacity-90">
-            Join thousands of students using AI to study smarter, not harder.
+            Join students using AI to study smarter, not harder.
           </p>
           <Button
             size="lg"
@@ -134,7 +130,7 @@ export default function Home() {
             className="border-0 bg-white text-emerald-700 shadow-md hover:bg-emerald-50"
             asChild
           >
-            <a href={getLoginUrl()}>Start Learning Today</a>
+            <a href={getLoginUrl()}>Sign In Now</a>
           </Button>
         </div>
       </section>
