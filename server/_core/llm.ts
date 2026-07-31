@@ -240,6 +240,32 @@ const assertForgeApiKey = () => {
   }
 };
 
+// ── LM Studio health check with auto-fallback ─────────────────────────────────
+let localLLMAvailable: boolean | null = null;
+let lastHealthCheckAt = 0;
+const HEALTH_CHECK_TTL = 30_000; // recheck every 30 s
+
+async function isLocalLLMHealthy(): Promise<boolean> {
+  const now = Date.now();
+  if (localLLMAvailable !== null && now - lastHealthCheckAt < HEALTH_CHECK_TTL) {
+    return localLLMAvailable;
+  }
+  try {
+    const res = await fetch(`${ENV.lmStudioBaseUrl}/models`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    localLLMAvailable = res.ok;
+  } catch {
+    localLLMAvailable = false;
+  }
+  lastHealthCheckAt = Date.now();
+  if (!localLLMAvailable) {
+    console.warn("[LLM] Local model unavailable — will fall back to Gemini if API key is set.");
+  }
+  return localLLMAvailable;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function invokeLocalChatCompletion(
   params: InvokeParams
 ): Promise<InvokeResult> {
@@ -258,26 +284,38 @@ async function invokeLocalChatCompletion(
   };
 
   console.log(`[LLM] Invoking local model "${body.model}" with ${params.messages.length} messages.`);
-  // Log the system message and the last user message to see context
-  const systemMsg = params.messages.find(m => m.role === 'system');
-  const lastUserMsg = [...params.messages].reverse().find(m => m.role === 'user');
-  if (systemMsg) console.log(`[LLM] System Prompt: ${typeof systemMsg.content === 'string' ? systemMsg.content.slice(0, 150) : 'Complex content'}...`);
-  if (lastUserMsg) console.log(`[LLM] Last User Message: ${typeof lastUserMsg.content === 'string' ? lastUserMsg.content.slice(0, 150) : 'Complex content'}...`);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  // 60-second timeout to prevent hanging requests
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60_000);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Local LLM request failed (${response.status}): ${errorText}. Start LM Studio, load Llama 3.2 3B Instruct, and enable the local server (default http://127.0.0.1:1234).`
-    );
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    clearTimeout(timer);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Local LLM request failed (${response.status}): ${errorText}. Start LM Studio, load a model, and enable the local server.`
+      );
+    }
+
+    return (await response.json()) as InvokeResult;
+  } catch (err: any) {
+    clearTimeout(timer);
+    if (err.name === "AbortError") {
+      // Mark local LLM as unavailable so next request uses fallback
+      localLLMAvailable = false;
+      lastHealthCheckAt = Date.now();
+      throw new Error("Local LLM timed out after 60 seconds. Check LM Studio.");
+    }
+    throw err;
   }
-
-  return (await response.json()) as InvokeResult;
 }
 
 const normalizeResponseFormat = ({
@@ -327,7 +365,18 @@ const normalizeResponseFormat = ({
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   if (ENV.useLocalLlm) {
-    return invokeLocalChatCompletion(params);
+    const healthy = await isLocalLLMHealthy();
+    if (healthy) {
+      return invokeLocalChatCompletion(params);
+    }
+    // Auto-fallback to Gemini if local model is down and API key is available
+    if (ENV.forgeApiKey) {
+      console.warn("[LLM] Local model unavailable — using Gemini fallback.");
+    } else {
+      throw new Error(
+        "LM Studio is not running. Start LM Studio and load a model, or set BUILT_IN_FORGE_API_KEY for cloud fallback."
+      );
+    }
   }
 
   assertForgeApiKey();

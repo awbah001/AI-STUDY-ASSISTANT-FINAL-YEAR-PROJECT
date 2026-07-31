@@ -260,7 +260,21 @@ Create ${questionCount} multiple-choice questions with 4 options each. Return JS
 
 /**
  * Chat with RAG: retrieve relevant chunks, then answer with local LLM.
+ *
+ * Optimizations applied:
+ *  - Conversation history limited to last MAX_HISTORY_MESSAGES messages
+ *  - Context sanitized against prompt injection
+ *  - Fallback to raw document text if RAG returns nothing
  */
+const MAX_HISTORY_MESSAGES = 8; // last 4 exchanges (user + assistant pairs)
+
+function sanitizeContext(text: string): string {
+  return text
+    .replace(/ignore\s+(all\s+)?(previous|prior|above)\s+instructions?/gi, "[filtered]")
+    .replace(/you\s+are\s+now\s+/gi, "")
+    .replace(/system\s*:\s*/gi, "context: ");
+}
+
 export async function generateDocumentAwareResponse(
   documentId: number,
   userQuestion: string,
@@ -270,41 +284,37 @@ export async function generateDocumentAwareResponse(
 ): Promise<string> {
   let context = await retrieveRelevantChunks(documentId, userQuestion, 6);
   if (!context.trim() && documentText.trim()) {
-    // Fallback to beginning of document if no relevant chunks found
     context = documentText.slice(0, 8000);
   }
 
+  // Sanitize retrieved context against prompt injection
+  context = sanitizeContext(context);
+
+  // Limit history to avoid token bloat
   const historyNewestFirst = chatHistory;
-  const prior = historyNewestFirst.slice(1).reverse();
+  const prior = historyNewestFirst
+    .slice(1, MAX_HISTORY_MESSAGES + 1)
+    .reverse();
 
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
     {
       role: "system",
-      content: `You are a helpful learning assistant. Answer using the provided context from the document. If the answer is not in the context, say you do not have enough information from the document. Document title: "${documentTitle}"`,
+      content: `You are a helpful learning assistant for higher education. Answer questions accurately using only the provided document context. If the answer is not clearly in the context, say you do not have enough information from this document. Be concise, clear, and educational. Document title: "${documentTitle}"`,
     },
   ];
 
   for (const msg of prior) {
-    messages.push({
-      role: msg.role,
-      content: msg.content,
-    });
+    messages.push({ role: msg.role, content: msg.content });
   }
 
   messages.push({
     role: "user",
-    content: `Context from the document:\n${context}\n\nQuestion: ${userQuestion}`,
+    content: `Document context:\n${context}\n\nStudent question: ${userQuestion}`,
   });
 
-  const response = await invokeLLM({
-    messages,
-    max_tokens: 2048,
-  });
+  const response = await invokeLLM({ messages, max_tokens: 2048 });
 
   const content = response.choices[0]?.message.content;
-  if (typeof content !== "string") {
-    throw new Error("Invalid response from LLM");
-  }
-
+  if (typeof content !== "string") throw new Error("Invalid response from LLM");
   return content;
 }

@@ -74,6 +74,15 @@ async function startServer() {
     }
   });
 
+  // Health check endpoint
+  app.get("/health", (_req, res) => {
+    res.json({
+      status: "ok",
+      uptime: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

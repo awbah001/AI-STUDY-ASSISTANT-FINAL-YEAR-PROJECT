@@ -238,11 +238,9 @@ export const appRouter = router({
         });
         await queries.getOrCreateProgress(doc.id, ctx.user.id);
         if (doc.extractedText?.trim()) {
-          try {
-            await llmUtils.indexDocumentForRag(doc.id, doc.extractedText);
-          } catch (e) {
-            console.error("RAG indexing failed:", e);
-          }
+          // Background indexing — non-blocking, upload returns immediately
+          llmUtils.indexDocumentForRag(doc.id, doc.extractedText)
+            .catch(e => console.error("[RAG] Background indexing failed:", e));
         }
         return doc;
       }),
