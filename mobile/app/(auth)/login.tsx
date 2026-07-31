@@ -62,7 +62,6 @@ export default function LoginScreen() {
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: async (data) => {
-      // Only allow student accounts on the mobile app
       if (data.user.role !== "user") {
         Alert.alert(
           "Staff Portal",
@@ -75,7 +74,30 @@ export default function LoginScreen() {
       router.replace("/(tabs)/dashboard");
     },
     onError: (err) => {
-      Alert.alert("Sign in failed", err.message || "Invalid email or password.");
+      const msg = err.message || "";
+      const isNetworkError =
+        msg.includes("Network request failed") ||
+        msg.includes("fetch") ||
+        msg.includes("ECONNREFUSED") ||
+        msg.includes("timeout") ||
+        msg.includes("connect") ||
+        msg.includes("Unable to resolve");
+
+      if (isNetworkError) {
+        Alert.alert(
+          "Cannot reach server",
+          `The app cannot connect to:\n${currentServerUrl}\n\nTap "Server Settings" below the Sign in button to enter your PC's IP address.`,
+          [
+            { text: "OK" },
+            {
+              text: "Server Settings",
+              onPress: () => setServerModalVisible(true),
+            },
+          ]
+        );
+      } else {
+        Alert.alert("Sign in failed", msg || "Invalid email or password.");
+      }
     },
   });
 
@@ -255,6 +277,31 @@ export default function LoginScreen() {
               autoCorrect={false}
               keyboardType="url"
             />
+
+            {/* Test connection button */}
+            <TouchableOpacity
+              style={styles.testBtn}
+              onPress={async () => {
+                try {
+                  const url = serverUrlInput.trim().replace(/\/$/, "");
+                  const res = await fetch(`${url}/health`, {
+                    signal: AbortSignal.timeout(4000),
+                  });
+                  if (res.ok) {
+                    Alert.alert("✅ Connected", `Server at ${url} is reachable!`);
+                  } else {
+                    Alert.alert("⚠️ Unreachable", `Server responded with status ${res.status}`);
+                  }
+                } catch {
+                  Alert.alert(
+                    "❌ Cannot connect",
+                    `Could not reach ${serverUrlInput.trim()}\n\nMake sure:\n• Your PC and phone are on the same Wi-Fi\n• The server is running (pnpm dev)\n• The IP address is correct (run ipconfig)`
+                  );
+                }
+              }}
+            >
+              <Text style={styles.testBtnText}>Test connection</Text>
+            </TouchableOpacity>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -490,6 +537,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
     fontFamily: "monospace",
     marginBottom: 16,
+  },
+  testBtn: {
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 11,
+    alignItems: "center",
+    marginBottom: 16,
+    backgroundColor: colors.primary + "10",
+  },
+  testBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary,
   },
   modalActions: {
     flexDirection: "row",
