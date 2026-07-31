@@ -39,11 +39,11 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
-  // Capacitor mobile apps call the API from a different origin
+  // CORS — allow mobile app (ngrok tunnel, LAN, Capacitor, or production domain)
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, ngrok-skip-browser-warning");
     if (req.method === "OPTIONS") {
       res.sendStatus(204);
       return;

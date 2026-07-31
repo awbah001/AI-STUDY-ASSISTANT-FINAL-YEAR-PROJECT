@@ -11,6 +11,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "dev:ngrok": "node start-with-ngrok.mjs",
+    "ngrok:url": "node update-mobile-url.mjs",
     "build:web": "vite build",
     "cap:sync": "pnpm build:web && cap sync",
     "cap:android": "pnpm cap:sync && cap open android",
