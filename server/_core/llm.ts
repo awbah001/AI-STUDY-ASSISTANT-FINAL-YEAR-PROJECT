@@ -62,6 +62,7 @@ export type InvokeParams = {
   tool_choice?: ToolChoice;
   maxTokens?: number;
   max_tokens?: number;
+  temperature?: number;
   outputSchema?: OutputSchema;
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
@@ -260,7 +261,7 @@ async function isLocalLLMHealthy(): Promise<boolean> {
   }
   lastHealthCheckAt = Date.now();
   if (!localLLMAvailable) {
-    console.warn("[LLM] Local model unavailable — will fall back to Gemini if API key is set.");
+    console.warn("[LLM] LM Studio is not reachable at", ENV.lmStudioBaseUrl);
   }
   return localLLMAvailable;
 }
@@ -270,7 +271,7 @@ async function invokeLocalChatCompletion(
   params: InvokeParams
 ): Promise<InvokeResult> {
   const url = `${ENV.lmStudioBaseUrl}/chat/completions`;
-  const maxTokens = params.max_tokens ?? params.maxTokens ?? 4096;
+  const maxTokens = params.max_tokens ?? params.maxTokens ?? 1024;  // smaller default → faster for 3B model
   const body: Record<string, unknown> = {
     model: ENV.lmStudioModel,
     messages: params.messages.map(m => {
@@ -281,13 +282,15 @@ async function invokeLocalChatCompletion(
       return { role, content: flattenMessageContent(m) };
     }),
     max_tokens: maxTokens,
+    temperature: params.temperature ?? 0.3,
+    stream: false,
   };
 
-  console.log(`[LLM] Invoking local model "${body.model}" with ${params.messages.length} messages.`);
+  console.log(`[LLM] Invoking local model "${body.model}" with ${params.messages.length} messages (max_tokens=${maxTokens}).`);
 
-  // 60-second timeout to prevent hanging requests
+  // 120-second timeout — increased for slower hardware / larger prompts
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60_000);
+  const timer = setTimeout(() => controller.abort(), 120_000);
 
   try {
     const response = await fetch(url, {
@@ -309,10 +312,7 @@ async function invokeLocalChatCompletion(
   } catch (err: any) {
     clearTimeout(timer);
     if (err.name === "AbortError") {
-      // Mark local LLM as unavailable so next request uses fallback
-      localLLMAvailable = false;
-      lastHealthCheckAt = Date.now();
-      throw new Error("Local LLM timed out after 60 seconds. Check LM Studio.");
+      throw new Error("Local LLM timed out after 120 seconds. Check LM Studio.");
     }
     throw err;
   }
@@ -366,17 +366,12 @@ const normalizeResponseFormat = ({
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   if (ENV.useLocalLlm) {
     const healthy = await isLocalLLMHealthy();
-    if (healthy) {
-      return invokeLocalChatCompletion(params);
-    }
-    // Auto-fallback to Gemini if local model is down and API key is available
-    if (ENV.forgeApiKey) {
-      console.warn("[LLM] Local model unavailable — using Gemini fallback.");
-    } else {
+    if (!healthy) {
       throw new Error(
-        "LM Studio is not running. Start LM Studio and load a model, or set BUILT_IN_FORGE_API_KEY for cloud fallback."
+        "LM Studio is not running. Start LM Studio, load a model, and enable the local server (default http://127.0.0.1:1234)."
       );
     }
+    return invokeLocalChatCompletion(params);
   }
 
   assertForgeApiKey();

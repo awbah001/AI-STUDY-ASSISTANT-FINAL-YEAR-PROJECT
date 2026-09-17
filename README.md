@@ -1,106 +1,110 @@
-# AI Study Assistant
+# Cognify (AI Learning Assistant)
 
-An intelligent study companion built as a final year project. It helps students learn more effectively by combining document management, AI-powered chat, flashcards, quizzes, and progress tracking — all in one platform.
+Final-year project: an AI study platform with a **staff web portal** and a **student mobile app**.
+
+| Who | Where | What they do |
+|-----|--------|----------------|
+| **Lecturers & admins** | Web app in `client/` (`http://localhost:3000`) | Courses, students, assessments, moderation |
+| **Students** | Expo app in `mobile/` | Documents, RAG chat, flashcards, quizzes, planner |
+
+Do **not** treat Capacitor (`android/`, `ios/`, `pnpm cap:*`) as the student product. Those shells wrap the **staff web UI**. Students use Expo.
 
 ## Features
 
-- **Document Library** — Upload and manage PDF/DOCX study materials
-- **AI Chat** — Ask questions about your documents using RAG (Retrieval-Augmented Generation)
-- **Flashcards** — Auto-generated and manual flashcards for active recall
-- **Quizzes** — AI-generated quizzes based on uploaded content
-- **Progress Tracking** — Visual dashboard to monitor your learning progress
-- **Admin Panel** — Manage users and content (admin role)
-- **Authentication** — Secure local auth with JWT sessions
-- **Dark / Light Theme** — Switchable UI theme
+- Document upload (PDF/DOCX/PPTX) and local RAG (chunk → embed → retrieve)
+- AI chat, summaries, flashcards (SM-2), quizzes
+- Lecturer courses, enrollments, assignments, announcements
+- Admin users, content, operations, communications, audit
+- Local email/password auth with **Bearer JWT**, plus **Google Sign-In** (staff on web, students on mobile)
 
-## Tech Stack
+## Tech stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19, TypeScript, Tailwind CSS v4, shadcn/ui |
-| Backend | Node.js, Express, tRPC |
+| Web | React 19, TypeScript, Tailwind CSS v4, tRPC |
+| Student app | Expo / React Native (`mobile/`) |
+| API | Node.js, Express, tRPC |
 | Database | SQLite via Drizzle ORM |
-| AI / LLM | Google Gemini API |
+| LLM | Google Gemini and/or local LM Studio (`USE_LOCAL_LLM`) |
 | Embeddings | `@xenova/transformers` (local) |
-| Vector Store | FAISS (flat index, stored as JSON) |
-| File Parsing | `pdf-parse`, `officeparser` |
-| Auth | JWT (jose), cookie-based sessions |
-| Build | Vite, esbuild |
+| Vector store | Flat index JSON under `data/vectorstores/` |
 
-## Project Structure
+## Project structure
 
 ```
-├── client/          # React frontend
-│   └── src/
-│       ├── pages/   # Route-level page components
-│       ├── components/  # Shared UI components
-│       └── lib/     # tRPC client, auth helpers, utils
-├── server/          # Express + tRPC backend
-│   ├── rag/         # RAG pipeline (chunking, embeddings, vector search)
-│   └── _core/       # Auth, LLM, storage, routing infrastructure
-├── shared/          # Types and constants shared between client and server
-├── drizzle/         # Database schema and migrations
-└── data/            # SQLite database, uploaded files, vector stores
+├── client/          # Staff web portal (lecturers + admins)
+├── mobile/          # Student Expo app
+├── server/          # Express + tRPC API
+├── shared/          # Types and constants
+├── drizzle/         # Schema and SQL migrations
+├── data/            # SQLite DB, uploads, vector stores
+├── android/, ios/   # Optional Capacitor wrap of the staff web UI
 ```
 
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
 - Node.js 18+
 - pnpm (`npm install -g pnpm`)
+- A `JWT_SECRET` of at least 16 characters (required; the server will not start without it)
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/awbah001/AI-STUDY-ASSISTANT-FINAL-YEAR-PROJECT.git
-cd AI-STUDY-ASSISTANT-FINAL-YEAR-PROJECT
-
-# Install dependencies
 pnpm install
+cp .env.example .env   # then edit secrets
 ```
 
-### Environment Variables
+### Environment
 
-Create a `.env` file in the root directory:
+See `.env.example`. Important variables:
 
-```env
-GEMINI_API_KEY=your_gemini_api_key
-SESSION_SECRET=your_session_secret
-```
+- `JWT_SECRET` — signs session tokens (`Authorization: Bearer …`)
+- `PORT` — API + web, default **3000**
+- `GEMINI_API_KEY` — used when local LLM is off or unavailable
+- `USE_LOCAL_LLM` / `LM_STUDIO_*` — local model via LM Studio
+- `APP_URL` + `RESEND_API_KEY` — optional password-reset email
+- `VITE_GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_ID` — Google Sign-In (same Web client ID)
 
-### Database Setup
+Student app: `mobile/.env` with `EXPO_PUBLIC_API_URL` (Android emulator: `http://10.0.2.2:3000`) and `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.
+
+### Database
 
 ```bash
-pnpm db:push
+pnpm db:migrate
 ```
 
-### Run in Development
+(`pnpm db:push` still runs generate + migrate; prefer `db:generate` then `db:migrate`.)
+
+### Run
 
 ```bash
 pnpm dev
 ```
 
-The app will be available at `http://localhost:5000`.
+Web/API: **http://localhost:3000**
 
-### Build for Production
+Student app (second terminal):
 
 ```bash
-pnpm build
-pnpm start
+cd mobile
+npx expo start
 ```
+
+Staff sign in at `/login`. Students sign up only in the Expo app. Lecturer self-signup remains at `/lecturer/signup` for the project (prefer creating lecturers from Admin → Users in production).
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | Start development server with hot reload |
-| `pnpm build` | Build client and server for production |
-| `pnpm start` | Run the production build |
-| `pnpm test` | Run test suite |
-| `pnpm db:push` | Generate and apply database migrations |
-| `pnpm check` | TypeScript type checking |
+| `pnpm dev` | API + staff web (Vite) |
+| `pnpm build` / `pnpm start` | Production |
+| `pnpm test` | Server unit tests |
+| `pnpm check` | TypeScript |
+| `pnpm db:generate` | Generate Drizzle SQL |
+| `pnpm db:migrate` | Apply migrations |
+| `pnpm cap:*` | Capacitor sync of the **staff** web UI (not the student app) |
 
 ## License
 

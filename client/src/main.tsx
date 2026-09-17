@@ -10,7 +10,12 @@ import { getAuthToken } from "@/lib/authToken";
 import { apiUrl } from "@/lib/apiBaseUrl";
 import "./index.css";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 30_000, retry: 1, retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 4_000), refetchOnWindowFocus: false },
+    mutations: { retry: 0 },
+  },
+});
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;

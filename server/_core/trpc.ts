@@ -1,4 +1,4 @@
-import { NOT_ADMIN_ERR_MSG, NOT_LECTURER_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
+import { NOT_ADMIN_ERR_MSG, NOT_LECTURER_ERR_MSG, NOT_STUDENT_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
@@ -50,6 +50,33 @@ export const lecturerProcedure = t.procedure.use(
 
     if (!ctx.user || ctx.user.role !== 'lecturer') {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_LECTURER_ERR_MSG });
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user,
+      },
+    });
+  }),
+);
+
+/**
+ * Student-only procedure — enforces role === "user".
+ * All student features (flashcards, quizzes, courses, chat, progress, notifications,
+ * assignment submissions) must use this instead of protectedProcedure so that
+ * lecturers and admins cannot call them even if they know the procedure names.
+ */
+export const studentProcedure = t.procedure.use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+
+    if (!ctx.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+    }
+
+    if (ctx.user.role !== 'user') {
+      throw new TRPCError({ code: "FORBIDDEN", message: NOT_STUDENT_ERR_MSG });
     }
 
     return next({

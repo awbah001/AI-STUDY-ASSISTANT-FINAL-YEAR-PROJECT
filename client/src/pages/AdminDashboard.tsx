@@ -1,15 +1,16 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
+import { StaffWelcomeBanner } from "@/components/StaffWelcomeBanner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import {
-  Users, FileText, Layers, Brain, ShieldCheck,
+  Users, Layers, Brain,
   Activity, Server, Clock, Database, TrendingUp,
 } from "lucide-react";
 
@@ -18,27 +19,21 @@ export default function AdminDashboard() {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (user && user.role !== "admin") setLocation("/dashboard");
+    if (user && user.role !== "admin") setLocation("/login");
   }, [user, setLocation]);
 
-  const { data: analytics, isLoading } = trpc.admin.getAnalytics.useQuery(undefined, {
+  const { data: metrics, isLoading } = trpc.admin.getDashboardMetrics.useQuery({ days: 30 }, {
     enabled: user?.role === "admin",
   });
+  // Kept undefined until a dedicated top-performers endpoint is introduced.
+  const analytics = {} as { topPerformers?: any[] };
 
   const { data: performance } = trpc.admin.getSystemPerformance.useQuery(undefined, {
     enabled: user?.role === "admin",
     refetchInterval: 5000,
   });
 
-  const { userCount = 0, docCount = 0, flashcardCount = 0, quizCount = 0 } = analytics || {};
-
-  const chartData = useMemo(() => [
-    { name: "Jan", Users: Math.round(userCount * 0.22 + 200), Documents: Math.round(docCount * 0.2 + 80), Quizzes: Math.round(quizCount * 0.25 + 30) },
-    { name: "Feb", Users: Math.round(userCount * 0.28 + 240), Documents: Math.round(docCount * 0.24 + 110), Quizzes: Math.round(quizCount * 0.27 + 42) },
-    { name: "Mar", Users: Math.round(userCount * 0.34 + 280), Documents: Math.round(docCount * 0.28 + 150), Quizzes: Math.round(quizCount * 0.31 + 60) },
-    { name: "Apr", Users: Math.round(userCount * 0.42 + 320), Documents: Math.round(docCount * 0.35 + 220), Quizzes: Math.round(quizCount * 0.38 + 80) },
-    { name: "May", Users: Math.round(userCount * 0.55 + 380), Documents: Math.round(docCount * 0.45 + 300), Quizzes: Math.round(quizCount * 0.48 + 120) },
-  ], [userCount, docCount, quizCount]);
+  const chartData = (metrics?.series ?? []).map((point) => ({ name: point.date.slice(5), Signups: point.signUps, Uploads: point.uploads, Active: point.activeLearners }));
 
   if (!user || user.role !== "admin") return null;
 
@@ -46,35 +41,19 @@ export default function AdminDashboard() {
     <DashboardLayout>
       <div className="mx-auto max-w-6xl space-y-6">
 
-        {/* ── Page title ── */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Admin Dashboard</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Platform overview, analytics, and system health.
-          </p>
-        </div>
-
-        {/* ── Admin profile strip ── */}
-        <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white px-6 py-4 shadow-sm">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-xl font-bold text-white shadow-sm">
-            {user.name?.charAt(0).toUpperCase() ?? "A"}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-slate-900">{user.name}</p>
-            <p className="text-sm text-slate-500 truncate">{user.email}</p>
-          </div>
-          <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Administrator
-          </span>
-        </div>
+        <StaffWelcomeBanner
+          name={user.name?.split(" ")[0] ?? "Admin"}
+          body="Oversee users, moderate content, and keep Cognify running with live platform health and academic insights."
+          actionLabel="Manage users"
+          onAction={() => setLocation("/admin/users")}
+        />
 
         {/* ── Stat cards ── */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total Users"      value={isLoading ? null : userCount}      icon={<Users className="h-5 w-5 text-white" />}     color="bg-emerald-500" border="border-t-emerald-500" trend="+12.5%" />
-          <StatCard label="Total Documents"  value={isLoading ? null : docCount}       icon={<FileText className="h-5 w-5 text-white" />}   color="bg-blue-500"    border="border-t-blue-500"    trend="+8.2%"  />
-          <StatCard label="Total Flashcards" value={isLoading ? null : flashcardCount} icon={<Layers className="h-5 w-5 text-white" />}     color="bg-cyan-500"    border="border-t-cyan-500"    trend="+23.1%" />
-          <StatCard label="Total Quizzes"    value={isLoading ? null : quizCount}      icon={<Brain className="h-5 w-5 text-white" />}      color="bg-violet-500"  border="border-t-violet-500"  trend="-2.4%"  />
+          <StatCard label="Total Users" value={isLoading ? null : metrics?.usersTotal ?? 0} icon={<Users className="h-5 w-5 text-white" />} color="bg-emerald-500" border="border-t-emerald-500" trend="registered" />
+          <StatCard label="Active Learners" value={isLoading ? null : metrics?.activeLearners ?? 0} icon={<Activity className="h-5 w-5 text-white" />} color="bg-blue-500" border="border-t-blue-500" trend="last 30 days" />
+          <StatCard label="Quiz Completion" value={isLoading ? null : metrics?.quizCompletionRate ?? 0} icon={<Brain className="h-5 w-5 text-white" />} color="bg-cyan-500" border="border-t-cyan-500" trend="percent completed" />
+          <StatCard label="Failed Jobs" value={isLoading ? null : metrics?.failedJobs ?? 0} icon={<Layers className="h-5 w-5 text-white" />} color="bg-violet-500" border="border-t-violet-500" trend={`${metrics?.queuedJobs ?? 0} queued`} />
         </div>
 
         {/* ── Growth chart + side panels ── */}
@@ -88,7 +67,7 @@ export default function AdminDashboard() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-slate-800">Platform Growth</p>
-                <p className="text-xs text-slate-500">User engagement and content creation over time</p>
+                <p className="text-xs text-slate-500">Actual sign-ups, uploads, and active learners over the last 30 days</p>
               </div>
               <div className="hidden sm:flex items-center gap-3 text-xs text-slate-500">
                 <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" />Users</span>
@@ -106,9 +85,9 @@ export default function AdminDashboard() {
                     <Tooltip
                       contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
                     />
-                    <Line type="monotone" dataKey="Users"     stroke="#10b981" strokeWidth={2.5} dot={false} />
-                    <Line type="monotone" dataKey="Documents" stroke="#0ea5e9" strokeWidth={2.5} dot={false} />
-                    <Line type="monotone" dataKey="Quizzes"   stroke="#8b5cf6" strokeWidth={2.5} dot={false} />
+                    <Line type="monotone" dataKey="Signups" stroke="#10b981" strokeWidth={2.5} dot={false} />
+                    <Line type="monotone" dataKey="Uploads" stroke="#0ea5e9" strokeWidth={2.5} dot={false} />
+                    <Line type="monotone" dataKey="Active" stroke="#8b5cf6" strokeWidth={2.5} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -162,8 +141,8 @@ export default function AdminDashboard() {
                       <Skeleton className="h-4 flex-1" />
                     </div>
                   ))
-                ) : analytics?.recentActivities?.length ? (
-                  analytics.recentActivities.map((a: any, i: number) => (
+                ) : metrics?.recentEvents?.length ? (
+                  metrics.recentEvents.map((a: any, i: number) => (
                     <ActivityRow key={i} activity={a} />
                   ))
                 ) : (

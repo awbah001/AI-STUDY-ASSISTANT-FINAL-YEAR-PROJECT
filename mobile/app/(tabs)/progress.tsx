@@ -1,309 +1,482 @@
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
+  ScrollView,
   ActivityIndicator,
   RefreshControl,
-  Animated,
+  TouchableOpacity,
 } from "react-native";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { BackHeader } from "../../src/components/BackHeader";
 import { trpc } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
 
+const DAYS = ["M", "T", "W", "T", "F", "S", "S"]; // kept as fallback label set
+
+// Topics to show in the "Topics Mastered" section — pulled from progress data
+const TOPIC_COLORS = [colors.primary, "#f59e0b", "#3b82f6", "#8b5cf6", "#ef4444"];
+
 export default function ProgressScreen() {
   const [refreshing, setRefreshing] = useState(false);
-  const [fadeAnim] = useState(new Animated.Value(0));
 
   const { data: progress, isLoading, refetch } = trpc.progress.stats.useQuery();
-  const { data: analytics, refetch: refetchAnalytics } =
-    trpc.progress.analytics.useQuery();
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
-  }, [fadeAnim]);
+  const { data: analytics, refetch: refetchA } = trpc.progress.analytics.useQuery();
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetch(), refetchAnalytics()]);
+    await Promise.all([refetch(), refetchA()]);
     setRefreshing(false);
   };
 
-  const totalStudyMins =
-    progress?.reduce((s, p) => s + (p.totalStudyTimeMinutes ?? 0), 0) ?? 0;
-  const totalQuizzes =
+  const streak = analytics?.currentStreak ?? 0;
+  const totalMins =
+    analytics?.totalStudyTime ??
+    progress?.reduce((s, p) => s + (p.totalStudyTimeMinutes ?? 0), 0) ??
+    0;
+  const studyH = Math.floor(totalMins / 60);
+  const studyM = totalMins % 60;
+  const quizzesTaken =
     progress?.reduce((s, p) => s + (p.quizzesAttempted ?? 0), 0) ?? 0;
-  const totalFlashcards =
+  const flashReviewed =
     progress?.reduce((s, p) => s + (p.flashcardsReviewed ?? 0), 0) ?? 0;
+  const scored = (progress ?? []).filter((p) => (p.quizzesAttempted ?? 0) > 0);
   const avgScore =
-    progress && progress.length > 0
-      ? (
-          progress.reduce((s, p) => s + (p.averageQuizScore ?? 0), 0) /
-          progress.length
-        ).toFixed(1)
-      : "0.0";
-  const currentStreak = analytics?.currentStreak ?? 0;
+    scored.length > 0
+      ? Math.round(
+          scored.reduce((s, p) => s + (p.averageQuizScore ?? 0), 0) / scored.length
+        )
+      : 0;
+
+  // ── Real 7-day chart from analytics.dailyData ──────────────────────────────
+  // dailyData is an array of 7 items, index 0 = 6 days ago, index 6 = today
+  const dailyData = analytics?.dailyData ?? [];
+
+  // Map real minutes to bar heights (max 80px)
+  const rawMins = dailyData.map((d) => d.totalMinutes ?? 0);
+  const maxMins = Math.max(...rawMins, 1); // avoid ÷0
+  const bars = rawMins.map((m) => Math.max(m > 0 ? 8 : 4, Math.round((m / maxMins) * 80)));
+
+  // Day labels from the data (Sun/Mon/Tue… from server)
+  const dayLabels = dailyData.length === 7
+    ? dailyData.map((d) => d.dayLabel.charAt(0)) // single letter: M T W…
+    : ["M", "T", "W", "T", "F", "S", "S"];
+
+  // Today is always the last item (index 6)
+  const todayIdx = dailyData.length - 1;
+
+  // Topics mastered from real progress data
+  const topics = (progress ?? [])
+    .filter(
+      (p) =>
+        (p.averageQuizScore ?? 0) > 0 ||
+        (p.quizzesAttempted ?? 0) > 0 ||
+        (p.flashcardsReviewed ?? 0) > 0 ||
+        (p.totalStudyTimeMinutes ?? 0) > 0
+    )
+    .map((p, i) => ({
+      name: p.documentTitle ?? `Material ${i + 1}`,
+      pct: Math.min(
+        Math.round(
+          (p.averageQuizScore ?? 0) > 0
+            ? p.averageQuizScore ?? 0
+            : Math.min((p.flashcardsReviewed ?? 0) * 10 + (p.totalStudyTimeMinutes ?? 0), 100)
+        ),
+        100
+      ),
+      meta: `${p.quizzesAttempted ?? 0} quizzes · ${p.flashcardsReviewed ?? 0} cards`,
+      color: TOPIC_COLORS[i % TOPIC_COLORS.length],
+    }));
+
+  const studiedDays = dailyData.map((d) => (d.totalMinutes ?? 0) > 0);
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView style={s.safe} edges={["top"]}>
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing} onRefresh={onRefresh}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
             tintColor={colors.primary}
           />
         }
       >
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <Text style={styles.pageTitle}>Progress</Text>
-          <Text style={styles.pageSubtitle}>Your learning journey at a glance.</Text>
+        {/* ── Header ── */}
+        <BackHeader title="My Progress" subtitle="Your real study activity" />
 
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator color={colors.primary} size="large" />
+        {isLoading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+        ) : (
+          <>
+            <View style={s.statsGrid}>
+              <View style={s.statCard}>
+                <Text style={s.statLabel}>Study time</Text>
+                <Text style={s.statValue}>
+                  {studyH}h {studyM}m
+                </Text>
+              </View>
+              <View style={s.statCard}>
+                <Text style={s.statLabel}>Quizzes taken</Text>
+                <Text style={s.statValue}>{quizzesTaken}</Text>
+              </View>
+              <View style={s.statCard}>
+                <Text style={s.statLabel}>Flashcards reviewed</Text>
+                <Text style={s.statValue}>{flashReviewed}</Text>
+              </View>
+              <View style={s.statCard}>
+                <Text style={s.statLabel}>Average quiz score</Text>
+                <Text style={s.statValue}>{scored.length ? `${avgScore}%` : "—"}</Text>
+              </View>
             </View>
-          ) : (
-            <>
-              {/* Streak banner */}
-              <View style={styles.streakCard}>
-                <View style={styles.streakIcon}>
-                  <Text style={styles.streakEmoji}>🔥</Text>
+            {/* ── 7 Day Streak card ── */}
+            <View style={s.streakCard}>
+              {/* top row */}
+              <View style={s.streakTop}>
+                <View style={s.streakTitleRow}>
+                  <Text style={s.streakEmoji}>🔥</Text>
+                  <Text style={s.streakTitle}>{streak} Day Streak</Text>
                 </View>
-                <View>
-                  <Text style={styles.streakValue}>{currentStreak} day streak</Text>
-                  <Text style={styles.streakLabel}>Keep it up!</Text>
+                <TouchableOpacity style={s.streakMore}>
+                  <Ionicons name="ellipsis-horizontal" size={16} color="rgba(255,255,255,0.8)" />
+                </TouchableOpacity>
+              </View>
+              <Text style={s.streakSub}>Keep up the great work!</Text>
+
+              {/* day dots */}
+              <View style={s.dayRow}>
+                {dayLabels.map((d, i) => {
+                  const done = studiedDays[i] === true;
+                  const today = i === todayIdx;
+                  return (
+                    <View key={`${d}-${i}`} style={s.dayCol}>
+                      <Text style={[s.dayLetter, (done || today) && s.dayLetterDone]}>
+                        {d}
+                      </Text>
+                      <View
+                        style={[
+                          s.daydot,
+                          done && s.daydotDone,
+                          today && s.daydotToday,
+                        ]}
+                      >
+                        {done && (
+                          <Ionicons name="checkmark" size={11} color={colors.primary} />
+                        )}
+                        {today && !done && (
+                          <Ionicons name="flame" size={11} color="#f59e0b" />
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* ── Study Time chart ── */}
+            <View style={s.chartCard}>
+              <View style={s.chartHeader}>
+                <Text style={s.chartTitle}>Study Time</Text>
+                <View style={s.chartRight}>
+                  <Text style={s.chartValue}>
+                    {studyH}h {studyM}m
+                  </Text>
+                  {/* Show total study minutes this week */}
+                  <Text style={s.chartChange}>
+                    {rawMins.reduce((a, b) => a + b, 0) > 0
+                      ? `${rawMins.reduce((a, b) => a + b, 0)}m this week`
+                      : "No activity yet"}
+                  </Text>
+                  <View style={s.weekPill}>
+                    <Text style={s.weekPillText}>This Week</Text>
+                  </View>
                 </View>
               </View>
 
-              {/* Key stats */}
-              <View style={styles.statsGrid}>
-                <MetricCard
-                  label="Study time"
-                  value={`${Math.floor(totalStudyMins / 60)}h ${totalStudyMins % 60}m`}
-                  icon="time"
-                  accent={colors.primary}
-                />
-                <MetricCard
-                  label="Quizzes done"
-                  value={String(totalQuizzes)}
-                  icon="help-circle"
-                  accent="#8b5cf6"
-                />
-                <MetricCard
-                  label="Flashcards reviewed"
-                  value={String(totalFlashcards)}
-                  icon="layers"
-                  accent="#3b82f6"
-                />
-                <MetricCard
-                  label="Avg quiz score"
-                  value={`${avgScore}%`}
-                  icon="star"
-                  accent="#f59e0b"
-                />
+              {/* bar chart */}
+              <View style={s.barsRow}>
+                {bars.map((h, i) => (
+                  <View key={i} style={s.barCol}>
+                    {/* minute label above bar when > 0 */}
+                    {rawMins[i] > 0 && (
+                      <Text style={s.barMinLabel}>
+                        {rawMins[i] >= 60
+                          ? `${Math.floor(rawMins[i] / 60)}h`
+                          : `${rawMins[i]}m`}
+                      </Text>
+                    )}
+                    <View style={s.barTrack}>
+                      <View
+                        style={[
+                          s.barFill,
+                          {
+                            height: h,
+                            backgroundColor:
+                              i === todayIdx ? colors.primary : "#bbf7d0",
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        s.barLabel,
+                        i === todayIdx && { color: colors.primary, fontWeight: "700" },
+                      ]}
+                    >
+                      {dayLabels[i] ?? DAYS[i]}
+                    </Text>
+                  </View>
+                ))}
               </View>
+            </View>
 
-              {/* Per-document breakdown */}
-              {progress && progress.length > 0 ? (
-                <>
-                  <Text style={styles.sectionTitle}>Document breakdown</Text>
-                  {progress.map((p) => (
-                    <View key={p.id} style={styles.docProgress}>
-                      <View style={styles.docProgressHeader}>
-                        <View style={styles.docBadge}>
-                          <Ionicons
-                            name="document-text"
-                            size={20}
-                            color={colors.primary}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.docProgressId}>
-                            Document #{p.documentId}
-                          </Text>
-                          <Text style={styles.docProgressMeta}>
-                            {p.quizzesAttempted} quiz · {p.flashcardsReviewed} cards ·{" "}
-                            {p.totalStudyTimeMinutes} min
-                          </Text>
-                        </View>
-                      </View>
-                      {/* Score bar */}
-                      <View style={styles.barBg}>
-                        <View
-                          style={[
-                            styles.barFill,
-                            { width: `${Math.min(p.averageQuizScore ?? 0, 100)}%` },
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.barLabel}>
-                        Avg score: {(p.averageQuizScore ?? 0).toFixed(1)}%
+            {/* ── Topics Mastered ── */}
+            <View style={s.topicsHeader}>
+              <Text style={s.sectionTitle}>Materials</Text>
+            </View>
+
+            <View style={s.topicsCard}>
+              {topics.length === 0 ? (
+                <Text style={s.emptyTopics}>
+                  Study a document or take a quiz to see progress here.
+                </Text>
+              ) : (
+                topics.map((t, i) => (
+                  <View
+                    key={t.name + i}
+                    style={[
+                      s.topicRow,
+                      i < topics.length - 1 && s.topicRowBorder,
+                    ]}
+                  >
+                    <View style={s.topicNameCol}>
+                      <Text style={s.topicName} numberOfLines={1}>
+                        {t.name}
+                      </Text>
+                      <Text style={s.topicMeta} numberOfLines={1}>
+                        {t.meta}
                       </Text>
                     </View>
-                  ))}
-                </>
-              ) : (
-                <View style={styles.emptyBox}>
-                  <View style={styles.emptyIconWrap}>
-                    <Ionicons
-                      name="trending-up-outline"
-                      size={48}
-                      color={colors.primary}
-                    />
+                    <View style={s.topicBarBg}>
+                      <View
+                        style={[
+                          s.topicBarFill,
+                          { width: `${t.pct}%` as any, backgroundColor: t.color },
+                        ]}
+                      />
+                    </View>
+                    <Text style={[s.topicPct, { color: t.color }]}>{t.pct}%</Text>
                   </View>
-                  <Text style={styles.emptyTitle}>No activity yet</Text>
-                  <Text style={styles.emptyText}>
-                    Complete quizzes and review flashcards to track progress.
-                  </Text>
-                </View>
+                ))
               )}
-            </>
-          )}
-        </Animated.View>
+            </View>
+          </>
+        )}
+
+        <View style={{ height: 24 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  icon,
-  accent,
-}: {
-  label: string;
-  value: string;
-  icon: string;
-  accent: string;
-}) {
-  return (
-    <View style={styles.metricCard}>
-      <View style={[styles.metricIcon, { backgroundColor: accent + "15" }]}>
-        <Ionicons name={icon as any} size={22} color={accent} />
-      </View>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
-}
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: "#f5f6fa" },
+  scroll: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 },
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: 20, paddingBottom: 32, paddingTop: 20 },
-  pageTitle: { fontSize: 28, fontWeight: "800", color: colors.text, letterSpacing: -0.75 },
-  pageSubtitle: { fontSize: 15, color: colors.textMuted, marginTop: 6, marginBottom: 24 },
-  loadingContainer: {
-    alignItems: "center",
-    paddingVertical: 48,
-  },
-  streakCard: {
+  header: { marginBottom: 20 },
+  title: { fontSize: 22, fontWeight: "800", color: colors.text, letterSpacing: -0.3 },
+  statsGrid: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    backgroundColor: colors.primary,
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 16,
   },
-  streakIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
+  statCard: {
+    width: "48%",
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  statLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
+  statValue: { fontSize: 20, fontWeight: "800", color: colors.text, marginTop: 6 },
+
+  // Streak card — green
+  streakCard: {
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  streakTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  streakTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  streakEmoji: { fontSize: 18 },
+  streakTitle: { fontSize: 16, fontWeight: "800", color: colors.white },
+  streakMore: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  streakSub: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.8)",
+    marginBottom: 16,
+  },
+
+  // Day dots row
+  dayRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  dayCol: { alignItems: "center", gap: 5 },
+  dayLetter: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.55)",
+  },
+  dayLetterDone: { color: colors.white },
+  daydot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
-  streakEmoji: { fontSize: 30 },
-  streakValue: { fontSize: 20, fontWeight: "800", color: colors.white },
-  streakLabel: { fontSize: 14, color: "rgba(255,255,255,0.8)", marginTop: 3 },
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 32 },
-  metricCard: {
-    width: "47%",
+  daydotDone: { backgroundColor: colors.white },
+  daydotToday: { backgroundColor: "#fff3cd" },
+
+  // Study Time chart card
+  chartCard: {
     backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 18,
+    marginBottom: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  metricIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
+  chartHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
   },
-  metricValue: { fontSize: 24, fontWeight: "800", color: colors.text, marginBottom: 3 },
-  metricLabel: { fontSize: 13, color: colors.textMuted, fontWeight: "500" },
-  sectionTitle: { fontSize: 18, fontWeight: "700", color: colors.text, marginBottom: 16 },
-  docProgress: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+  chartTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
+  chartRight: { alignItems: "flex-end", gap: 3 },
+  chartValue: { fontSize: 20, fontWeight: "800", color: colors.text },
+  chartChange: { fontSize: 12, fontWeight: "700", color: colors.primary },
+  weekPill: {
+    backgroundColor: "#e8fdf2",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginTop: 2,
   },
-  docProgressHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
-  docBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
+  weekPillText: { fontSize: 11, fontWeight: "600", color: colors.primary },
+
+  barsRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    height: 110,
   },
-  docProgressId: { fontSize: 15, fontWeight: "600", color: colors.text },
-  docProgressMeta: { fontSize: 13, color: colors.textMuted, marginTop: 3 },
-  barBg: {
-    height: 10,
-    backgroundColor: "#e2e8f0",
-    borderRadius: 6,
-    overflow: "hidden",
-    marginBottom: 8,
+  barCol: { flex: 1, alignItems: "center", gap: 6 },
+  barMinLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: colors.textMuted,
+    marginBottom: 2,
   },
-  barFill: {
-    height: "100%",
-    backgroundColor: colors.primary,
-    borderRadius: 6,
-  },
-  barLabel: { fontSize: 13, color: colors.textMuted },
-  emptyBox: { alignItems: "center", paddingVertical: 56, gap: 12 },
-  emptyIconWrap: {
-    width: 80,
+  barTrack: {
+    width: 18,
     height: 80,
-    borderRadius: 24,
-    backgroundColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
+    borderRadius: 9,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "flex-end",
+    overflow: "hidden",
   },
-  emptyTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
-  emptyText: {
-    fontSize: 14,
+  barFill: { width: "100%", borderRadius: 9 },
+  barLabel: { fontSize: 11, color: colors.textMuted, fontWeight: "500" },
+
+  // Topics Mastered
+  topicsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
+  viewAll: { fontSize: 13, color: colors.primary, fontWeight: "700" },
+
+  topicsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  topicRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+  },
+  topicRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  topicNameCol: { width: 108 },
+  topicName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  topicMeta: {
+    fontSize: 10,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  topicBarBg: {
+    flex: 1,
+    height: 7,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  topicBarFill: { height: "100%", borderRadius: 4 },
+  topicPct: {
+    width: 36,
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "right",
+  },
+  emptyTopics: {
+    fontSize: 13,
     color: colors.textMuted,
     textAlign: "center",
-    maxWidth: 260,
-    lineHeight: 20,
+    paddingVertical: 18,
   },
 });

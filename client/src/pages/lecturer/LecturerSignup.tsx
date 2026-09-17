@@ -116,12 +116,9 @@ export default function LecturerSignup() {
               Sign in
             </Link>
           </div>
-          <div>
-            Student?{" "}
-            <Link href="/signup" className="text-emerald-600 hover:underline">
-              Student sign up
-            </Link>
-          </div>
+          <p className="text-xs">
+            Students create accounts in the Cognify mobile app, not on this website.
+          </p>
         </div>
       </form>
     </AuthLayout>

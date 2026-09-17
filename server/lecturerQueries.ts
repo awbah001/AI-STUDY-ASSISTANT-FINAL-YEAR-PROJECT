@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   announcements,
+  assignmentSubmissions,
   assignments,
   chatMessages,
   courseEnrollments,
@@ -105,6 +106,7 @@ export async function deleteCourse(courseId: number, lecturerId: number): Promis
   if (!owned) return false;
 
   await db.delete(announcements).where(eq(announcements.courseId, courseId));
+  await db.delete(assignmentSubmissions).where(eq(assignmentSubmissions.courseId, courseId));
   await db.delete(assignments).where(eq(assignments.courseId, courseId));
   await db.delete(courseEnrollments).where(eq(courseEnrollments.courseId, courseId));
   await db
@@ -184,6 +186,7 @@ export async function getCourseStudents(courseId: number, lecturerId: number) {
       studentId: users.id,
       name: users.name,
       email: users.email,
+      avatarUrl: users.avatarUrl,
       enrolledAt: courseEnrollments.enrolledAt,
     })
     .from(courseEnrollments)
@@ -205,6 +208,7 @@ export async function getAllLecturerStudents(lecturerId: number) {
       studentId: users.id,
       name: users.name,
       email: users.email,
+      avatarUrl: users.avatarUrl,
       courseId: courses.id,
       courseTitle: courses.title,
       enrolledAt: courseEnrollments.enrolledAt,
@@ -267,6 +271,13 @@ export async function getCourseAssignments(courseId: number, lecturerId: number)
     .orderBy(desc(assignments.dueDate));
 }
 
+export async function getAssignmentById(assignmentId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(assignments).where(eq(assignments.id, assignmentId)).limit(1);
+  return rows[0];
+}
+
 export async function createAssignment(
   lecturerId: number,
   data: Omit<InsertAssignment, "lecturerId">
@@ -309,6 +320,7 @@ export async function deleteAssignment(assignmentId: number, lecturerId: number)
   const rows = await db.select().from(assignments).where(eq(assignments.id, assignmentId)).limit(1);
   const assignment = rows[0];
   if (!assignment || assignment.lecturerId !== lecturerId) return false;
+  await db.delete(assignmentSubmissions).where(eq(assignmentSubmissions.assignmentId, assignmentId));
   await db.delete(assignments).where(eq(assignments.id, assignmentId));
   return true;
 }
@@ -775,6 +787,35 @@ export async function getStudentCourseQuizzes(studentId: number, courseId: numbe
     .orderBy(desc(quizzes.createdAt));
 }
 
+/** All quizzes from courses a student is enrolled in, for learning dashboards. */
+export async function getStudentEnrolledCourseQuizzes(studentId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const enrolledCourses = await db
+    .select({ courseId: courseEnrollments.courseId })
+    .from(courseEnrollments)
+    .where(eq(courseEnrollments.studentId, studentId));
+  const courseIds = enrolledCourses.map((enrollment) => enrollment.courseId);
+  if (courseIds.length === 0) return [];
+
+  return db
+    .select({
+      id: quizzes.id,
+      title: quizzes.title,
+      totalQuestions: quizzes.totalQuestions,
+      documentId: quizzes.documentId,
+      documentTitle: documents.title,
+      courseTitle: courses.title,
+      createdAt: quizzes.createdAt,
+    })
+    .from(quizzes)
+    .innerJoin(documents, eq(quizzes.documentId, documents.id))
+    .innerJoin(courses, eq(documents.courseId, courses.id))
+    .where(inArray(documents.courseId, courseIds))
+    .orderBy(desc(quizzes.createdAt));
+}
+
 // ── Quiz attempts per quiz for lecturer view ───────────────────────────────────
 
 export async function getQuizAttemptsByCourse(courseId: number, lecturerId: number) {
@@ -871,4 +912,25 @@ export async function getEnrolledStudentPushTokens(
         .filter((t): t is string => typeof t === "string" && t.startsWith("ExponentPushToken["))
     ),
   ];
+}
+
+/**
+ * Returns all enrolled student user IDs for a course (for notification inbox persistence).
+ */
+export async function getEnrolledStudentIds(
+  courseId: number,
+  lecturerId: number
+): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const owned = await getCourseOwnedBy(lecturerId, courseId);
+  if (!owned) return [];
+
+  const rows = await db
+    .select({ studentId: courseEnrollments.studentId })
+    .from(courseEnrollments)
+    .where(eq(courseEnrollments.courseId, courseId));
+
+  return rows.map((r) => r.studentId);
 }

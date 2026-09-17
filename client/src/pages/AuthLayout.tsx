@@ -1,83 +1,46 @@
 import { ReactNode } from "react";
-
+import { BrainCircuit } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default function AuthLayout(props: {
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-  className?: string;
-}) {
+export default function AuthLayout(props: { title: string; subtitle?: string; children: ReactNode; className?: string; noScroll?: boolean }) {
   const { title, subtitle, children, className } = props;
-
   return (
-    <div className="auth-emerald-animated-bg min-h-screen">
-      <div className="mx-auto flex min-h-screen max-w-6xl items-stretch px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid w-full grid-cols-1 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm lg:grid-cols-2">
-          {/* Left / Welcome */}
-          <div className="relative hidden overflow-hidden lg:block"
-            style={{
-              background: "linear-gradient(135deg, rgba(186,230,253,0.7) 0%, rgba(224,242,254,0.6) 50%, rgba(186,230,253,0.75) 100%)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-            }}
-          >
-            {/* Decorative blobs */}
-            <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-sky-300/20 blur-3xl" />
-            <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-sky-200/25 blur-3xl" />
-            <div className="absolute left-10 top-10 h-44 w-44 rounded-full bg-white/20" />
-            <div className="absolute left-24 top-44 h-64 w-64 rounded-full bg-sky-100/20" />
-
-            <div className="relative flex h-full flex-col justify-between p-10">
-              <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-full overflow-hidden bg-white/40 ring-2 ring-sky-300/40">
-                  <img src="/logo.png" alt="Cognify Logo" className="h-full w-full object-cover" />
-                </div>
-                <div className="text-lg font-bold text-sky-900">Cognify</div>
-              </div>
-
-              <div className="max-w-md space-y-3">
-                <div className="text-3xl font-bold tracking-tight text-sky-900">WELCOME</div>
-                <div className="text-sky-800/90">
-                  Your AI-powered study space for summaries, flashcards, quizzes, and
-                  document chat.
-                </div>
-                <div className="text-sm text-sky-700/80">
-                  Sign in to continue, or create an account to start learning.
-                </div>
-              </div>
-
-              <div className="text-xs text-sky-700/70">
-                Tip: Use a strong password and keep it private.
-              </div>
+    <main className="auth-card-page relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-6 sm:px-6">
+      <div className="auth-card-orb auth-card-orb-one" /><div className="auth-card-orb auth-card-orb-two" />
+      <section className="relative z-10 grid w-full max-w-[1040px] overflow-hidden rounded-[30px] border border-white/70 bg-white shadow-[0_24px_80px_rgba(3,60,53,0.2)] lg:grid-cols-[.96fr_1fr]">
+        <aside className="auth-panel relative hidden min-h-[620px] overflow-hidden p-11 text-white lg:flex lg:flex-col">
+          <div className="auth-hero-orb auth-hero-orb-one" /><div className="auth-hero-orb auth-hero-orb-two" />
+          <div className="relative z-10 flex items-center gap-3"><img src="/logo.png" alt="Cognify" className="h-12 w-12 rounded-2xl object-cover" /><div><p className="text-2xl font-bold tracking-tight">Cognify</p><p className="text-sm text-emerald-100/90">AI Learning Assistant</p></div></div>
+          <div className="relative z-10 my-auto">
+            <div className="auth-mascot mx-auto mb-6" aria-hidden="true">
+              <img src="/cognify-auth-bot.png?v=2" alt="" />
             </div>
+            <h1 className="text-4xl font-bold leading-tight tracking-tight">Learn Smarter,<br /><span className="text-emerald-300">Achieve More.</span></h1>
+            <p className="mt-4 max-w-xs text-sm leading-6 text-emerald-50/90">Your AI-powered companion for personalized learning, deeper understanding, and academic success.</p>
           </div>
-
-          {/* Right / Form */}
-          <div className={cn("flex items-center justify-center p-6 sm:p-12", className)}>
-            <div className="w-full max-w-md">
-              <div className="mb-7 space-y-2">
-                <div className="inline-flex items-center gap-2 rounded-2xl bg-sky-500/10 px-3 py-2 text-sky-700">
-                  <div className="h-4 w-4 rounded-full overflow-hidden ring-1 ring-sky-500/20">
-                    <img src="/logo.png" alt="Cognify Logo" className="h-full w-full object-cover" />
-                  </div>
-                  <span className="text-xs font-semibold tracking-wide uppercase">Cognify</span>
-                </div>
-                <div className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-                  {title}
-                </div>
-                {subtitle ? (
-                  <div className="text-sm text-muted-foreground">{subtitle}</div>
-                ) : null}
-              </div>
-              <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-                {children}
-              </div>
+          <p className="relative z-10 text-xs text-emerald-100/80">Learn. Practice. Progress.</p>
+        </aside>
+        <div className={cn(
+          "relative flex min-h-[620px] items-center justify-center bg-white p-6 sm:p-8",
+          props.noScroll ? "overflow-hidden" : "overflow-y-auto",
+          className
+        )}>
+          <div className="w-full max-w-[390px]">
+            <div className="mb-4 text-center lg:hidden">
+              <img src="/logo.png" alt="Cognify" className="mx-auto h-11 w-11 rounded-2xl" />
+              <p className="mt-2 text-xl font-bold text-[#063d35]">Cognify</p>
             </div>
+            <div className="mb-5">
+              <div className="mb-3 hidden h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 lg:flex">
+                <BrainCircuit className="h-4 w-4" />
+              </div>
+              <h1 className="text-xl font-bold tracking-tight text-[#063d35] sm:text-2xl">{title}</h1>
+              {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+            </div>
+            {children}
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
-

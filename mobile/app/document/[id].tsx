@@ -9,24 +9,26 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  FlatList,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Linking } from "react-native";
 import { trpc } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
-import { useAuth } from "../../src/contexts/AuthContext";
 import { API_URL } from "../../src/lib/api";
+import { useChatVoice, VoiceCapture } from "../../src/lib/useChatVoice";
+import { FlippingFlashcard } from "../../src/components/FlippingFlashcard";
+import { oldestFirstById } from "../../src/lib/chatHistory";
 
 type Tab = "chat" | "flashcards" | "quiz";
 
 export default function DocumentDetailScreen() {
-  const { id, tab: initialTab } = useLocalSearchParams<{
+  const { id, tab: initialTab, quizId: initialQuizId } = useLocalSearchParams<{
     id: string;
     tab?: string;
+    quizId?: string;
   }>();
   const router = useRouter();
   const docId = Number(id);
@@ -160,7 +162,12 @@ export default function DocumentDetailScreen() {
       {/* Tab content */}
       {activeTab === "chat" && <ChatTab docId={docId} />}
       {activeTab === "flashcards" && <FlashcardsTab docId={docId} />}
-      {activeTab === "quiz" && <QuizTab docId={docId} />}
+      {activeTab === "quiz" && (
+        <QuizTab
+          docId={docId}
+          initialQuizId={initialQuizId ? Number(initialQuizId) : undefined}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -169,25 +176,37 @@ export default function DocumentDetailScreen() {
 
 function ChatTab({ docId }: { docId: number }) {
   const [message, setMessage] = useState("");
-  const flatListRef = useRef<FlatList>(null);
+  const scrollRef = useRef<ScrollView>(null);
   const utils = trpc.useUtils();
+  const voice = useChatVoice((heard) => {
+    setMessage((current) => {
+      const next = current.trim() ? `${current.trim()} ${heard}` : heard;
+      return next.slice(0, 500);
+    });
+  });
 
   const { data: history, isLoading } = trpc.chat.history.useQuery({ documentId: docId });
 
   const sendMsg = trpc.chat.send.useMutation({
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       utils.chat.history.invalidate({ documentId: docId });
       setMessage("");
+      scrollToBottom();
+      const aiContent = data?.aiResponse ?? data?.response ?? data?.content;
+      if (typeof aiContent === "string" && aiContent.trim()) voice.speak(aiContent);
     },
     onError: (err) => Alert.alert("Error", err.message),
   });
 
-  // Server returns messages newest-first (it calls .reverse() before returning).
-  // FlatList with inverted=true renders index 0 at the bottom,
-  // so newest message appears at the bottom, oldest at the top — correct order.
-  const messages = history ?? [];
+  const messages = oldestFirstById(history);
+
+  const scrollToBottom = () => {
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+  };
 
   return (
+    <>
+    <VoiceCapture listening={voice.listening} usingWebSpeech={voice.usingWebSpeech} onMessage={voice.handleWebMessage} />
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -196,41 +215,62 @@ function ChatTab({ docId }: { docId: number }) {
       {isLoading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
       ) : (
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => String(item.id)}
+        <ScrollView
+          ref={scrollRef}
+          style={{ flex: 1 }}
           contentContainerStyle={styles.chatList}
-          inverted={messages.length > 0}
-          renderItem={({ item }) => (
-            <View
-              style={[
-                styles.bubble,
-                item.role === "user" ? styles.bubbleUser : styles.bubbleAI,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.bubbleText,
-                  item.role === "user"
-                    ? styles.bubbleTextUser
-                    : styles.bubbleTextAI,
-                ]}
-              >
-                {item.content}
-              </Text>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={[styles.chatEmpty, { transform: [{ scaleY: -1 }] }]}>
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={scrollToBottom}
+        >
+          {messages.length === 0 ? (
+            <View style={styles.chatEmpty}>
               <Ionicons name="chatbubbles-outline" size={40} color={colors.primaryLight} />
               <Text style={styles.chatEmptyText}>Ask anything about this document</Text>
               <Text style={styles.chatEmptyHint}>
                 Try: /summary · /flashcards 10 · /quiz 5
               </Text>
             </View>
-          }
-        />
+          ) : (
+            messages.map((item) => (
+              <View
+                key={String(item.id)}
+                style={[
+                  styles.bubble,
+                  item.role === "user" ? styles.bubbleUser : styles.bubbleAI,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.bubbleText,
+                    item.role === "user"
+                      ? styles.bubbleTextUser
+                      : styles.bubbleTextAI,
+                  ]}
+                >
+                  {item.content}
+                </Text>
+                {item.role === "assistant" ? (
+                  <TouchableOpacity
+                    onPress={() => voice.speak(item.content)}
+                    hitSlop={8}
+                    style={styles.speakBtn}
+                  >
+                    <Ionicons name="volume-medium-outline" size={14} color={colors.primary} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ))
+          )}
+
+          {/* Typing indicator — shown as the last item while waiting */}
+          {sendMsg.isPending && (
+            <View style={[styles.bubble, styles.bubbleAI, styles.typingIndicator]}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.typingText}>Thinking…</Text>
+            </View>
+          )}
+        </ScrollView>
       )}
 
       {/* Input row */}
@@ -239,18 +279,33 @@ function ChatTab({ docId }: { docId: number }) {
           style={styles.chatInput}
           value={message}
           onChangeText={setMessage}
-          placeholder="Ask a question..."
-          placeholderTextColor={colors.textLight}
+          placeholder={voice.listening ? "Listening…" : "Ask a question or tap the mic…"}
+          placeholderTextColor={colors.textPlaceholder}
           multiline
           maxLength={500}
         />
+        <TouchableOpacity
+          style={[styles.micBtn, voice.listening && styles.micBtnActive]}
+          onPress={voice.toggleListening}
+          disabled={sendMsg.isPending}
+        >
+          <Ionicons
+            name={voice.listening ? "mic" : "mic-outline"}
+            size={20}
+            color={voice.listening ? colors.white : colors.textMuted}
+          />
+        </TouchableOpacity>
         <TouchableOpacity
           style={[
             styles.sendBtn,
             (!message.trim() || sendMsg.isPending) && styles.sendBtnDisabled,
           ]}
           disabled={!message.trim() || sendMsg.isPending}
-          onPress={() => sendMsg.mutate({ documentId: docId, message: message.trim() })}
+          onPress={() => {
+            if (voice.listening) voice.stopListening();
+            voice.stopSpeaking();
+            sendMsg.mutate({ documentId: docId, message: message.trim() });
+          }}
         >
           {sendMsg.isPending ? (
             <ActivityIndicator color={colors.white} size="small" />
@@ -260,6 +315,7 @@ function ChatTab({ docId }: { docId: number }) {
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
+    </>
   );
 }
 
@@ -278,16 +334,6 @@ function FlashcardsTab({ docId }: { docId: number }) {
 
   const markReviewed = trpc.flashcards.markReviewed.useMutation();
 
-  const toggleFlip = (id: number) => {
-    setFlipped((prev) => {
-      const nowFlipped = !prev[id];
-      if (nowFlipped) {
-        markReviewed.mutate({ flashcardId: id });
-      }
-      return { ...prev, [id]: nowFlipped };
-    });
-  };
-
   if (isLoading)
     return <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />;
 
@@ -295,7 +341,7 @@ function FlashcardsTab({ docId }: { docId: number }) {
     <ScrollView contentContainerStyle={styles.tabContent}>
       {!cards || cards.length === 0 ? (
         <View style={styles.emptyBox}>
-          <Ionicons name="layers-outline" size={44} color={colors.primaryLight} />
+          <Ionicons name="layers-outline" size={44} color={colors.primary} />
           <Text style={styles.emptyTitle}>No flashcards yet</Text>
           <Text style={styles.emptyText}>
             Generate AI flashcards from this document.
@@ -328,27 +374,21 @@ function FlashcardsTab({ docId }: { docId: number }) {
           </View>
 
           {cards.map((card) => (
-            <TouchableOpacity
+            <FlippingFlashcard
               key={card.id}
-              style={[
-                styles.flashcard,
-                flipped[card.id] && styles.flashcardFlipped,
-              ]}
-              onPress={() => toggleFlip(card.id)}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.flashcardHint}>
-                {flipped[card.id] ? "Answer" : "Question — tap to reveal"}
-              </Text>
-              <Text style={styles.flashcardText}>
-                {flipped[card.id] ? card.answer : card.question}
-              </Text>
-              {card.reviewCount > 0 && (
-                <Text style={styles.flashcardReviewed}>
-                  ✓ Reviewed {card.reviewCount}×
-                </Text>
-              )}
-            </TouchableOpacity>
+              question={card.question}
+              answer={card.answer}
+              flipped={Boolean(flipped[card.id])}
+              onFlip={(showingAnswer) => {
+                setFlipped((prev) => {
+                  if (showingAnswer && !prev[card.id]) {
+                    markReviewed.mutate({ flashcardId: card.id });
+                  }
+                  return { ...prev, [card.id]: showingAnswer };
+                });
+              }}
+              footer={card.reviewCount > 0 ? `Reviewed ${card.reviewCount}×` : undefined}
+            />
           ))}
         </>
       )}
@@ -358,9 +398,8 @@ function FlashcardsTab({ docId }: { docId: number }) {
 
 // ─── Quiz Tab ─────────────────────────────────────────────────────────────────
 
-function QuizTab({ docId }: { docId: number }) {
-  const { user } = useAuth();
-  const [quizId, setQuizId] = useState<number | null>(null);
+function QuizTab({ docId, initialQuizId }: { docId: number; initialQuizId?: number }) {
+  const [quizId, setQuizId] = useState<number | null>(initialQuizId ?? null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const utils = trpc.useUtils();
@@ -391,7 +430,12 @@ function QuizTab({ docId }: { docId: number }) {
     const questions = activeQuiz.questions ?? [];
     const correct = questions.filter((q) => answers[q.id] === q.correctAnswer).length;
     const s = (correct / questions.length) * 100;
-    submit.mutate({ quizId, score: s });
+    // Convert Record<number,string> → Record<string,string> for the server
+    const answersForServer: Record<string, string> = {};
+    Object.entries(answers).forEach(([qId, ans]) => {
+      answersForServer[String(qId)] = ans;
+    });
+    submit.mutate({ quizId, score: s, answers: answersForServer });
   };
 
   if (quizId && activeQuiz) {
@@ -543,7 +587,7 @@ function QuizTab({ docId }: { docId: number }) {
                   {q.score !== null ? `Score: ${Number(q.score).toFixed(0)}%` : "Not attempted"}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textLight} />
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           ))}
         </>
@@ -555,7 +599,7 @@ function QuizTab({ docId }: { docId: number }) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1, backgroundColor: "#f5f6fa" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -589,7 +633,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: "#f1f5f9",
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     gap: 12,
@@ -684,6 +728,13 @@ const styles = StyleSheet.create({
   bubbleText: { fontSize: 14, lineHeight: 20 },
   bubbleTextUser: { color: colors.white },
   bubbleTextAI: { color: colors.text },
+  typingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  typingText: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
   inputRow: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -715,6 +766,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendBtnDisabled: { opacity: 0.4 },
+  speakBtn: { marginTop: 6, alignSelf: "flex-start" },
+  micBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#f1f5f9",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  micBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   // Shared tab
   tabContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
   emptyBox: { alignItems: "center", marginTop: 24, gap: 10 },
@@ -750,19 +813,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   genBtnSmallText: { fontSize: 13, fontWeight: "700", color: colors.primary },
-  flashcard: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 20,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: colors.border,
-    minHeight: 100,
-  },
-  flashcardFlipped: { borderColor: colors.primary, backgroundColor: colors.primary + "08" },
-  flashcardHint: { fontSize: 11, fontWeight: "600", color: colors.textMuted, marginBottom: 8 },
-  flashcardText: { fontSize: 15, color: colors.text, lineHeight: 22 },
-  flashcardReviewed: { fontSize: 12, color: colors.primary, marginTop: 10, fontWeight: "600" },
   // Quiz
   quizTitle: { fontSize: 18, fontWeight: "800", color: colors.text, marginBottom: 16 },
   questionCard: {

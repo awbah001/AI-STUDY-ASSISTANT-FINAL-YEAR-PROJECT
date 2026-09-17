@@ -8,14 +8,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { trpc } from "@/lib/trpc";
 import { storagePut } from "@/lib/storage";
+import { apiUrl } from "@/lib/apiBaseUrl";
 import { useRoute, useLocation } from "wouter";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  getStudyFileExtension,
+  isAllowedStudyDocument,
+  studyFormatLabel,
+  STUDY_DOC_ACCEPT,
+  STUDY_DOC_ERROR,
+  STUDY_DOC_HELP,
+} from "@shared/studyDocuments";
 import {
   Upload, Users, FileText, Megaphone, ClipboardList,
   Brain, Layers, Trash2, ArrowLeft, HelpCircle,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader2,
 } from "lucide-react";
+
+type StudyFormat = "pdf" | "docx" | "pptx";
 
 export default function LecturerCourseDetail() {
   const { isAllowed } = useRoleGuard("lecturer");
@@ -23,20 +34,26 @@ export default function LecturerCourseDetail() {
   const [, setLocation] = useLocation();
   const courseId = Number(params?.id);
   const fileRef = useRef<HTMLInputElement>(null);
+  const assignFileRef = useRef<HTMLInputElement>(null);
 
   const [enrollEmail, setEnrollEmail] = useState("");
   const [materialTitle, setMaterialTitle] = useState("");
-  const [materialType, setMaterialType] = useState<"notes" | "pdf" | "slides" | "assignment" | "other">("pdf");
+  const [materialType, setMaterialType] = useState<StudyFormat>("pdf");
   const [uploading, setUploading] = useState(false);
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
   const [assignTitle, setAssignTitle] = useState("");
   const [assignDesc, setAssignDesc] = useState("");
   const [assignDue, setAssignDue] = useState("");
+  const [assignRubric, setAssignRubric] = useState("");
+  const [assignFile, setAssignFile] = useState<File | null>(null);
+  const [creatingAssignment, setCreatingAssignment] = useState(false);
+  const [templateId, setTemplateId] = useState("");
 
   const [quizDocId, setQuizDocId] = useState<number | null>(null);
   const [quizTitle, setQuizTitle] = useState("");
   const [quizCount, setQuizCount] = useState(5);
+  const [quizDue, setQuizDue] = useState("");
   const [previewQuizId, setPreviewQuizId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
@@ -61,6 +78,7 @@ export default function LecturerCourseDetail() {
     { courseId },
     { enabled: isAllowed && !Number.isNaN(courseId) }
   );
+  const { data: assessmentTemplates } = trpc.lecturer.assignments.templates.list.useQuery(undefined, { enabled: isAllowed });
 
   const extractMutation = trpc.documents.extractDocumentText.useMutation();
   const uploadMaterial = trpc.lecturer.materials.upload.useMutation({
@@ -102,7 +120,19 @@ export default function LecturerCourseDetail() {
       setAssignTitle("");
       setAssignDesc("");
       setAssignDue("");
+      setAssignRubric("");
+      setTemplateId("");
+      setAssignFile(null);
+      if (assignFileRef.current) assignFileRef.current.value = "";
     },
+    onError: (e) => toast.error(e.message),
+  });
+  const deleteAssignment = trpc.lecturer.assignments.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Assignment deleted");
+      utils.lecturer.assignments.list.invalidate({ courseId });
+    },
+    onError: (e) => toast.error(e.message),
   });
   const { data: quizList, isLoading: quizzesLoading } = trpc.lecturer.quizzes.list.useQuery(
     { courseId },
@@ -115,6 +145,7 @@ export default function LecturerCourseDetail() {
       utils.lecturer.quizzes.list.invalidate({ courseId });
       setQuizTitle("");
       setQuizDocId(null);
+      setQuizDue("");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -137,8 +168,22 @@ export default function LecturerCourseDetail() {
   const handleUpload = async (file: File) => {
     if (!materialTitle.trim()) {
       toast.error("Enter a title for the material");
+      if (fileRef.current) fileRef.current.value = "";
       return;
     }
+    if (!isAllowedStudyDocument(file.name, file.type)) {
+      toast.error(STUDY_DOC_ERROR);
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    if (file.size > 60 * 1024 * 1024) {
+      toast.error("File is too large. Maximum size is 60 MB.");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    const ext = getStudyFileExtension(file.name);
+    const format: StudyFormat = ext === "docx" || ext === "pptx" ? ext : "pdf";
+    setMaterialType(format);
     setUploading(true);
     try {
       const fileKey = `courses/${courseId}/${Date.now()}-${file.name}`;
@@ -159,12 +204,72 @@ export default function LecturerCourseDetail() {
         fileKey: key,
         mimeType: file.type,
         extractedText,
-        materialType,
+        materialType: format,
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const handleCreateAssignment = async () => {
+    if (!assignTitle.trim()) return;
+    const rubric = assignRubric.trim()
+      ? assignRubric.split(",").map((part) => {
+          const [criterion, points] = part.split(":");
+          return { criterion: criterion?.trim(), maxPoints: Number(points?.trim()) };
+        }).filter((item): item is { criterion: string; maxPoints: number } => !!item.criterion && Number.isFinite(item.maxPoints) && item.maxPoints > 0)
+      : undefined;
+    if (assignRubric.trim() && (!rubric || rubric.length === 0)) {
+      toast.error("Use rubric format such as Research: 30, Analysis: 40");
+      return;
+    }
+    setCreatingAssignment(true);
+    try {
+    let fileUrl: string | undefined;
+    let fileKey: string | undefined;
+    let fileName: string | undefined;
+    let fileSize: number | undefined;
+    let mimeType: string | undefined;
+    if (assignFile) {
+      if (!isAllowedStudyDocument(assignFile.name, assignFile.type)) {
+        toast.error(STUDY_DOC_ERROR);
+        return;
+      }
+      if (assignFile.size > 60 * 1024 * 1024) {
+        toast.error("File is too large. Maximum size is 60 MB.");
+        return;
+      }
+      try {
+        const key = `assignments/${courseId}/${Date.now()}-${assignFile.name}`;
+        const buffer = await assignFile.arrayBuffer();
+        const uploaded = await storagePut(key, new Uint8Array(buffer), assignFile.type);
+        fileUrl = uploaded.url;
+        fileKey = uploaded.key;
+        fileName = assignFile.name;
+        fileSize = assignFile.size;
+        mimeType = assignFile.type;
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "File upload failed");
+        return;
+      }
+    }
+    await createAssignment.mutateAsync({
+      courseId,
+      title: assignTitle,
+      description: assignDesc || undefined,
+      dueDate: assignDue ? new Date(assignDue) : undefined,
+      rubric,
+      fileUrl,
+      fileKey,
+      fileName,
+      fileSize,
+      mimeType,
+    });
+    } finally {
+      setCreatingAssignment(false);
     }
   };
 
@@ -213,7 +318,7 @@ export default function LecturerCourseDetail() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Upload Material</p>
-                  <p className="text-xs text-slate-500">PDF, DOCX, or PPTX — max 60 MB</p>
+                  <p className="text-xs text-slate-500">{STUDY_DOC_HELP}. Other formats are blocked so students can use AI chat, quizzes, and flashcards.</p>
                 </div>
               </div>
               <div className="p-6 space-y-4">
@@ -223,21 +328,19 @@ export default function LecturerCourseDetail() {
                     <Input value={materialTitle} onChange={(e) => setMaterialTitle(e.target.value)} placeholder="Lecture 3 - Neural Networks" className="rounded-xl border-slate-200" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Type</Label>
-                    <Select value={materialType} onValueChange={(v) => setMaterialType(v as typeof materialType)}>
+                    <Label>Format</Label>
+                    <Select value={materialType} onValueChange={(v) => setMaterialType(v as StudyFormat)}>
                       <SelectTrigger className="rounded-xl border-slate-200"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="pdf">PDF / Notes</SelectItem>
-                        <SelectItem value="slides">Slides</SelectItem>
-                        <SelectItem value="assignment">Assignment</SelectItem>
-                        <SelectItem value="notes">Lecture notes</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        <SelectItem value="pdf">PDF</SelectItem>
+                        <SelectItem value="docx">Word (.docx)</SelectItem>
+                        <SelectItem value="pptx">PowerPoint (.pptx)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <input ref={fileRef} type="file" className="hidden"
-                  accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                  accept={STUDY_DOC_ACCEPT}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleUpload(f); }}
                 />
                 <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={uploading} onClick={() => fileRef.current?.click()}>
@@ -265,7 +368,7 @@ export default function LecturerCourseDetail() {
                         </div>
                         <div>
                           <p className="font-semibold text-slate-900">{doc.title}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">{doc.fileName} · <span className="capitalize">{doc.materialType}</span></p>
+                          <p className="text-xs text-slate-500 mt-0.5">{doc.fileName} · {studyFormatLabel(doc.materialType, doc.fileName)}</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -357,6 +460,10 @@ export default function LecturerCourseDetail() {
                         maxLength={200}
                       />
                     </div>
+                    <div className="space-y-1.5">
+                      <Label>Quiz deadline <span className="text-slate-400 text-xs">(optional)</span></Label>
+                      <Input type="datetime-local" value={quizDue} onChange={(e) => setQuizDue(e.target.value)} className="rounded-xl border-slate-200" />
+                    </div>
                     <Button
                       className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
                       disabled={!quizDocId || genQuiz.isPending}
@@ -367,6 +474,7 @@ export default function LecturerCourseDetail() {
                           documentId: quizDocId,
                           questionCount: quizCount,
                           title: quizTitle || undefined,
+                          dueDate: quizDue ? new Date(quizDue) : undefined,
                         });
                       }}
                     >
@@ -447,9 +555,17 @@ export default function LecturerCourseDetail() {
                   {students.map((s) => (
                     <div key={s.studentId} className="flex items-center justify-between gap-4 px-6 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
-                          {s.name?.charAt(0).toUpperCase() ?? "?"}
-                        </div>
+                        {s.avatarUrl ? (
+                          <img
+                            src={s.avatarUrl}
+                            alt={s.name ?? ""}
+                            className="h-9 w-9 shrink-0 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
+                            {s.name?.charAt(0).toUpperCase() ?? "?"}
+                          </div>
+                        )}
                         <div>
                           <p className="text-sm font-semibold text-slate-900">{s.name}</p>
                           <p className="text-xs text-slate-500">{s.email}</p>
@@ -483,15 +599,71 @@ export default function LecturerCourseDetail() {
                 </div>
               </div>
               <div className="p-6 space-y-3">
+                {assessmentTemplates && assessmentTemplates.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-slate-500">Start from saved template</Label>
+                    <Select value={templateId} onValueChange={(value) => { setTemplateId(value); const template = assessmentTemplates.find((item) => String(item.id) === value); if (template) { setAssignTitle(template.title); setAssignDesc(template.description ?? ""); setAssignRubric((template.rubric ?? []).map((item) => `${item.criterion}:${item.maxPoints}`).join(", ")); } }}>
+                      <SelectTrigger className="rounded-xl border-slate-200"><SelectValue placeholder="Choose a template (optional)" /></SelectTrigger>
+                      <SelectContent>{assessmentTemplates.map((template) => <SelectItem key={template.id} value={String(template.id)}>{template.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <Input placeholder="Title" value={assignTitle} onChange={(e) => setAssignTitle(e.target.value)} className="rounded-xl border-slate-200" />
                 <Textarea placeholder="Description (optional)" value={assignDesc} onChange={(e) => setAssignDesc(e.target.value)} className="rounded-xl border-slate-200" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">Rubric <span className="font-normal">(optional, Criterion: points, separated by commas)</span></Label>
+                  <Input placeholder="Research: 30, Analysis: 40, Presentation: 30" value={assignRubric} onChange={(e) => setAssignRubric(e.target.value)} className="rounded-xl border-slate-200" />
+                </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-slate-500">Due date (optional)</Label>
                   <Input type="datetime-local" value={assignDue} onChange={(e) => setAssignDue(e.target.value)} className="rounded-xl border-slate-200" />
                 </div>
-                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={!assignTitle.trim() || createAssignment.isPending} onClick={() => createAssignment.mutate({ courseId, title: assignTitle, description: assignDesc || undefined, dueDate: assignDue ? new Date(assignDue) : undefined })}>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">Assignment document (optional)</Label>
+                  <input
+                    ref={assignFileRef}
+                    type="file"
+                    className="hidden"
+                    accept={STUDY_DOC_ACCEPT}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      if (!isAllowedStudyDocument(f.name, f.type)) {
+                        toast.error(STUDY_DOC_ERROR);
+                        e.target.value = "";
+                        setAssignFile(null);
+                        return;
+                      }
+                      setAssignFile(f);
+                    }}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="outline" className="rounded-xl border-slate-200 gap-2" onClick={() => assignFileRef.current?.click()}>
+                      <Upload className="h-4 w-4" />
+                      {assignFile ? "Change file" : "Attach file"}
+                    </Button>
+                    {assignFile ? (
+                      <span className="text-sm text-slate-600">
+                        {assignFile.name}
+                        <button
+                          type="button"
+                          className="ml-2 text-red-500 hover:text-red-700 text-xs"
+                          onClick={() => {
+                            setAssignFile(null);
+                            if (assignFileRef.current) assignFileRef.current.value = "";
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">{STUDY_DOC_HELP}</span>
+                    )}
+                  </div>
+                </div>
+                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={!assignTitle.trim() || creatingAssignment || createAssignment.isPending} onClick={() => void handleCreateAssignment()}>
                   <ClipboardList className="h-4 w-4" />
-                  {createAssignment.isPending ? "Creating..." : "Create assignment"}
+                  {creatingAssignment || createAssignment.isPending ? "Creating..." : "Create assignment"}
                 </Button>
               </div>
             </div>
@@ -505,15 +677,39 @@ export default function LecturerCourseDetail() {
                   {assignments.map((a) => (
                     <div key={a.id} className="px-6 py-4">
                       <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-semibold text-slate-900">{a.title}</p>
                           {a.description && <p className="text-sm text-slate-500 mt-1">{a.description}</p>}
+                          {a.fileUrl && (
+                            <a
+                              href={a.fileUrl.startsWith("http") ? a.fileUrl : apiUrl(a.fileUrl)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              {a.fileName ?? "Download document"}
+                            </a>
+                          )}
                           {a.dueDate && (
                             <p className="text-xs text-cyan-600 font-medium mt-1.5">
                               Due: {new Date(a.dueDate).toLocaleString()}
                             </p>
                           )}
                         </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                          disabled={deleteAssignment.isPending}
+                          onClick={() => {
+                            if (window.confirm(`Delete assignment “${a.title}”? Student submissions for it will also be removed.`)) {
+                              deleteAssignment.mutate({ assignmentId: a.id });
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   ))}

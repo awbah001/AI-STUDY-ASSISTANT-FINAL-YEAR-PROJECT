@@ -5,21 +5,25 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
+  Linking,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect, useRef } from "react";
-import { trpc } from "../../src/lib/api";
+import { trpc, API_URL } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
-import { useAuth } from "../../src/contexts/AuthContext";
 import { showLocalNotification } from "../../src/lib/notifications";
+import { studyFormatLabel } from "../../src/lib/studyDocuments";
+
+function mediaUrl(url?: string | null) {
+  if (!url) return "";
+  return url.startsWith("http") ? url : `${API_URL}${url}`;
+}
 
 export default function CourseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
   const courseId = Number(id);
   const prevAnnouncementCount = useRef<number | null>(null);
 
@@ -27,24 +31,21 @@ export default function CourseDetailScreen() {
   const course = courses?.find((c) => c.id === courseId);
 
   const { data: materials, isLoading: materialsLoading } =
-    trpc.studentCourses.materials.useQuery(
-      { courseId },
-      { enabled: !Number.isNaN(courseId) }
-    );
+    trpc.studentCourses.materials.useQuery({ courseId }, { enabled: !Number.isNaN(courseId) });
 
   const { data: announcements, isLoading: announcementsLoading } =
-    trpc.studentCourses.announcements.useQuery(
-      { courseId },
-      { enabled: !Number.isNaN(courseId) }
-    );
+    trpc.studentCourses.announcements.useQuery({ courseId }, { enabled: !Number.isNaN(courseId) });
 
   const { data: quizzes, isLoading: quizzesLoading } =
-    trpc.studentCourses.quizzes.useQuery(
-      { courseId },
-      { enabled: !Number.isNaN(courseId) }
-    );
+    trpc.studentCourses.quizzes.useQuery({ courseId }, { enabled: !Number.isNaN(courseId) });
 
-  // Fire a local notification when new announcements arrive
+  const { data: assignments, isLoading: assignmentsLoading } =
+    trpc.studentCourses.assignments.useQuery({ courseId }, { enabled: !Number.isNaN(courseId) });
+
+  const { data: mySubmissions } =
+    trpc.assignments.mySubmissionsForCourse.useQuery({ courseId }, { enabled: !Number.isNaN(courseId) });
+
+  // Local notification when new announcements arrive
   useEffect(() => {
     if (!announcements) return;
     const count = announcements.length;
@@ -58,27 +59,35 @@ export default function CourseDetailScreen() {
     prevAnnouncementCount.current = count;
   }, [announcements]);
 
+  // Helper: find submission for a given assignment
+  const getSubmission = (assignmentId: number) =>
+    mySubmissions?.find((s) => s.assignmentId === assignmentId);
+
+  // Helper: is assignment past due?
+  const isOverdue = (dueDate: Date | null | undefined) =>
+    dueDate ? new Date(dueDate).getTime() < Date.now() : false;
+
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <ScrollView contentContainerStyle={st.content} showsVerticalScrollIndicator={false}>
         {/* Back */}
-        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+        <TouchableOpacity style={st.back} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={22} color={colors.primary} />
-          <Text style={styles.backText}>Courses</Text>
+          <Text style={st.backText}>Courses</Text>
         </TouchableOpacity>
 
         {/* Course header */}
-        <View style={styles.courseHeader}>
-          <View style={styles.courseBadge}>
-            <Text style={styles.courseBadgeText}>
+        <View style={st.courseHeader}>
+          <View style={st.courseBadge}>
+            <Text style={st.courseBadgeText}>
               {(course?.title ?? "?").charAt(0).toUpperCase()}
             </Text>
           </View>
-          <Text style={styles.courseTitle}>{course?.title ?? "Course"}</Text>
+          <Text style={st.courseTitle}>{course?.title ?? "Course"}</Text>
           {(course as any)?.subject ? (
-            <Text style={styles.courseSubject}>{(course as any).subject}</Text>
+            <Text style={st.courseSubject}>{(course as any).subject}</Text>
           ) : null}
-          <Text style={styles.courseLecturer}>
+          <Text style={st.courseLecturer}>
             Lecturer: {(course as any)?.lecturerName ?? "—"}
           </Text>
         </View>
@@ -93,24 +102,103 @@ export default function CourseDetailScreen() {
           materials.map((doc) => (
             <TouchableOpacity
               key={doc.id}
-              style={styles.itemCard}
-              onPress={() =>
-                router.push({ pathname: "/document/[id]", params: { id: doc.id } })
-              }
+              style={st.itemCard}
+              onPress={() => router.push({ pathname: "/document/[id]", params: { id: doc.id } })}
               activeOpacity={0.75}
             >
-              <View style={[styles.itemIcon, { backgroundColor: colors.primaryLight }]}>
+              <View style={[st.itemIcon, { backgroundColor: colors.primaryLight }]}>
                 <Ionicons name="document-text" size={20} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.itemTitle} numberOfLines={1}>{doc.title}</Text>
-                <Text style={styles.itemMeta}>
-                  {(doc as any).materialType} · {doc.fileName}
-                </Text>
+                <Text style={st.itemTitle} numberOfLines={1}>{doc.title}</Text>
+                <Text style={st.itemMeta}>{studyFormatLabel((doc as any).materialType, doc.fileName)} · {doc.fileName}</Text>
               </View>
-              <Text style={styles.openLink}>Open →</Text>
+              <Text style={st.openLink}>Open →</Text>
             </TouchableOpacity>
           ))
+        )}
+
+        {/* ── Assignments ── */}
+        <SectionHeader icon="clipboard" title="Assignments" style={{ marginTop: 24 }} />
+        {assignmentsLoading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginBottom: 20 }} />
+        ) : !assignments || assignments.length === 0 ? (
+          <EmptyState text="No assignments yet. Check back later." />
+        ) : (
+          assignments.map((asgn) => {
+            const submission = getSubmission(asgn.id);
+            const overdue = isOverdue(asgn.dueDate);
+            const statusColor = submission?.status === "graded"
+              ? colors.primary
+              : submission?.status === "submitted"
+              ? "#3b82f6"
+              : overdue ? "#ef4444" : "#f59e0b";
+            const statusLabel = submission?.status === "graded"
+              ? `Graded${submission.grade ? ` · ${submission.grade}` : ""}`
+              : submission?.status === "submitted"
+              ? "Submitted"
+              : overdue ? "Overdue" : "Pending";
+
+            return (
+              <View key={asgn.id} style={st.assignCard}>
+                <View style={st.assignLeft}>
+                  <View style={[st.itemIcon, { backgroundColor: "#fff7ed" }]}>
+                    <Ionicons name="clipboard" size={20} color="#f59e0b" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={st.itemTitle} numberOfLines={1}>{asgn.title}</Text>
+                    {asgn.description ? (
+                      <Text style={st.itemMeta} numberOfLines={2}>{asgn.description}</Text>
+                    ) : null}
+                    {asgn.fileUrl ? (
+                      <TouchableOpacity
+                        onPress={() => void Linking.openURL(mediaUrl(asgn.fileUrl))}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={st.openLink}>
+                          {asgn.fileName ? `Open ${asgn.fileName}` : "Open assignment document"}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    <View style={st.assignMeta}>
+                      {asgn.dueDate ? (
+                        <Text style={[st.dueLabel, overdue && !submission && { color: "#ef4444" }]}>
+                          Due {new Date(asgn.dueDate).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                        </Text>
+                      ) : null}
+                      <View style={[st.statusBadge, { backgroundColor: statusColor + "20" }]}>
+                        <Text style={[st.statusText, { color: statusColor }]}>{statusLabel}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Submit / Resubmit / View button */}
+                <TouchableOpacity
+                  style={[st.submitBtn, submission && st.submitBtnDone]}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/submit-assignment",
+                      params: {
+                        assignmentId: String(asgn.id),
+                        courseId: String(courseId),
+                        title: asgn.title,
+                        description: asgn.description ?? "",
+                        dueDate: asgn.dueDate ? String(new Date(asgn.dueDate).getTime()) : "",
+                        fileUrl: asgn.fileUrl ?? "",
+                        fileName: asgn.fileName ?? "",
+                      },
+                    })
+                  }
+                  activeOpacity={0.8}
+                >
+                  <Text style={[st.submitBtnText, submission && st.submitBtnTextDone]}>
+                    {submission ? "View / Edit" : "Submit"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })
         )}
 
         {/* ── Quizzes ── */}
@@ -123,7 +211,7 @@ export default function CourseDetailScreen() {
           quizzes.map((quiz) => (
             <TouchableOpacity
               key={quiz.id}
-              style={styles.quizCard}
+              style={st.quizCard}
               onPress={() =>
                 router.push({
                   pathname: "/document/[id]",
@@ -132,24 +220,24 @@ export default function CourseDetailScreen() {
               }
               activeOpacity={0.75}
             >
-              <View style={[styles.itemIcon, { backgroundColor: "#ede9fe" }]}>
+              <View style={[st.itemIcon, { backgroundColor: "#ede9fe" }]}>
                 <Ionicons name="help-circle" size={20} color="#7c3aed" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.itemTitle} numberOfLines={1}>{quiz.title}</Text>
-                <Text style={styles.itemMeta}>
+                <Text style={st.itemTitle} numberOfLines={1}>{quiz.title}</Text>
+                <Text style={st.itemMeta}>
                   {quiz.totalQuestions} questions ·{" "}
                   {new Date(quiz.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
                 </Text>
               </View>
               {quiz.completedAt ? (
-                <View style={styles.scoreBadge}>
-                  <Text style={styles.scoreText}>
+                <View style={st.scoreBadge}>
+                  <Text style={st.scoreText}>
                     {quiz.score ? `${Number(quiz.score).toFixed(0)}%` : "Done"}
                   </Text>
                 </View>
               ) : (
-                <Text style={styles.openLink}>Start →</Text>
+                <Text style={st.openLink}>Start →</Text>
               )}
             </TouchableOpacity>
           ))
@@ -163,15 +251,15 @@ export default function CourseDetailScreen() {
           <EmptyState text="No announcements yet." />
         ) : (
           announcements.map((a) => (
-            <View key={a.id} style={styles.announcementCard}>
-              <Text style={styles.announcementTitle}>{a.title}</Text>
-              <Text style={styles.announcementContent}>{a.content}</Text>
-              <Text style={styles.announcementDate}>
-                {new Date(a.createdAt).toLocaleString()}
-              </Text>
+            <View key={a.id} style={st.announcementCard}>
+              <Text style={st.announcementTitle}>{a.title}</Text>
+              <Text style={st.announcementContent}>{a.content}</Text>
+              <Text style={st.announcementDate}>{new Date(a.createdAt).toLocaleString()}</Text>
             </View>
           ))
         )}
+
+        <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -179,15 +267,7 @@ export default function CourseDetailScreen() {
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
-function SectionHeader({
-  icon,
-  title,
-  style,
-}: {
-  icon: string;
-  title: string;
-  style?: object;
-}) {
+function SectionHeader({ icon, title, style }: { icon: string; title: string; style?: object }) {
   return (
     <View style={[{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }, style]}>
       <Ionicons name={icon as any} size={18} color={colors.primary} />
@@ -204,27 +284,27 @@ function EmptyState({ text }: { text: string }) {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: "#f5f6fa" },
   content: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 16 },
   back: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
   backText: { fontSize: 15, color: colors.primary, fontWeight: "600" },
+
+  // Course header
   courseHeader: {
     backgroundColor: colors.primary + "15",
-    borderRadius: 20,
-    padding: 20,
-    alignItems: "center",
-    marginBottom: 28,
+    borderRadius: 20, padding: 20, alignItems: "center", marginBottom: 28,
   },
   courseBadge: {
     width: 60, height: 60, borderRadius: 18,
-    backgroundColor: colors.primary,
-    alignItems: "center", justifyContent: "center", marginBottom: 12,
+    backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginBottom: 12,
   },
   courseBadgeText: { fontSize: 28, fontWeight: "800", color: colors.white },
   courseTitle: { fontSize: 20, fontWeight: "800", color: colors.text, textAlign: "center" },
   courseSubject: { fontSize: 14, color: colors.primary, fontWeight: "600", marginTop: 4 },
   courseLecturer: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+
+  // Shared card
   itemCard: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: colors.surface, borderRadius: 16,
@@ -232,6 +312,37 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
   },
+  itemIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  itemTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
+  itemMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  openLink: { fontSize: 13, color: colors.primary, fontWeight: "600" },
+
+  // Assignment card
+  assignCard: {
+    backgroundColor: colors.surface, borderRadius: 16,
+    padding: 14, marginBottom: 10,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+    borderLeftWidth: 3, borderLeftColor: "#f59e0b",
+    gap: 12,
+  },
+  assignLeft: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  assignMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" },
+  dueLabel: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
+  statusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  statusText: { fontSize: 11, fontWeight: "700" },
+  submitBtn: {
+    alignSelf: "flex-end",
+    backgroundColor: colors.primary, borderRadius: 12,
+    paddingHorizontal: 16, paddingVertical: 8,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25, shadowRadius: 6, elevation: 3,
+  },
+  submitBtnDone: { backgroundColor: "#e8fdf2", shadowOpacity: 0 },
+  submitBtnText: { fontSize: 13, fontWeight: "700", color: colors.white },
+  submitBtnTextDone: { color: colors.primaryDark },
+
+  // Quiz card
   quizCard: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: colors.surface, borderRadius: 16,
@@ -240,18 +351,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
     borderLeftWidth: 3, borderLeftColor: "#7c3aed",
   },
-  itemIcon: {
-    width: 40, height: 40, borderRadius: 12,
-    alignItems: "center", justifyContent: "center", marginRight: 12,
-  },
-  itemTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
-  itemMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  openLink: { fontSize: 13, color: colors.primary, fontWeight: "600" },
-  scoreBadge: {
-    backgroundColor: "#d1fae5", borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 4,
-  },
+  scoreBadge: { backgroundColor: "#d1fae5", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   scoreText: { fontSize: 12, fontWeight: "700", color: "#065f46" },
+
+  // Announcement card
   announcementCard: {
     backgroundColor: colors.surface, borderRadius: 16, padding: 16, marginBottom: 10,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },

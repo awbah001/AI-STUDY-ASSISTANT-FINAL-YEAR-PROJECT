@@ -1,11 +1,11 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { trpc } from "@/lib/trpc";
+import { StaffWelcomeBanner } from "@/components/StaffWelcomeBanner";
 import {
   BookMarked, Users, FileText, ClipboardList,
-  Megaphone, Brain, Layers, GraduationCap,
+  Megaphone, Brain, Layers,
   TrendingUp, ChevronRight,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -29,31 +29,19 @@ export default function LecturerDashboard() {
     <DashboardLayout>
       <div className="mx-auto max-w-6xl space-y-6">
 
-        {/* ── Welcome strip ── */}
-        <div className="relative overflow-hidden rounded-2xl border border-indigo-100 bg-white px-8 py-6 shadow-sm">
-          <div className="pointer-events-none absolute right-8 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-2 opacity-20">
-            <GraduationCap className="h-24 w-24 text-indigo-400" />
-          </div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-indigo-600">Lecturer Portal</p>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Welcome back, {firstName}</h1>
-          <p className="mt-1 text-sm text-slate-500 max-w-lg">
-            Manage courses, upload academic materials, and monitor student learning with AI-powered insights.
-          </p>
-          <Button
-            className="mt-4 rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 gap-2"
-            size="sm"
-            onClick={() => setLocation("/lecturer/courses")}
-          >
-            <BookMarked className="h-4 w-4" /> Manage courses
-          </Button>
-        </div>
+        <StaffWelcomeBanner
+          name={firstName}
+          body="Manage your courses, upload academic materials, and monitor student learning with AI-powered insights."
+          actionLabel="Manage courses"
+          onAction={() => setLocation("/lecturer/courses")}
+        />
 
         {/* ── Stats row 1 ── */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="Courses"   value={isLoading ? null : stats?.courseCount ?? 0}    icon={<BookMarked className="h-5 w-5 text-white" />}    color="bg-indigo-500"  border="border-t-indigo-500" />
+          <StatCard label="Courses"   value={isLoading ? null : stats?.courseCount ?? 0}    icon={<BookMarked className="h-5 w-5 text-white" />}    color="bg-emerald-600"  border="border-t-emerald-500" />
           <StatCard label="Students"  value={isLoading ? null : stats?.studentCount ?? 0}   icon={<Users className="h-5 w-5 text-white" />}         color="bg-violet-500"  border="border-t-violet-500" />
-          <StatCard label="Materials" value={isLoading ? null : stats?.documentCount ?? 0}  icon={<FileText className="h-5 w-5 text-white" />}      color="bg-blue-500"    border="border-t-blue-500" />
-          <StatCard label="Assignments" value={isLoading ? null : stats?.assignmentCount ?? 0} icon={<ClipboardList className="h-5 w-5 text-white" />} color="bg-cyan-500" border="border-t-cyan-500" />
+          <StatCard label="Materials" value={isLoading ? null : stats?.documentCount ?? 0}  icon={<FileText className="h-5 w-5 text-white" />}      color="bg-teal-500"    border="border-t-teal-500" />
+          <StatCard label="Assignments" value={isLoading ? null : stats?.assignmentCount ?? 0} icon={<ClipboardList className="h-5 w-5 text-white" />} color="bg-amber-500" border="border-t-amber-500" />
         </div>
 
         {/* ── Stats row 2 ── */}
@@ -65,9 +53,9 @@ export default function LecturerDashboard() {
 
         {/* ── Engagement chart ── */}
         <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
-              <TrendingUp className="h-4 w-4 text-indigo-600" />
+          <div className="flex items-center gap-3 border-b border-emerald-50 px-6 py-4">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50">
+              <TrendingUp className="h-4 w-4 text-emerald-700" />
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-800">Course Engagement</p>
@@ -82,7 +70,7 @@ export default function LecturerDashboard() {
                   <XAxis dataKey="courseTitle" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0" }} />
-                  <Bar dataKey="avgEngagement" fill="#4f46e5" radius={[8, 8, 0, 0]} name="Avg Engagement" />
+                  <Bar dataKey="avgEngagement" fill="#047857" radius={[8, 8, 0, 0]} name="Avg Engagement" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -96,9 +84,9 @@ export default function LecturerDashboard() {
 
         {/* ── Quick nav cards ── */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <QuickNav icon={<BookMarked className="h-5 w-5 text-indigo-600" />} bg="bg-indigo-50" title="Course Management" desc="Create subjects, upload notes, and share enrollment codes." path="/lecturer/courses" setLocation={setLocation} />
-          <QuickNav icon={<Brain className="h-5 w-5 text-purple-600" />} bg="bg-purple-50" title="Student Performance" desc="Track quiz scores, study time, and participation." path="/lecturer/analytics" setLocation={setLocation} />
-          <QuickNav icon={<ClipboardList className="h-5 w-5 text-cyan-600" />} bg="bg-cyan-50" title="Progress Reports" desc="Generate detailed per-student progress reports." path="/lecturer/reports" setLocation={setLocation} />
+          <QuickNav icon={<BookMarked className="h-5 w-5 text-emerald-700" />} bg="bg-emerald-50" title="Course Management" desc="Create subjects, upload notes, and share enrollment codes." path="/lecturer/courses" setLocation={setLocation} />
+          <QuickNav icon={<Brain className="h-5 w-5 text-violet-600" />} bg="bg-violet-50" title="Student Performance" desc="Track quiz scores, study time, and participation." path="/lecturer/analytics" setLocation={setLocation} />
+          <QuickNav icon={<ClipboardList className="h-5 w-5 text-amber-600" />} bg="bg-amber-50" title="Progress Reports" desc="Generate detailed per-student progress reports." path="/lecturer/reports" setLocation={setLocation} />
         </div>
       </div>
     </DashboardLayout>

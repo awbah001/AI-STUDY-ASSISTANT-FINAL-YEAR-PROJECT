@@ -4,6 +4,7 @@
  */
 
 import { apiUrl } from "@/lib/apiBaseUrl";
+import { getAuthToken } from "@/lib/authToken";
 
 const STORAGE_API_URL = import.meta.env.VITE_FRONTEND_FORGE_API_URL;
 const STORAGE_API_KEY = import.meta.env.VITE_FRONTEND_FORGE_API_KEY;
@@ -15,6 +16,10 @@ export async function storagePut(
 ): Promise<{ url: string; key: string }> {
   // Fallback to local server storage when Forge/S3 is not configured.
   if (!STORAGE_API_URL || !STORAGE_API_KEY) {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Sign in to upload files.");
+    }
     const blobData = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
     const bodyBytes =
       blobData instanceof Uint8Array
@@ -26,6 +31,7 @@ export async function storagePut(
       method: "POST",
       headers: {
         "Content-Type": contentType,
+        Authorization: `Bearer ${token}`,
       },
       body: new Blob([bodyCopy as unknown as BlobPart], { type: contentType }),
     });

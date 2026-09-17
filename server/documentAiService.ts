@@ -14,17 +14,22 @@ async function ensureDocumentText(documentId: number): Promise<Document> {
   }
 
   try {
+    await queries.updateDocument(documentId, { processingStatus: "processing", processingError: null });
     const extractedText = await llmUtils.extractDocumentText(doc.fileUrl);
     if (!extractedText.trim()) {
       throw new Error("No selectable text found in document");
     }
 
-    await queries.updateDocument(documentId, { extractedText });
+    await queries.updateDocument(documentId, { extractedText, processingStatus: "processing" });
 
     try {
       await llmUtils.indexDocumentForRag(documentId, extractedText);
+      await queries.updateDocument(documentId, { processingStatus: "ready", processingError: null });
     } catch (error) {
       console.error("RAG indexing failed during lazy extraction:", error);
+      const message = error instanceof Error ? error.message : "Indexing failed";
+      await queries.updateDocument(documentId, { processingStatus: "failed", processingError: message });
+      await queries.recordSystemEvent({ category: "indexing", severity: "error", message, documentId, userId: doc.userId });
     }
 
     return {
@@ -33,6 +38,9 @@ async function ensureDocumentText(documentId: number): Promise<Document> {
     };
   } catch (error) {
     console.error("Lazy document text extraction failed:", error);
+    const message = error instanceof Error ? error.message : "Text extraction failed";
+    await queries.updateDocument(documentId, { processingStatus: "failed", processingError: message });
+    await queries.recordSystemEvent({ category: "ai", severity: "error", message, documentId, userId: doc.userId });
     throw new TRPCError({
       code: "BAD_REQUEST",
       message:

@@ -44,12 +44,11 @@ export function DocumentChatBox({ documentId, height = "600px", className }: Doc
     setMessages([]);
   }, [documentId]);
 
-  // Initialize messages from chat history
+  // Initialize messages from chat history (API returns oldest-first)
   useEffect(() => {
     if (chatHistory) {
-      // History is returned newest-first from DB, so we reverse it for display
-      
-      setMessages(chatHistory.map(m => ({ role: m.role as "user" | "assistant", content: m.content })));
+      const chronological = [...chatHistory].sort((a, b) => a.id - b.id);
+      setMessages(chronological.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })));
     }
   }, [chatHistory]);
 

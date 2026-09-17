@@ -86,7 +86,7 @@ export default function ProfileScreen() {
                 value={name}
                 onChangeText={setName}
                 placeholder="Your name"
-                placeholderTextColor={colors.textLight}
+                placeholderTextColor={colors.textPlaceholder}
               />
               <TouchableOpacity
                 style={[styles.saveBtn, updateProfile.isPending && styles.saveBtnDisabled]}
@@ -127,7 +127,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1, backgroundColor: "#f5f6fa" },
   content: { paddingHorizontal: 24, paddingBottom: 40, paddingTop: 16 },
   back: {
     flexDirection: "row",
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   email: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   roleBadge: {
     marginTop: 10,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 4,

@@ -135,6 +135,20 @@ describe("LLM Utils", () => {
 
       expect(result).toHaveLength(10);
     });
+
+    it("retries until the requested flashcard count is reached", async () => {
+      vi.mocked(invokeLLM)
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: JSON.stringify({ flashcards: [{ question: "Only one?", answer: "Yes" }] }) } }],
+        } as any)
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: JSON.stringify({ flashcards: [{ question: "Second?", answer: "Two" }] }) } }],
+        } as any);
+
+      const result = await llmUtils.generateFlashcards(1, "Test document", "Test Doc", 2);
+      expect(result).toHaveLength(2);
+      expect(result.map((c) => c.question)).toEqual(["Only one?", "Second?"]);
+    });
   });
 
   describe("generateQuiz", () => {
@@ -201,6 +215,38 @@ describe("LLM Utils", () => {
       const result = await llmUtils.generateQuiz(1, "Test document", "Test Doc");
 
       expect(result).toHaveLength(5);
+    });
+
+    it("retries until the requested quiz count is reached", async () => {
+      const q = (n: number) => ({
+        question: `Question ${n}?`,
+        options: ["A", "B", "C", "D"],
+        correctAnswer: "A",
+        explanation: "Because A",
+      });
+      vi.mocked(invokeLLM)
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: JSON.stringify({ questions: [q(1)] }) } }],
+        } as any)
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: JSON.stringify({ questions: [q(2)] }) } }],
+        } as any);
+
+      const result = await llmUtils.generateQuiz(1, "Test document", "Test Doc", 2);
+      expect(result).toHaveLength(2);
+    });
+
+    it("recovers questions from truncated nested JSON like llama-3.2-3b", async () => {
+      const broken =
+        '{"questions":[{"question":"What is the primary function of GIS?","options":["Data analysis","Map visualization","Location-based reasoning","Spatial thinking"],"correctAnswer":"Spatial thinking"},{"questions":[{"question":"How did GIS originate?","options":["In the 1960s by Roger Tomlinson","In the 1970s with ESRI software","In the 1980s with satellite remote sensing","With pre-GIS era paper maps"],"correctAnswer":"In the 1960s by Roger Tomlinson"}]}';
+      vi.mocked(invokeLLM).mockResolvedValue({
+        choices: [{ message: { content: broken } }],
+      } as any);
+
+      const result = await llmUtils.generateQuiz(1, "GIS lecture notes ".repeat(40), "GIS", 2);
+      expect(result).toHaveLength(2);
+      expect(result[0].question).toContain("primary function");
+      expect(result[1].question).toContain("originate");
     });
   });
 

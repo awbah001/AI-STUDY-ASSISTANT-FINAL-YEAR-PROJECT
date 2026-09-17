@@ -1,7 +1,7 @@
-import { eq, and, desc, like, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, like, sql, inArray, lt, gt } from "drizzle-orm";
 import fs from "fs/promises";
-import path from "path";
 import { vectorStorePath } from "./rag/faissFlat";
+import { resolveUploadPath } from "./_core/uploads";
 import {
   users,
   documents,
@@ -13,6 +13,10 @@ import {
   quizQuestions,
   progressTracking,
   studySessions,
+  assignmentSubmissions,
+  generalChatMessages,
+  notifications,
+  passwordResetTokens,
   User,
   Document,
   ChatMessage,
@@ -22,6 +26,10 @@ import {
   QuizQuestion,
   ProgressTracking,
   StudySession,
+  AssignmentSubmission,
+  GeneralChatMessage,
+  Notification,
+  PasswordResetToken,
   InsertUser,
   InsertDocument,
   InsertChatMessage,
@@ -31,6 +39,11 @@ import {
   InsertQuizQuestion,
   InsertProgressTracking,
   InsertStudySession,
+  InsertAssignmentSubmission,
+  InsertGeneralChatMessage,
+  InsertNotification,
+  InsertPasswordResetToken,
+  systemEvents,
 } from "../drizzle/schema";
 import { getDb } from "./db";
 
@@ -114,7 +127,7 @@ export async function deleteDocument(id: number): Promise<void> {
   if (doc.fileUrl.startsWith("/uploads/")) {
     try {
       const relativePath = doc.fileUrl.replace("/uploads/", "");
-      const fullPath = path.resolve(process.cwd(), "data", "uploads", relativePath);
+      const fullPath = resolveUploadPath(relativePath);
       await fs.unlink(fullPath);
     } catch (err) {
       console.warn(`Failed to delete physical file for doc ${id}:`, err);
@@ -147,6 +160,12 @@ export async function updateDocument(id: number, data: Partial<Document>): Promi
 
   await db.update(documents).set(data).where(eq(documents.id, id));
   return getDocumentById(id);
+}
+
+export async function recordSystemEvent(data: typeof systemEvents.$inferInsert) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(systemEvents).values(data);
 }
 
 export async function toggleDocumentFavorite(id: number): Promise<Document | undefined> {
@@ -191,12 +210,13 @@ export async function getDocumentChatHistory(
   const db = await getDb();
   if (!db) return [];
 
-  return db
+  const rows = await db
     .select()
     .from(chatMessages)
     .where(eq(chatMessages.documentId, documentId))
-    .orderBy(desc(chatMessages.createdAt))
+    .orderBy(desc(chatMessages.id))
     .limit(limit);
+  return [...rows].sort((a, b) => a.id - b.id);
 }
 
 // ============ DOCUMENT SUMMARIES ============
@@ -311,6 +331,93 @@ export async function updateFlashcardReview(id: number): Promise<Flashcard | und
     .where(eq(flashcards.id, id));
 
   return db.select().from(flashcards).where(eq(flashcards.id, id)).limit(1).then((r) => r[0]);
+}
+
+/**
+ * Apply an SM-2 rating to a flashcard and persist the updated scheduling state.
+ * Also bumps reviewCount and lastReviewedAt.
+ */
+export async function applyFlashcardSm2(
+  id: number,
+  result: { easeFactor: number; srInterval: number; repetitions: number; dueDate: Date }
+): Promise<Flashcard | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const card = await db.select().from(flashcards).where(eq(flashcards.id, id)).limit(1);
+  if (!card[0]) return undefined;
+
+  await db
+    .update(flashcards)
+    .set({
+      easeFactor: result.easeFactor,
+      srInterval: result.srInterval,
+      repetitions: result.repetitions,
+      dueDate: result.dueDate,
+      reviewCount: (card[0].reviewCount ?? 0) + 1,
+      lastReviewedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(flashcards.id, id));
+
+  return db.select().from(flashcards).where(eq(flashcards.id, id)).limit(1).then((r) => r[0]);
+}
+
+/**
+ * Return all flashcards for a user that are due for review right now
+ * (dueDate IS NULL or dueDate <= now), optionally filtered by document.
+ */
+export async function getDueFlashcards(
+  userId: number,
+  documentId?: number
+): Promise<Flashcard[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const now = new Date().getTime();
+
+  const baseWhere = documentId
+    ? and(
+        eq(flashcards.userId, userId),
+        eq(flashcards.documentId, documentId),
+        sql`(${flashcards.dueDate} IS NULL OR ${flashcards.dueDate} <= ${now})`
+      )
+    : and(
+        eq(flashcards.userId, userId),
+        sql`(${flashcards.dueDate} IS NULL OR ${flashcards.dueDate} <= ${now})`
+      );
+
+  return db
+    .select()
+    .from(flashcards)
+    .where(baseWhere)
+    .orderBy(flashcards.dueDate);
+}
+
+/**
+ * Count how many cards are due today per document — used for the stats banner.
+ */
+export async function getDueCountPerDocument(
+  userId: number
+): Promise<Array<{ documentId: number; dueCount: number }>> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const now = new Date().getTime();
+
+  return db
+    .select({
+      documentId: flashcards.documentId,
+      dueCount: sql<number>`cast(count(*) as integer)`,
+    })
+    .from(flashcards)
+    .where(
+      and(
+        eq(flashcards.userId, userId),
+        sql`(${flashcards.dueDate} IS NULL OR ${flashcards.dueDate} <= ${now})`
+      )
+    )
+    .groupBy(flashcards.documentId) as Promise<Array<{ documentId: number; dueCount: number }>>;
 }
 
 export async function getUserFavoriteFlashcards(userId: number): Promise<Flashcard[]> {
@@ -525,6 +632,35 @@ export async function getUserProgress(userId: number): Promise<ProgressTracking[
     .orderBy(desc(progressTracking.lastActivityAt));
 }
 
+/** Progress with document titles joined — used by mobile progress tab */
+export async function getUserProgressWithTitles(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db
+    .select({
+      id: progressTracking.id,
+      documentId: progressTracking.documentId,
+      documentTitle: documents.title,
+      userId: progressTracking.userId,
+      quizzesAttempted: progressTracking.quizzesAttempted,
+      averageQuizScore: progressTracking.averageQuizScore,
+      flashcardsCreated: progressTracking.flashcardsCreated,
+      flashcardsReviewed: progressTracking.flashcardsReviewed,
+      totalStudyTimeMinutes: progressTracking.totalStudyTimeMinutes,
+      currentStreak: progressTracking.currentStreak,
+      longestStreak: progressTracking.longestStreak,
+      lastStudyDate: progressTracking.lastStudyDate,
+      lastActivityAt: progressTracking.lastActivityAt,
+    })
+    .from(progressTracking)
+    .leftJoin(documents, eq(progressTracking.documentId, documents.id))
+    .where(eq(progressTracking.userId, userId))
+    .orderBy(desc(progressTracking.lastActivityAt));
+
+  return rows;
+}
+
 // ============ STUDY SESSIONS ============
 
 export async function createStudySession(data: InsertStudySession): Promise<StudySession> {
@@ -541,6 +677,30 @@ export async function createStudySession(data: InsertStudySession): Promise<Stud
   
   if (!sessions[0]) throw new Error("Failed to create study session");
   return sessions[0];
+}
+
+/** Always logs at least 1 minute so streak, daily goal, and study time stay in sync. */
+export async function logStudyActivity(input: {
+  userId: number;
+  documentId: number;
+  activityType: "quiz" | "flashcard" | "reading" | "chat";
+  durationMinutes?: number;
+  progressUpdates?: Partial<ProgressTracking>;
+}): Promise<void> {
+  const minutes = Math.max(1, Math.round(input.durationMinutes ?? 1));
+  const progress = await getOrCreateProgress(input.documentId, input.userId);
+  await updateProgressActivity(input.documentId, input.userId, {
+    ...(input.progressUpdates ?? {}),
+    totalStudyTimeMinutes: (progress.totalStudyTimeMinutes || 0) + minutes,
+  });
+  await createStudySession({
+    userId: input.userId,
+    documentId: input.documentId,
+    startTime: new Date(Date.now() - minutes * 60 * 1000),
+    endTime: new Date(),
+    durationMinutes: minutes,
+    activityType: input.activityType,
+  });
 }
 
 export async function updateStudySession(id: number, endTime: Date, durationMinutes: number): Promise<StudySession | undefined> {
@@ -582,7 +742,14 @@ export async function getTotalStudyTime(userId: number): Promise<number> {
     .from(studySessions)
     .where(eq(studySessions.userId, userId));
 
-  return result[0]?.total || 0;
+  const fromSessions = result[0]?.total || 0;
+  const fromProgress = await db
+    .select({
+      total: sql<number>`cast(sum(coalesce(${progressTracking.totalStudyTimeMinutes}, 0)) as integer)`,
+    })
+    .from(progressTracking)
+    .where(eq(progressTracking.userId, userId));
+  return Math.max(fromSessions, fromProgress[0]?.total || 0);
 }
 
 // ============ ANALYTICS ============
@@ -604,6 +771,60 @@ export async function getSubjectPerformance(userId: number) {
     .where(and(eq(progressTracking.userId, userId), sql`${documents.subject} IS NOT NULL`))
     .groupBy(documents.subject)
     .orderBy(sql`avg(${progressTracking.averageQuizScore}) DESC`);
+}
+
+/**
+ * Returns per-day study minutes for each of the last 7 calendar days.
+ * Result is an array of 7 items, index 0 = 6 days ago, index 6 = today.
+ * Missing days have totalMinutes = 0.
+ */
+export async function getDailyStudyData(userId: number): Promise<
+  Array<{ date: string; totalMinutes: number; dayLabel: string }>
+> {
+  const db = await getDb();
+
+  // Build the 7-day window (today inclusive)
+  const days: Array<{ date: string; dayLabel: string }> = [];
+  const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    days.push({
+      date: `${yyyy}-${mm}-${dd}`,
+      dayLabel: DAY_LABELS[d.getDay()],
+    });
+  }
+
+  if (!db) return days.map((d) => ({ ...d, totalMinutes: 0 }));
+
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  const rows = await db
+    .select({
+      date: sql<string>`date(${studySessions.startTime} / 1000, 'unixepoch', 'localtime')`,
+      totalMinutes: sql<number>`cast(coalesce(sum(${studySessions.durationMinutes}), 0) as integer)`,
+    })
+    .from(studySessions)
+    .where(
+      and(
+        eq(studySessions.userId, userId),
+        sql`${studySessions.startTime} >= ${sevenDaysAgo.getTime()}`
+      )
+    )
+    .groupBy(sql`date(${studySessions.startTime} / 1000, 'unixepoch', 'localtime')`);
+
+  // Merge DB rows into the 7-day skeleton (fill 0 for missing days)
+  const byDate = new Map(rows.map((r) => [r.date, r.totalMinutes]));
+  return days.map((d) => ({
+    date: d.date,
+    dayLabel: d.dayLabel,
+    totalMinutes: byDate.get(d.date) ?? 0,
+  }));
 }
 
 export async function getWeeklyStudyData(userId: number) {
@@ -658,47 +879,61 @@ export async function getCurrentStudyStreak(userId: number): Promise<number> {
   const db = await getDb();
   if (!db) return 0;
 
-  // Get all study dates for the user in the last 60 days
+  const localYmd = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const sixtyDaysAgo = new Date();
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
   const studyDates = await db
     .select({
-      date: sql<string>`date(${studySessions.createdAt})`,
+      date: sql<string>`date(${studySessions.startTime} / 1000, 'unixepoch', 'localtime')`,
     })
     .from(studySessions)
     .where(and(
       eq(studySessions.userId, userId),
-      sql`${studySessions.createdAt} >= ${sixtyDaysAgo}`
+      sql`${studySessions.startTime} >= ${sixtyDaysAgo.getTime()}`
     ))
-    .groupBy(sql`date(${studySessions.createdAt})`)
-    .orderBy(desc(sql`date(${studySessions.createdAt})`));
+    .groupBy(sql`date(${studySessions.startTime} / 1000, 'unixepoch', 'localtime')`)
+    .orderBy(desc(sql`date(${studySessions.startTime} / 1000, 'unixepoch', 'localtime')`));
 
-  if (studyDates.length === 0) return 0;
+  const progressRows = await db
+    .select({
+      currentStreak: progressTracking.currentStreak,
+      lastStudyDate: progressTracking.lastStudyDate,
+    })
+    .from(progressTracking)
+    .where(eq(progressTracking.userId, userId));
 
-  const uniqueDates = [...new Set(studyDates.map(d => d.date))];
+  const uniqueDates = new Set(studyDates.map((d) => d.date).filter(Boolean));
+  for (const row of progressRows) {
+    if (row.lastStudyDate) uniqueDates.add(localYmd(new Date(row.lastStudyDate)));
+  }
+
+  if (uniqueDates.size === 0) {
+    return Math.max(0, ...progressRows.map((r) => r.currentStreak ?? 0));
+  }
+
+  const today = localYmd(new Date());
+  const yesterday = localYmd(new Date(Date.now() - 86400000));
+  if (!uniqueDates.has(today) && !uniqueDates.has(yesterday)) {
+    return 0;
+  }
+
   let streak = 0;
-  const today = new Date().toISOString().split('T')[0];
-
-  // Check if studied today
-  if (!uniqueDates.includes(today)) {
-    return 0; // No streak if didn't study today
+  const startOffset = uniqueDates.has(today) ? 0 : 1;
+  for (let i = startOffset; i < 60; i++) {
+    const day = new Date();
+    day.setDate(day.getDate() - i);
+    if (uniqueDates.has(localYmd(day))) streak++;
+    else break;
   }
 
-  // Count consecutive days
-  for (let i = 0; i < uniqueDates.length; i++) {
-    const expectedDate = new Date();
-    expectedDate.setDate(expectedDate.getDate() - i);
-    const expectedDateStr = expectedDate.toISOString().split('T')[0];
-
-    if (uniqueDates.includes(expectedDateStr)) {
-      streak++;
-    } else {
-      break;
-    }
-  }
-
-  return streak;
+  return Math.max(streak, ...progressRows.map((r) => r.currentStreak ?? 0));
 }
 
 export async function getRecommendedRevision(userId: number) {
@@ -779,4 +1014,201 @@ export async function toggleUserBan(userId: number): Promise<User | undefined> {
 
   await db.update(users).set({ isBanned: !user.isBanned }).where(eq(users.id, userId));
   return db.select().from(users).where(eq(users.id, userId)).limit(1).then(r => r[0]);
+}
+
+// ============ ASSIGNMENT SUBMISSIONS ============
+
+export async function createSubmission(data: InsertAssignmentSubmission): Promise<AssignmentSubmission> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(assignmentSubmissions).values(data).returning();
+  if (!result[0]) throw new Error("Failed to create submission");
+  return result[0];
+}
+
+export async function getSubmissionByStudentAndAssignment(
+  studentId: number,
+  assignmentId: number
+): Promise<AssignmentSubmission | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(assignmentSubmissions)
+    .where(and(eq(assignmentSubmissions.studentId, studentId), eq(assignmentSubmissions.assignmentId, assignmentId)))
+    .limit(1);
+  return rows[0];
+}
+
+export async function getSubmissionsByAssignment(assignmentId: number): Promise<
+  Array<AssignmentSubmission & { studentName: string | null; studentEmail: string | null }>
+> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: assignmentSubmissions.id,
+      assignmentId: assignmentSubmissions.assignmentId,
+      studentId: assignmentSubmissions.studentId,
+      courseId: assignmentSubmissions.courseId,
+      note: assignmentSubmissions.note,
+      fileUrl: assignmentSubmissions.fileUrl,
+      fileKey: assignmentSubmissions.fileKey,
+      fileName: assignmentSubmissions.fileName,
+      fileSize: assignmentSubmissions.fileSize,
+      mimeType: assignmentSubmissions.mimeType,
+      status: assignmentSubmissions.status,
+      grade: assignmentSubmissions.grade,
+      feedback: assignmentSubmissions.feedback,
+      submittedAt: assignmentSubmissions.submittedAt,
+      gradedAt: assignmentSubmissions.gradedAt,
+      studentName: users.name,
+      studentEmail: users.email,
+    })
+    .from(assignmentSubmissions)
+    .leftJoin(users, eq(assignmentSubmissions.studentId, users.id))
+    .where(eq(assignmentSubmissions.assignmentId, assignmentId))
+    .orderBy(desc(assignmentSubmissions.submittedAt)) as any;
+}
+
+export async function getStudentSubmissionsForCourse(
+  studentId: number,
+  courseId: number
+): Promise<AssignmentSubmission[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(assignmentSubmissions)
+    .where(and(eq(assignmentSubmissions.studentId, studentId), eq(assignmentSubmissions.courseId, courseId)))
+    .orderBy(desc(assignmentSubmissions.submittedAt));
+}
+
+export async function gradeSubmission(
+  submissionId: number,
+  grade: string,
+  feedback?: string
+): Promise<AssignmentSubmission | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  await db
+    .update(assignmentSubmissions)
+    .set({ grade, feedback: feedback ?? null, status: "graded", gradedAt: new Date() })
+    .where(eq(assignmentSubmissions.id, submissionId));
+  return db.select().from(assignmentSubmissions).where(eq(assignmentSubmissions.id, submissionId)).limit(1).then(r => r[0]);
+}
+
+// ============ GENERAL CHAT MESSAGES ============
+
+export async function createGeneralChatMessage(data: InsertGeneralChatMessage): Promise<GeneralChatMessage> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(generalChatMessages).values(data).returning();
+  if (!result[0]) throw new Error("Failed to create general chat message");
+  return result[0];
+}
+
+export async function getGeneralChatHistory(userId: number, limit = 50): Promise<GeneralChatMessage[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select()
+    .from(generalChatMessages)
+    .where(eq(generalChatMessages.userId, userId))
+    .orderBy(desc(generalChatMessages.id))
+    .limit(limit);
+  return [...rows].sort((a, b) => a.id - b.id);
+}
+
+export async function clearGeneralChatHistory(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(generalChatMessages).where(eq(generalChatMessages.userId, userId));
+}
+
+// ============ NOTIFICATIONS ============
+
+export async function createNotification(data: InsertNotification): Promise<Notification> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(notifications).values(data).returning();
+  if (!result[0]) throw new Error("Failed to create notification");
+  return result[0];
+}
+
+export async function getUserNotifications(userId: number, limit = 50): Promise<Notification[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.userId, userId))
+    .orderBy(desc(notifications.createdAt))
+    .limit(limit);
+}
+
+export async function getUnreadNotificationCount(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db
+    .select({ count: sql<number>`cast(count(*) as integer)` })
+    .from(notifications)
+    .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+  return rows[0]?.count ?? 0;
+}
+
+export async function markNotificationRead(notificationId: number, userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(notifications)
+    .set({ isRead: true })
+    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)));
+}
+
+export async function markAllNotificationsRead(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, userId));
+}
+
+// ============ PASSWORD RESET TOKENS ============
+
+export async function createPasswordResetToken(data: InsertPasswordResetToken): Promise<PasswordResetToken> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Invalidate any existing unused tokens for this user
+  await db
+    .update(passwordResetTokens)
+    .set({ usedAt: new Date() })
+    .where(and(eq(passwordResetTokens.userId, data.userId!), sql`${passwordResetTokens.usedAt} IS NULL`));
+  const result = await db.insert(passwordResetTokens).values(data).returning();
+  if (!result[0]) throw new Error("Failed to create reset token");
+  return result[0];
+}
+
+export async function getValidResetToken(token: string): Promise<PasswordResetToken | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(passwordResetTokens)
+    .where(
+      and(
+        eq(passwordResetTokens.token, token),
+        sql`${passwordResetTokens.usedAt} IS NULL`,
+        gt(passwordResetTokens.expiresAt, new Date())
+      )
+    )
+    .limit(1);
+  return rows[0];
+}
+
+export async function consumeResetToken(tokenId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(passwordResetTokens)
+    .set({ usedAt: new Date() })
+    .where(eq(passwordResetTokens.id, tokenId));
 }

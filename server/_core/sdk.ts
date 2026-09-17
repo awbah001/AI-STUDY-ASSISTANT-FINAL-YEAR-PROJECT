@@ -147,6 +147,9 @@ class SDKServer {
 
   private getSessionSecret() {
     const secret = ENV.cookieSecret;
+    if (!secret || secret.length < 16) {
+      throw new Error("JWT_SECRET must be set to at least 16 characters.");
+    }
     return new TextEncoder().encode(secret);
   }
 
@@ -263,6 +266,10 @@ class SDKServer {
 
     if (!user) {
       throw ForbiddenError("User not found");
+    }
+
+    if (user.isBanned) {
+      throw ForbiddenError("Account is banned");
     }
 
     await db.upsertUser({

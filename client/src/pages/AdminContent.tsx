@@ -3,7 +3,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FileText, Trash2, Globe, Lock, Search, Upload } from "lucide-react";
+import { FileText, Trash2, Globe, Lock, Search } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocation } from "wouter";
@@ -17,12 +17,12 @@ export default function AdminContent() {
 
   useEffect(() => {
     if (user && user.role !== "admin") {
-      setLocation("/dashboard");
+      setLocation("/login");
     }
   }, [user, setLocation]);
 
   // Fetch all documents across the platform
-  const { data: analytics, isLoading, refetch } = trpc.admin.getAnalytics.useQuery(undefined, {
+  const { data: documentsPage, isLoading, refetch } = trpc.admin.listDocuments.useQuery({ page: 1, pageSize: 50, search: searchQuery }, {
     enabled: user?.role === "admin",
   });
 
@@ -44,15 +44,7 @@ export default function AdminContent() {
     return null;
   }
 
-  // Extract all documents from analytics or fetch separately if needed
-  // For now, let's assume we need a separate query for all documents if analytics doesn't have them all
-  // But analytics has 'recentActivities' which includes documents.
-  // I should probably add a getDocuments query to admin router.
-  
-  // Actually, I'll just use the existing analytics for now or assume I'll add a more specific query.
-  // Let's add 'allDocuments' to the getAnalytics response or create a new query.
-  
-  const allDocs = (analytics as any)?.allDocuments || [];
+  const allDocs = (documentsPage?.items ?? []).map((doc) => ({ ...doc, userName: doc.ownerName }));
   const filteredDocs = allDocs.filter((d: any) => 
     (d.title?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
     (d.userName?.toLowerCase() || "").includes(searchQuery.toLowerCase())
@@ -76,13 +68,9 @@ export default function AdminContent() {
                 Manage all learning resources and moderate user-generated content.
               </p>
             </div>
-            <Button 
-              className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20"
-              onClick={() => setLocation("/upload")}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload Resource
-            </Button>
+            <p className="max-w-xs text-right text-xs text-muted-foreground">
+              Lecturers upload course materials from a course page. Students upload from the mobile app.
+            </p>
           </div>
         </div>
 
@@ -152,7 +140,11 @@ export default function AdminContent() {
                               variant="outline" 
                               size="sm" 
                               className="rounded-2xl text-xs"
-                              onClick={() => togglePublicMutation.mutate({ documentId: doc.id })}
+                              onClick={() => {
+                                const reason = prompt(`Reason to ${doc.isPublic ? "make private" : "publish"} this document:`);
+                                if (reason && reason.trim().length >= 3) togglePublicMutation.mutate({ documentId: doc.id, reason: reason.trim() });
+                                else if (reason !== null) toast.error("A reason of at least 3 characters is required.");
+                              }}
                             >
                               {doc.isPublic ? 'Make Private' : 'Make Public'}
                             </Button>
@@ -162,7 +154,9 @@ export default function AdminContent() {
                               className="rounded-2xl text-xs text-red-600 border-red-200 bg-red-50 hover:bg-red-100"
                               onClick={() => {
                                 if (confirm("Delete this document and all associated flashcards/quizzes?")) {
-                                  deleteMutation.mutate({ documentId: doc.id });
+                                  const reason = prompt("Reason for deletion:");
+                                  if (reason && reason.trim().length >= 3) deleteMutation.mutate({ documentId: doc.id, reason: reason.trim() });
+                                  else if (reason !== null) toast.error("A reason of at least 3 characters is required.");
                                 }
                               }}
                             >

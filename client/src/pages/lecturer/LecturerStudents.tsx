@@ -26,10 +26,10 @@ export default function LecturerStudents() {
   );
 
   // Group by student so we can show all enrolled courses per student
-  const grouped = filtered.reduce<Record<number, { name: string | null; email: string | null; courses: { courseId: number; courseTitle: string | null; enrolledAt: Date | string }[] }>>(
+  const grouped = filtered.reduce<Record<number, { name: string | null; email: string | null; avatarUrl: string | null; courses: { courseId: number; courseTitle: string | null; enrolledAt: Date | string }[] }>>(
     (acc, s) => {
       if (!acc[s.studentId]) {
-        acc[s.studentId] = { name: s.name, email: s.email, courses: [] };
+        acc[s.studentId] = { name: s.name, email: s.email, avatarUrl: s.avatarUrl ?? null, courses: [] };
       }
       acc[s.studentId].courses.push({ courseId: s.courseId, courseTitle: s.courseTitle, enrolledAt: s.enrolledAt });
       return acc;
@@ -96,9 +96,17 @@ export default function LecturerStudents() {
               {groupedList.map(([studentIdStr, student]) => (
                 <div key={studentIdStr} className="flex items-start gap-4 px-6 py-4 hover:bg-slate-50 transition-colors">
                   {/* Avatar */}
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
-                    {student.name?.charAt(0).toUpperCase() ?? "?"}
-                  </div>
+                  {student.avatarUrl ? (
+                    <img
+                      src={student.avatarUrl}
+                      alt={student.name ?? ""}
+                      className="h-10 w-10 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
+                      {student.name?.charAt(0).toUpperCase() ?? "?"}
+                    </div>
+                  )}
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-900">{student.name}</p>

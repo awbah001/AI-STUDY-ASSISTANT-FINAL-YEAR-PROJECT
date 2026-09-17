@@ -30,6 +30,26 @@ export async function getDb() {
       });
       
       _db = drizzle(client);
+
+      // Run schema migrations using the raw libSQL client (not the Drizzle wrapper)
+      try {
+        const { runSm2Migration } = await import("./migrations/addSm2Fields");
+        await runSm2Migration(client);
+      } catch (migErr) {
+        console.warn("[migration] SM-2 migration skipped:", migErr);
+      }
+      try {
+        const { runNewFeatureTablesMigration } = await import("./migrations/addNewFeatureTables");
+        await runNewFeatureTablesMigration(client);
+      } catch (migErr) {
+        console.warn("[migration] New feature tables migration skipped:", migErr);
+      }
+      try {
+        const { runAdminOperationsMigration } = await import("./migrations/addAdminOperations");
+        await runAdminOperationsMigration(client);
+      } catch (migErr) {
+        console.warn("[migration] Admin operations migration skipped:", migErr);
+      }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -132,6 +152,13 @@ export async function getUserByEmail(email: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getUserById(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return result[0];
+}
+
 export async function createUser(user: InsertUser) {
   const db = await getDb();
   if (!db) {
@@ -153,7 +180,7 @@ export async function createUser(user: InsertUser) {
 
 export async function updateUserByOpenId(
   openId: string,
-  patch: Partial<Pick<InsertUser, "name" | "avatarUrl" | "passwordHash">>
+  patch: Partial<Pick<InsertUser, "name" | "avatarUrl" | "passwordHash" | "role" | "isBanned">>
 ): Promise<User | undefined> {
   const dbConn = await getDb();
   if (!dbConn) {
@@ -167,6 +194,17 @@ export async function updateUserByOpenId(
     .where(eq(users.openId, openId));
 
   return getUserByOpenId(openId);
+}
+
+export async function updateUserById(
+  userId: number,
+  patch: Partial<Pick<InsertUser, "name" | "avatarUrl" | "passwordHash" | "role" | "isBanned">>
+): Promise<User | undefined> {
+  const dbConn = await getDb();
+  if (!dbConn) return undefined;
+  await dbConn.update(users).set({ ...patch, updatedAt: new Date() }).where(eq(users.id, userId));
+  const rows = await dbConn.select().from(users).where(eq(users.id, userId)).limit(1);
+  return rows[0];
 }
 
 // TODO: add feature queries here as your schema grows.

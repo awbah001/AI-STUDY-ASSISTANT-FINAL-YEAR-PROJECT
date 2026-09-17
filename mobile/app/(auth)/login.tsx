@@ -1,25 +1,25 @@
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  Animated,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
-  Alert,
-  ActivityIndicator,
-  Animated,
-  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
-import { useState, useEffect } from "react";
-import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { trpc } from "../../src/lib/api";
-import { colors } from "../../src/theme/colors";
-
-const brandLogo = require("../../assets/logo.png");
+import { useGoogleSignIn } from "../../src/lib/useGoogleSignIn";
+import { GoogleButton } from "../../src/components/GoogleButton";
+import { AuthBotHero } from "../../src/components/AuthBotHero";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -27,49 +27,43 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [fadeAnim] = useState(new Animated.Value(0));
-  const [slideAnim] = useState(new Animated.Value(40));
+  const enter = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 900, useNativeDriver: true }),
-    ]).start();
-  }, []);
+    Animated.timing(enter, { toValue: 1, duration: 560, useNativeDriver: true }).start();
+  }, [enter]);
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: async (data) => {
       if (data.user.role !== "user") {
-        Alert.alert(
-          "Staff Portal",
-          "Lecturers and admins should use the Cognify web portal.",
-          [{ text: "OK" }]
-        );
+        Alert.alert("Staff Portal", "Lecturers and admins should use the Cognify web portal.");
         return;
       }
       await login(data.token, data.user as any);
       router.replace("/(tabs)/dashboard");
     },
     onError: (err) => {
-      const msg = err.message || "";
-      const isNetwork =
-        msg.includes("Network request failed") ||
-        msg.includes("fetch") ||
-        msg.includes("ECONNREFUSED") ||
-        msg.includes("timeout") ||
-        msg.includes("Unable to resolve");
-
-      if (isNetwork) {
-        Alert.alert(
-          "Connection error",
-          "Could not connect to the server. Make sure you are connected to the same Wi-Fi network and try again.",
-          [{ text: "OK" }]
-        );
-      } else {
-        Alert.alert("Sign in failed", msg || "Invalid email or password.");
-      }
+      const message = err.message ?? "";
+      const networkError = /network|fetch|econnrefused|timeout|resolve/i.test(message);
+      Alert.alert(networkError ? "Connection error" : "Sign in failed", networkError ? "Could not reach the server. Check your connection and try again." : message || "Invalid email or password.");
     },
   });
+
+  const googleMutation = trpc.auth.google.useMutation({
+    onSuccess: async (data) => {
+      await login(data.token, data.user as any);
+      router.replace("/(tabs)/dashboard");
+    },
+    onError: (err) => Alert.alert("Google sign-in failed", err.message || "Please try again."),
+  });
+
+  const onGoogleToken = useCallback(
+    (idToken: string) => {
+      googleMutation.mutate({ idToken, client: "mobile" });
+    },
+    [googleMutation]
+  );
+  const google = useGoogleSignIn(onGoogleToken);
 
   const handleLogin = () => {
     if (!email.trim() || !password.trim()) {
@@ -79,135 +73,91 @@ export default function LoginScreen() {
     loginMutation.mutate({ email: email.trim(), password });
   };
 
+  const translateY = enter.interpolate({ inputRange: [0, 1], outputRange: [24, 0] });
+
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Logo */}
-        <Animated.View style={[styles.logoSection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-          <View style={styles.logoCircle}>
-            <Image source={brandLogo} style={styles.logoImage} resizeMode="cover" />
-          </View>
-          <Text style={styles.appName}>Cognify</Text>
-          <Text style={styles.tagline}>Your AI study companion</Text>
-        </Animated.View>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View pointerEvents="none" style={styles.mintGlowTop} />
+          <View pointerEvents="none" style={styles.mintGlowBottom} />
+          <Animated.View style={[styles.content, { opacity: enter, transform: [{ translateY }] }]}>
+            <AuthBotHero />
 
-        {/* Form */}
-        <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Sign in to your student account</Text>
-
-          {/* Email */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color={colors.textLight} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="name@example.com"
-                placeholderTextColor={colors.textLight}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+            <View style={styles.welcomeBlock}>
+              <Text style={styles.welcomeTitle}>Welcome Back</Text>
+              <Text style={styles.welcomeCopy}>Sign in to continue your learning journey</Text>
             </View>
-          </View>
 
-          {/* Password */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color={colors.textLight} style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, styles.passwordInput]}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                placeholderTextColor={colors.textLight}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
+            <View style={styles.form}>
+              <Field icon="mail-outline" value={email} onChangeText={setEmail} placeholder="Email address" keyboardType="email-address" autoComplete="email" />
+              <Field icon="lock-closed-outline" value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry={!showPassword} autoComplete="password" action={() => setShowPassword((current) => !current)} actionIcon={showPassword ? "eye-off-outline" : "eye-outline"} />
+
+              <Pressable onPress={handleLogin} disabled={loginMutation.isPending || googleMutation.isPending} style={({ pressed }) => [styles.signInButton, pressed && styles.pressed, loginMutation.isPending && styles.disabled]}>
+                <View style={styles.signInGradient}>
+                  {loginMutation.isPending ? <ActivityIndicator color="#fff" /> : <><Text style={styles.signInText}>Sign In</Text><Ionicons name="arrow-forward" color="#fff" size={20} /></>}
+                </View>
+              </Pressable>
+
+              <View style={styles.orRow}><View style={styles.orLine} /><Text style={styles.orText}>or</Text><View style={styles.orLine} /></View>
+              <GoogleButton
+                pending={googleMutation.isPending}
+                disabled={!google.ready}
+                onPress={() => {
+                  if (!google.configured) {
+                    Alert.alert("Google sign-in", "Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in mobile/.env and restart Expo.");
+                    return;
+                  }
+                  google.prompt();
+                }}
               />
-              <TouchableOpacity onPress={() => setShowPassword((v) => !v)} style={styles.showBtn} activeOpacity={0.7}>
-                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textMuted} />
-              </TouchableOpacity>
+
+              <View style={styles.newAccount}>
+                <Text style={styles.newAccountText}>New here? </Text>
+                <Pressable onPress={() => router.push("/(auth)/signup")} hitSlop={8}>
+                  <Text style={styles.createAccount}>Create an account</Text>
+                </Pressable>
+              </View>
+              <Pressable onPress={() => router.push("/(auth)/forgot-password")} hitSlop={10} style={styles.forgotButton}>
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </Pressable>
             </View>
-          </View>
-
-          {/* Sign in button */}
-          <TouchableOpacity
-            style={[styles.loginBtn, loginMutation.isPending && styles.loginBtnDisabled]}
-            onPress={handleLogin}
-            disabled={loginMutation.isPending}
-            activeOpacity={0.85}
-          >
-            {loginMutation.isPending
-              ? <ActivityIndicator color={colors.white} />
-              : <Text style={styles.loginBtnText}>Sign in</Text>
-            }
-          </TouchableOpacity>
-
-          {/* Sign up link */}
-          <View style={styles.signupRow}>
-            <Text style={styles.signupText}>Don&apos;t have an account? </Text>
-            <TouchableOpacity onPress={() => router.push("/(auth)/signup")} activeOpacity={0.7}>
-              <Text style={styles.signupLink}>Sign up</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
+function Field(props: { icon: React.ComponentProps<typeof Ionicons>["name"]; value: string; onChangeText: (value: string) => void; placeholder: string; keyboardType?: "email-address"; secureTextEntry?: boolean; autoComplete?: "email" | "password"; action?: () => void; actionIcon?: React.ComponentProps<typeof Ionicons>["name"] }) {
+  return <View style={styles.inputShell}><Ionicons name={props.icon} size={21} color="#5f7890" style={styles.fieldIcon} /><TextInput style={styles.input} value={props.value} onChangeText={props.onChangeText} placeholder={props.placeholder} placeholderTextColor="#91a5b8" keyboardType={props.keyboardType} autoCapitalize="none" autoCorrect={false} secureTextEntry={props.secureTextEntry} autoComplete={props.autoComplete} />{props.action && <Pressable onPress={props.action} hitSlop={12} style={styles.eyeButton}><Ionicons name={props.actionIcon!} size={21} color="#5f7890" /></Pressable>}</View>;
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scroll: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingVertical: 40 },
-  logoSection: { alignItems: "center", marginBottom: 36 },
-  logoCircle: {
-    width: 80, height: 80, borderRadius: 24, overflow: "hidden",
-    backgroundColor: colors.surface, alignItems: "center", justifyContent: "center",
-    marginBottom: 14,
-    shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25, shadowRadius: 14, elevation: 6,
-  },
-  logoImage: { width: "100%", height: "100%" },
-  appName: { fontSize: 30, fontWeight: "800", color: colors.text, letterSpacing: -0.75 },
-  tagline: { fontSize: 15, color: colors.textMuted, marginTop: 6 },
-  card: {
-    backgroundColor: colors.surface, borderRadius: 28, padding: 28,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08, shadowRadius: 20, elevation: 6,
-  },
-  title: { fontSize: 24, fontWeight: "700", color: colors.text, marginBottom: 4 },
-  subtitle: { fontSize: 15, color: colors.textMuted, marginBottom: 28 },
-  field: { marginBottom: 18 },
-  label: { fontSize: 14, fontWeight: "600", color: colors.text, marginBottom: 8 },
-  inputContainer: {
-    flexDirection: "row", alignItems: "center",
-    borderWidth: 1.5, borderColor: colors.border,
-    borderRadius: 16, backgroundColor: "#f8fafc",
-  },
-  inputIcon: { paddingLeft: 16 },
-  input: { flex: 1, paddingHorizontal: 12, paddingVertical: 14, fontSize: 15, color: colors.text },
-  passwordInput: { paddingRight: 4 },
-  showBtn: { paddingHorizontal: 14, paddingVertical: 14 },
-  loginBtn: {
-    backgroundColor: colors.primary, borderRadius: 18,
-    paddingVertical: 16, alignItems: "center", marginTop: 10,
-    shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
-  },
-  loginBtnDisabled: { opacity: 0.6 },
-  loginBtnText: { color: colors.white, fontSize: 17, fontWeight: "700" },
-  signupRow: { flexDirection: "row", justifyContent: "center", marginTop: 24 },
-  signupText: { fontSize: 15, color: colors.textMuted },
-  signupLink: { fontSize: 15, fontWeight: "700", color: colors.primary },
+  safe: { flex: 1, backgroundColor: "#f7fdfb" },
+  scroll: { flexGrow: 1, justifyContent: "center", paddingVertical: 12 },
+  content: { width: "100%", maxWidth: 480, alignSelf: "center", paddingHorizontal: 28 },
+  mintGlowTop: { position: "absolute", top: -170, left: -120, height: 330, width: 390, borderRadius: 220, backgroundColor: "#e8faf4" },
+  mintGlowBottom: { position: "absolute", bottom: -180, right: -140, height: 320, width: 360, borderRadius: 220, backgroundColor: "#e4f8f0" },
+  welcomeBlock: { alignItems: "center", marginTop: -6 },
+  welcomeTitle: { color: "#143044", fontSize: 28, fontWeight: "800", letterSpacing: -0.4 },
+  welcomeCopy: { color: "#8aa0b4", fontSize: 14, marginTop: 6, textAlign: "center" },
+  form: { marginTop: 20 },
+  inputShell: { alignItems: "center", backgroundColor: "#fff", borderColor: "#e4ebf0", borderRadius: 16, borderWidth: 1, flexDirection: "row", height: 52, marginBottom: 12 },
+  fieldIcon: { marginLeft: 16 },
+  input: { color: "#17354a", flex: 1, fontSize: 15, height: "100%", paddingHorizontal: 12 },
+  eyeButton: { alignItems: "center", height: "100%", justifyContent: "center", paddingHorizontal: 16 },
+  signInButton: { borderRadius: 26, height: 52, marginTop: 6, overflow: "hidden" },
+  signInGradient: { alignItems: "center", backgroundColor: "#12a06e", borderRadius: 26, flex: 1, flexDirection: "row", gap: 8, justifyContent: "center" },
+  signInText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  pressed: { transform: [{ scale: 0.985 }] },
+  disabled: { opacity: 0.65 },
+  forgotButton: { alignSelf: "center", marginTop: 14 },
+  forgotText: { color: "#8aa0b4", fontSize: 13, fontWeight: "500" },
+  newAccount: { alignItems: "center", flexDirection: "row", justifyContent: "center", marginTop: 18 },
+  newAccountText: { color: "#8aa0b4", fontSize: 13 },
+  createAccount: { color: "#12a06e", fontSize: 13, fontWeight: "700" },
+  orRow: { alignItems: "center", flexDirection: "row", gap: 12, marginTop: 16, marginBottom: 14 },
+  orLine: { backgroundColor: "#e4ebf0", flex: 1, height: 1 },
+  orText: { color: "#9aafc0", fontSize: 13 },
 });

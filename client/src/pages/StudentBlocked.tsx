@@ -31,15 +31,16 @@ export default function StudentBlocked() {
             Use the mobile app
           </h1>
           <p className="text-sm text-slate-500">
-            This web portal is for <strong>lecturers and admins</strong> only. As a
-            student, please download the <strong>Cognify</strong> mobile app on your
-            phone to access your courses, flashcards, quizzes, and more.
+            This web portal is for <strong>lecturers and admins</strong> only.
+            Students use the <strong>Cognify</strong> Expo app in the{" "}
+            <code className="rounded bg-slate-100 px-1">mobile/</code> folder
+            (not the Capacitor staff shell).
           </p>
         </div>
 
         <div className="flex w-full flex-col gap-3">
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            📱 Download <strong>Cognify</strong> from the App Store or Google Play
+            Run the student app with <code>cd mobile && npx expo start</code>
           </div>
           <Button
             variant="outline"

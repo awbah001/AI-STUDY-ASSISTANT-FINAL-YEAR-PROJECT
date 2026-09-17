@@ -3,19 +3,55 @@
     "name": "Cognify",
     "slug": "cognify-mobile",
     "version": "1.0.0",
-    "sdkVersion": "54.0.0",
+    "sdkVersion": "57.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#f4f6f9",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.cognify.studyassistant"
+      "bundleIdentifier": "com.cognify.studyassistant",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Allow Cognify to use the microphone so you can ask questions by voice.",
+        "NSSpeechRecognitionUsageDescription": "Allow Cognify to convert your speech into text for Ask AI."
+      }
     },
     "android": {
-      "package": "com.cognify.studyassistant"
+      "package": "com.cognify.studyassistant",
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
+      ]
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-document-picker",
+      "expo-audio",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "cognify-alarms"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Cognify to access your photos to set a profile picture."
+        }
+      ],
+      "expo-web-browser",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Cognify to use the microphone so you can ask questions by voice.",
+          "speechRecognitionPermission": "Allow Cognify to convert your speech into text for Ask AI."
+        }
+      ]
     ],
     "scheme": "cognify"
   }

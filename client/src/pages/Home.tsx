@@ -1,139 +1,480 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
-import { getDashboardPathForRole } from "@shared/const";
-import { BookOpen, Zap, ArrowRight, Brain } from "lucide-react";
-import { useEffect } from "react";
+import {
+  ArrowRight,
+  BarChart3,
+  Bell,
+  BookOpen,
+  Bot,
+  CheckCircle2,
+  Clock,
+  FileText,
+  Flame,
+  GraduationCap,
+  HelpCircle,
+  Layers,
+  Menu,
+  MessageSquare,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  X,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link } from "wouter";
+
+const NAV = [
+  { href: "#home", label: "Home" },
+  { href: "#features", label: "Features" },
+  { href: "#how", label: "How it Works" },
+  { href: "#students", label: "For Students" },
+  { href: "#lecturers", label: "For Lecturers" },
+  { href: "#about", label: "About" },
+] as const;
+
+const heroPills = [
+  ["Documents", "Chat with your course materials", FileText],
+  ["Flashcards", "Study smarter with spaced repetition", Layers],
+  ["Progress", "Track your learning journey", BarChart3],
+  ["AI Tutor", "Get instant help & explanations", Bot],
+] as const;
+
+const heroBenefits = [
+  ["Course-Specific AI", "Get accurate, relevant answers from your course material, not the internet.", BookOpen],
+  ["Personalized Study", "Learning paths and recommendations adapted to your needs.", Sparkles],
+  ["Lecturer-Controlled Content", "Your institution controls the content, access and learning experience.", ShieldCheck],
+] as const;
+
+const roles = [
+  {
+    id: "students",
+    title: "Students",
+    tone: "green",
+    icon: GraduationCap,
+    points: ["Chat with course documents", "Get personalized learning paths", "Create flashcards and take quizzes", "Track your progress"],
+    cta: "Student Access",
+    href: "#students",
+  },
+  {
+    id: "lecturers",
+    title: "Lecturers",
+    tone: "violet",
+    icon: BookOpen,
+    points: ["Upload and manage course materials", "Create quizzes and assignments", "Monitor student progress", "Use AI for lesson planning"],
+    cta: "Lecturer Portal",
+    href: "/lecturer/signup",
+  },
+  {
+    id: "admin",
+    title: "Administrators",
+    tone: "amber",
+    icon: ShieldCheck,
+    points: ["Manage users and courses", "Monitor system activity", "Generate reports and analytics", "Control portal access"],
+    cta: "Admin Portal",
+    href: getLoginUrl(),
+  },
+] as const;
+
+const steps = [
+  ["Join a course", "Enter your course code and get access to relevant materials and tools."],
+  ["Learn with AI", "Chat with your documents, get personalized guidance, and complete quizzes and flashcards."],
+  ["Track progress", "See your learning journey, identify areas to improve, and achieve your goals."],
+] as const;
+
+const featureTiles = [
+  ["Document Q&A & RAG", "Get instant, accurate answers from your course materials.", MessageSquare],
+  ["AI-Generated Quizzes", "Practice with smart, course-specific questions.", CheckCircle2],
+  ["Spaced Repetition Flashcards", "Build long-term memory with proven review science.", Layers],
+  ["Course Analytics", "Track your progress and identify knowledge gaps.", BarChart3],
+  ["Announcements", "Stay updated with the latest course information.", Bell],
+  ["Materials Management", "Organize and access all your learning resources.", FileText],
+] as const;
+
+const faqs = [
+  {
+    q: "Is Cognify free to use?",
+    a: "This Cognify deployment is for your institution. Students study in the mobile app. Lecturers and administrators sign in on the web at no extra consumer billing step.",
+  },
+  {
+    q: "Can I use Cognify on my mobile device?",
+    a: "Yes. Students use the Cognify Expo app for Ask AI, flashcards, quizzes, documents, and the study calendar. Staff use this website.",
+  },
+  {
+    q: "How does the AI get its answers?",
+    a: "Cognify retrieves relevant passages from the lecture notes and documents you are allowed to access, then answers from that material instead of the open internet.",
+  },
+  {
+    q: "Is my data secure?",
+    a: "Access is role-based. Students only see enrolled courses, lecturers see their own classes, and administrators manage the platform. Sessions use authenticated API access.",
+  },
+] as const;
+
+function scrollToId(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function DummyMobileHome() {
+  return (
+    <div className="lp-phone-ui" aria-hidden="true">
+      <header>
+        <div>
+          <small>Good morning,</small>
+          <b>Maya Chen</b>
+        </div>
+        <span className="lp-phone-avatar">M</span>
+      </header>
+      <p className="lp-phone-sub">Let’s continue your learning journey</p>
+      <div className="lp-phone-goal">
+        <div>
+          <small>DAILY GOAL</small>
+          <strong>4 <em>/ 6 topics</em></strong>
+          <div className="lp-mini-bar"><i style={{ width: "67%" }} /></div>
+          <q>Consistency today. Excellence tomorrow.</q>
+        </div>
+        <img src="/cognify-auth-bot.png" alt="" />
+      </div>
+      <div className="lp-phone-over">
+        <span>Overview</span>
+        <em>This week</em>
+      </div>
+      <div className="lp-phone-stats">
+        <div><Clock size={14} /><b>8h 20m</b><small>Study Time</small></div>
+        <div><HelpCircle size={14} /><b>12</b><small>Quizzes</small></div>
+        <div><Layers size={14} /><b>24</b><small>Flashcards</small></div>
+        <div><Flame size={14} /><b>5 days</b><small>Streak</small></div>
+      </div>
+      <div className="lp-phone-over">
+        <span>Continue Learning</span>
+      </div>
+      <div className="lp-phone-course">
+        <span><BookOpen size={16} /></span>
+        <div>
+          <b>Intro to Databases</b>
+          <small>CSC 201 · 3 lectures</small>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DummyWebDashboard() {
+  return (
+    <div className="lp-web-ui" aria-hidden="true">
+      <aside>
+        <b>Cognify</b>
+        <small>ADMIN PORTAL</small>
+        <em className="on">Admin Panel</em>
+        <em>User Management</em>
+        <em>Content</em>
+        <em>Operations</em>
+      </aside>
+      <div className="lp-web-main">
+        <div className="lp-web-top">
+          <div className="lp-web-search"><Search size={12} /> Search courses or topics…</div>
+          <strong>SAMPLE ADMIN</strong>
+        </div>
+        <h4>Admin Dashboard</h4>
+        <p>Platform overview with sample data for demonstration.</p>
+        <div className="lp-web-user">
+          <span>S</span>
+          <div>
+            <b>Sample Admin</b>
+            <small>admin@cognify.demo</small>
+          </div>
+          <em>Administrator</em>
+        </div>
+        <div className="lp-web-kpis">
+          <div><small>TOTAL USERS</small><b>128</b><Users size={16} /></div>
+          <div><small>ACTIVE LEARNERS</small><b>86</b><BarChart3 size={16} /></div>
+          <div><small>QUIZ COMPLETION</small><b>92%</b><HelpCircle size={16} /></div>
+          <div><small>FAILED JOBS</small><b>0</b><Layers size={16} /></div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
-  const { isAuthenticated, user } = useAuth();
-  const [, setLocation] = useLocation();
+  const [active, setActive] = useState("home");
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      setLocation(getDashboardPathForRole(user?.role ?? "user"));
-    }
-  }, [isAuthenticated, user, setLocation]);
+    const ids = ["home", "features", "how", "students", "lecturers", "about"];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target.id) setActive(visible.target.id);
+      },
+      { rootMargin: "-18% 0px -62% 0px", threshold: [0.12, 0.35] }
+    );
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
 
-  if (isAuthenticated) {
-    return null;
-  }
+  const go = (href: string) => {
+    setMenuOpen(false);
+    if (href.startsWith("#")) {
+      scrollToId(href.slice(1));
+      return;
+    }
+    window.location.href = href;
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-      {/* Navigation */}
-      <nav className="border-b bg-white dark:bg-slate-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full overflow-hidden shrink-0">
-              <img src="/logo.png" alt="Cognify Logo" className="h-full w-full object-cover" />
-            </div>
-            <span className="text-xl font-bold">Cognify</span>
-          </div>
-          <Button asChild>
-            <a href={getLoginUrl()}>Sign In</a>
+    <main className="landing-page">
+      <header className="lp-nav">
+        <a className="lp-brand" href="#home" onClick={(e) => { e.preventDefault(); go("#home"); }}>
+          <span className="lp-mark"><Sparkles size={18} /></span>
+          <span>
+            <strong>Cognify</strong>
+            <small>AI Learning Assistant</small>
+          </span>
+        </a>
+        <nav className="lp-links" aria-label="Main">
+          {NAV.map((item) => (
+            <a
+              key={item.href}
+              className={active === item.href.slice(1) ? "active" : undefined}
+              href={item.href}
+              onClick={(e) => { e.preventDefault(); go(item.href); }}
+            >
+              {item.label}
+            </a>
+          ))}
+        </nav>
+        <div className="lp-nav-actions">
+          <Button asChild variant="outline" className="lp-btn-ghost">
+            <Link href={getLoginUrl()}>Sign In</Link>
           </Button>
+          <Button asChild className="lp-btn-green">
+            <Link href={getLoginUrl()}>Get Started</Link>
+          </Button>
+          <button type="button" className="lp-menu" onClick={() => setMenuOpen((v) => !v)} aria-label="Menu">
+            {menuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
-      </nav>
-
-      {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="grid gap-16 lg:grid-cols-[1.2fr_0.8fr] items-center">
-          <div className="space-y-6 text-center lg:text-left">
-            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100/90 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm">
-              Meet your study buddy
-            </span>
-            <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-              Hi, I&apos;m <span className="text-primary">Nova</span>, your learning bot.
-            </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto lg:mx-0">
-              Your AI-powered study space for smarter learning &mdash; summaries, flashcards, quizzes, and document chat.
-            </p>
-            <div className="flex flex-col gap-4 sm:flex-row sm:justify-center lg:justify-start">
-              <Button size="lg" onClick={() => setLocation("/login")} className="gap-2">
-                Sign in <ArrowRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="relative isolate mx-auto w-full max-w-md">
-            <div className="animate-bot-bob rounded-[2.5rem] border border-slate-200/80 bg-white/90 p-8 shadow-[0_40px_120px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-slate-700/80 dark:bg-slate-950/80">
-              <div className="relative mx-auto flex h-36 w-36 items-center justify-center rounded-2xl bg-emerald-100/90 border border-emerald-200 shadow-2xl dark:bg-emerald-900/30 dark:border-emerald-500/30">
-                <div className="absolute -top-4 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-300 shadow-lg dark:bg-emerald-500" />
-                <div className="absolute inset-x-[38px] top-10 flex items-center justify-between">
-                  <span className="h-5 w-5 rounded-full bg-slate-950/90 shadow-[0_0_12px_rgba(15,23,42,0.24)]" />
-                  <span className="h-5 w-5 rounded-full bg-slate-950/90 shadow-[0_0_12px_rgba(15,23,42,0.24)] animate-bot-blink" />
-                </div>
-                <div className="absolute bottom-10 h-2 w-12 rounded-full bg-slate-950/70" />
-              </div>
-              <div className="mt-6 rounded-[1.75rem] bg-slate-950/5 p-5 text-center shadow-inner dark:bg-slate-700/10">
-                <div className="mb-4 flex items-center justify-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.45)]" />
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Ready to help you learn faster.
-                  </p>
-                </div>
-                <div className="space-y-3">
-                  <div className="rounded-2xl bg-white/90 p-4 text-left text-sm text-slate-600 shadow-sm dark:bg-slate-900/90 dark:text-slate-300">
-                    Upload a note and I&apos;ll build your study path.
-                  </div>
-                  <div className="rounded-2xl bg-white/90 p-4 text-left text-sm text-slate-600 shadow-sm dark:bg-slate-900/90 dark:text-slate-300">
-                    Sign in to start your first session.
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,_rgba(79,70,229,0.15),transparent_55%)]" />
-          </div>
+      </header>
+      {menuOpen && (
+        <div className="lp-drawer">
+          {NAV.map((item) => (
+            <a key={item.href} href={item.href} onClick={(e) => { e.preventDefault(); go(item.href); }}>{item.label}</a>
+          ))}
         </div>
-      </section>
+      )}
 
-      {/* Features Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <h2 className="text-3xl font-bold text-center mb-12">Powerful Learning Features</h2>
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="bg-white dark:bg-slate-800 p-8 rounded-lg border">
-            <BookOpen className="w-12 h-12 text-primary mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Smart Summaries</h3>
-            <p className="text-muted-foreground">
-              Get concise summaries of your documents with key points highlighted by AI.
-            </p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 p-8 rounded-lg border">
-            <Brain className="w-12 h-12 text-primary mb-4" />
-            <h3 className="text-xl font-semibold mb-2">AI-Generated Quizzes</h3>
-            <p className="text-muted-foreground">
-              Test your knowledge with intelligent quizzes automatically created from your content.
-            </p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 p-8 rounded-lg border">
-            <Zap className="w-12 h-12 text-primary mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Interactive Chat</h3>
-            <p className="text-muted-foreground">
-              Ask questions about your documents and get instant, context-aware answers.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="bg-primary text-primary-foreground py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
-          <h2 className="text-3xl font-bold">Ready to Transform Your Learning?</h2>
-          <p className="text-lg opacity-90">
-            Join students using AI to study smarter, not harder.
+      <section className="lp-hero" id="home">
+        <div className="lp-copy">
+          <span className="lp-eyebrow"><Sparkles size={14} /> Smarter Learning, Brighter Future</span>
+          <h1>
+            Your <em>AI-Powered</em>
+            <br /> Learning Companion
+          </h1>
+          <p>
+            Get course-specific document chat, personalized learning paths, flashcards, quizzes, and track your progress — all in one powerful AI learning assistant.
           </p>
-          <Button
-            size="lg"
-            variant="secondary"
-            className="border-0 bg-white text-emerald-700 shadow-md hover:bg-emerald-50"
-            asChild
-          >
-            <a href={getLoginUrl()}>Sign In Now</a>
-          </Button>
+          <div className="lp-hero-actions">
+            <Button asChild size="lg" className="lp-btn-green lp-btn-lg">
+              <Link href={getLoginUrl()}>Get Started <ArrowRight /></Link>
+            </Button>
+            <button type="button" className="lp-btn-outline" onClick={() => scrollToId("features")}>
+              Explore Features
+            </button>
+          </div>
+        </div>
+        <div className="lp-visual" aria-hidden="false">
+          <div className="lp-orbit" />
+          {heroPills.map(([title, blurb, Icon], i) => (
+            <article key={title} className={`lp-float lp-float-${i}`}>
+              <span><Icon size={18} /></span>
+              <div>
+                <b>{title}</b>
+                <small>{blurb}</small>
+              </div>
+            </article>
+          ))}
+          <img className="lp-bot" src="/cognify-auth-bot.png" alt="Cognify learning assistant" />
         </div>
       </section>
-    </div>
+
+      <section className="lp-benefit-row" aria-label="Why Cognify">
+        {heroBenefits.map(([title, body, Icon]) => (
+          <article key={title}>
+            <span><Icon size={20} /></span>
+            <h3>{title}</h3>
+            <p>{body}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="lp-section" id="students">
+        <span className="lp-kicker">BUILT FOR EVERY ROLE</span>
+        <h2>Built for every role</h2>
+        <p className="lp-lead">Cognify adapts to the needs of students, lecturers and administrators, giving everyone the tools they need to teach, learn and manage effectively.</p>
+        <div className="lp-role-grid">
+          {roles.map((role) => (
+            <article key={role.title} className={`lp-role lp-role-${role.tone}`} id={role.id === "lecturers" ? "lecturers" : undefined}>
+              <div className="lp-role-art"><role.icon size={36} /></div>
+              <h3>{role.title}</h3>
+              <ul>
+                {role.points.map((point) => (
+                  <li key={point}><CheckCircle2 size={15} /> {point}</li>
+                ))}
+              </ul>
+              <Button asChild className="lp-role-cta">
+                {role.href.startsWith("#") ? (
+                  <a href={role.href} onClick={(e) => { e.preventDefault(); scrollToId(role.href.slice(1)); }}>{role.cta}</a>
+                ) : (
+                  <Link href={role.href}>{role.cta}</Link>
+                )}
+              </Button>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="lp-section" id="how">
+        <span className="lp-kicker">SIMPLE PROCESS</span>
+        <h2>How Cognify works</h2>
+        <p className="lp-lead">Get started in these three simple steps and unlock a smarter way to learn.</p>
+        <div className="lp-steps">
+          {steps.map(([title, body], i) => (
+            <article key={title}>
+              <span>{i + 1}</span>
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="lp-preview-wrap" id="features">
+        <div className="lp-preview">
+          <div className="lp-product">
+            <figure className="lp-web-frame">
+              <div className="lp-web-chrome">
+                <span /><span /><span />
+                <em>app.cognify · sample dashboard</em>
+              </div>
+              <DummyWebDashboard />
+            </figure>
+            <figure className="lp-phone-frame">
+              <DummyMobileHome />
+            </figure>
+          </div>
+          <div>
+            <span className="lp-kicker">POWERFUL FEATURES</span>
+            <h2>Everything you need to succeed</h2>
+            <p className="lp-lead" style={{ margin: "0 0 16px", textAlign: "left" }}>
+              Students learn in the mobile app. Lecturers and admins run courses from the web portal you see here.
+            </p>
+            <div className="lp-tiles">
+              {featureTiles.map(([title, body, Icon]) => (
+                <article key={title}>
+                  <span><Icon size={18} /></span>
+                  <h3>{title}</h3>
+                  <p>{body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="lp-split">
+        <article className="lp-workflow">
+          <div className="lp-workflow-shot">
+            <DummyMobileHome />
+          </div>
+          <h3>Student Workflow</h3>
+          <p>Access course materials and chat with AI. Create flashcards and take quizzes. Track progress and get recommendations.</p>
+          <Button asChild className="lp-btn-green">
+            <a href="#students">Explore Student Features</a>
+          </Button>
+        </article>
+        <article className="lp-workflow lp-workflow-violet">
+          <div className="lp-workflow-shot lp-workflow-shot-wide">
+            <DummyWebDashboard />
+          </div>
+          <h3>Lecturer &amp; Admin Workflow</h3>
+          <p>Upload materials, manage users, and monitor the platform from the same web dashboard used by staff.</p>
+          <Button asChild className="lp-btn-violet">
+            <Link href="/lecturer/signup">Explore Lecturer Features</Link>
+          </Button>
+        </article>
+      </section>
+
+      <section className="lp-section" id="about">
+        <div className="lp-faq-grid">
+          <div>
+            <span className="lp-kicker">FAQ</span>
+            <h2>Frequently Asked Questions</h2>
+            <p className="lp-lead" style={{ margin: 0 }}>Find answers to common questions about Cognify and how it works.</p>
+          </div>
+          <Accordion type="single" collapsible className="lp-faq">
+            {faqs.map((item) => (
+              <AccordionItem key={item.q} value={item.q}>
+                <AccordionTrigger>{item.q}</AccordionTrigger>
+                <AccordionContent>{item.a}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </div>
+      </section>
+
+      <section className="lp-cta">
+        <img src="/cognify-auth-bot.png" alt="" />
+        <div>
+          <h2>Make every study session count</h2>
+          <p>Join Cognify today and experience a smarter, more personalized way to learn.</p>
+          <div className="lp-cta-actions">
+            <Button asChild variant="secondary" className="lp-btn-light">
+              <a href="#students">Student Access</a>
+            </Button>
+            <Button asChild className="lp-btn-green">
+              <Link href={getLoginUrl()}>Staff Portal</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <footer className="lp-footer">
+        <div className="lp-foot-brand">
+          <span className="lp-mark"><Sparkles size={16} /></span>
+          <div>
+            <strong>Cognify</strong>
+            <p>Smarter learning. Brighter futures.</p>
+          </div>
+        </div>
+        <div>
+          <b>Product</b>
+          <a href="#features">Features</a>
+          <a href="#how">How it Works</a>
+          <a href="#about">Pricing</a>
+        </div>
+        <div>
+          <b>For Students</b>
+          <a href="#students">Learning</a>
+          <a href="#students">Support</a>
+        </div>
+        <div>
+          <b>For Lecturers</b>
+          <Link href="/lecturer/signup">Lesson tools</Link>
+          <Link href="/lecturer/signup">Create course</Link>
+        </div>
+        <div>
+          <b>Get in touch</b>
+          <Link href={getLoginUrl()}>Sign in</Link>
+          <Link href="/lecturer/signup">Staff signup</Link>
+        </div>
+      </footer>
+      <p className="lp-copywrite">© {new Date().getFullYear()} Cognify. All rights reserved.</p>
+    </main>
   );
 }

@@ -59,10 +59,10 @@ export default function AdminUsers() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    if (user && user.role !== "admin") setLocation("/dashboard");
+    if (user && user.role !== "admin") setLocation("/login");
   }, [user, setLocation]);
 
-  const { data: analytics, isLoading, refetch } = trpc.admin.getAnalytics.useQuery(undefined, {
+  const { data: usersPage, isLoading, refetch } = trpc.admin.listUsers.useQuery({ page, pageSize: PAGE_SIZE, search: searchQuery }, {
     enabled: user?.role === "admin",
   });
 
@@ -86,14 +86,9 @@ export default function AdminUsers() {
 
   if (!user || user.role !== "admin") return null;
 
-  const allUsers = analytics?.allUsers || [];
-  const filtered = allUsers.filter((u) =>
-    (u.userName?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
-    (u.userEmail?.toLowerCase() || "").includes(searchQuery.toLowerCase())
-  );
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageUsers = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const filtered = (usersPage?.items ?? []).map((u) => ({ userId: u.id, userName: u.name, userEmail: u.email, role: u.role, isBanned: u.isBanned, userInitials: u.name?.split(" ").map((part) => part[0]).join(""), engagementScore: Math.round(u.averageQuizScore ?? 0), quizzesAttempted: u.quizzesAttempted }));
+  const totalPages = Math.max(1, Math.ceil((usersPage?.total ?? 0) / PAGE_SIZE));
+  const pageUsers = filtered;
 
   return (
     <DashboardLayout>
@@ -152,7 +147,7 @@ export default function AdminUsers() {
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-emerald-600" />
               <span className="font-semibold text-slate-800">
-                All Users ({filtered.length})
+                All Users ({usersPage?.total ?? 0})
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -304,7 +299,11 @@ export default function AdminUsers() {
                           <DropdownMenuContent align="end" className="w-40 rounded-xl shadow-lg">
                             <DropdownMenuItem
                               className="gap-2 text-amber-600 focus:text-amber-700 focus:bg-amber-50 cursor-pointer"
-                              onClick={() => banMutation.mutate({ userId: u.userId })}
+                              onClick={() => {
+                                const reason = prompt(`Reason to ${u.isBanned ? "restore" : "ban"} ${u.userName}:`);
+                                if (reason && reason.trim().length >= 3) banMutation.mutate({ userId: u.userId, reason: reason.trim() });
+                                else if (reason !== null) toast.error("A reason of at least 3 characters is required.");
+                              }}
                             >
                               {u.isBanned
                                 ? <><ShieldCheck className="h-4 w-4" /> Unban User</>
@@ -314,7 +313,9 @@ export default function AdminUsers() {
                               className="gap-2 text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
                               onClick={() => {
                                 if (confirm(`Delete ${u.userName}? This is permanent.`)) {
-                                  deleteMutation.mutate({ userId: u.userId });
+                                  const reason = prompt("Reason for permanent deletion:");
+                                  if (reason && reason.trim().length >= 3) deleteMutation.mutate({ userId: u.userId, reason: reason.trim() });
+                                  else if (reason !== null) toast.error("A reason of at least 3 characters is required.");
                                 }
                               }}
                             >
@@ -340,7 +341,7 @@ export default function AdminUsers() {
           <div className="flex items-center justify-between border-t border-slate-100 px-6 py-3">
             <p className="text-xs text-slate-500">
               Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} to{" "}
-              {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} results
+              {Math.min(page * PAGE_SIZE, usersPage?.total ?? 0)} of {usersPage?.total ?? 0} results
             </p>
             <div className="flex items-center gap-1">
               <button

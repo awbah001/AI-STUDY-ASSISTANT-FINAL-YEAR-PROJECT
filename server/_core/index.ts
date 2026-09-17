@@ -8,12 +8,16 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { sdk } from "./sdk";
+import { ENV } from "./env";
+import { HttpError } from "../../shared/_core/errors";
+import { UPLOADS_ROOT, resolveUploadPath, sanitizeUploadKey } from "./uploads";
+import { transcribeStudentAudio } from "../voice";
 
-const UPLOADS_ROOT = path.resolve(process.cwd(), "data", "uploads");
-
-function safeJoinUploads(key: string) {
-  const normalized = key.replace(/^\/+/, "").replace(/\.\./g, "");
-  return path.join(UPLOADS_ROOT, normalized);
+function assertJwtSecret() {
+  if ((ENV.cookieSecret ?? "").length < 16) {
+    throw new Error("JWT_SECRET must be set to at least 16 characters.");
+  }
 }
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -36,6 +40,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  assertJwtSecret();
   const app = express();
   const server = createServer(app);
 
@@ -60,17 +65,31 @@ async function startServer() {
   app.use("/uploads", express.static(UPLOADS_ROOT));
   app.post("/api/storage/put", express.raw({ type: "*/*", limit: "60mb" }), async (req, res) => {
     try {
-      const key = String(req.query.key ?? "");
-      if (!key) {
+      const user = await sdk.authenticateRequest(req);
+      if (user.isBanned) {
+        res.status(403).json({ error: "Account is banned" });
+        return;
+      }
+      const requestedKey = String(req.query.key ?? "");
+      if (!requestedKey) {
         res.status(400).json({ error: "Missing key" });
         return;
       }
-      const filePath = safeJoinUploads(key);
+      const key = sanitizeUploadKey(user.id, requestedKey);
+      const filePath = resolveUploadPath(key);
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       await fs.promises.writeFile(filePath, req.body);
       res.json({ url: `/uploads/${key}`, key });
     } catch (e) {
-      res.status(500).json({ error: "Upload failed" });
+      if (e instanceof HttpError) {
+        const isBan = e.message === "Account is banned";
+        const status = isBan ? 403 : e.statusCode === 403 ? 401 : e.statusCode;
+        res.status(status).json({ error: e.message });
+        return;
+      }
+      const message = e instanceof Error ? e.message : "Upload failed";
+      const status = message === "File type not allowed" || message === "Invalid upload path" ? 400 : 500;
+      res.status(status).json({ error: message });
     }
   });
 
@@ -81,6 +100,31 @@ async function startServer() {
       uptime: Math.floor(process.uptime()),
       timestamp: new Date().toISOString(),
     });
+  });
+
+  app.post("/api/voice/transcribe", async (req, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (user.isBanned) {
+        res.status(403).json({ error: "Account is banned" });
+        return;
+      }
+      const audioBase64 = String(req.body?.audioBase64 ?? "");
+      const mimeType = String(req.body?.mimeType ?? "audio/wav");
+      if (!audioBase64) {
+        res.status(400).json({ error: "Missing audio" });
+        return;
+      }
+      const text = await transcribeStudentAudio(audioBase64, mimeType);
+      res.json({ text });
+    } catch (error) {
+      if (error instanceof HttpError) {
+        res.status(error.statusCode === 403 ? 401 : error.statusCode).json({ error: error.message });
+        return;
+      }
+      const message = error instanceof Error ? error.message : "Transcription failed";
+      res.status(400).json({ error: message });
+    }
   });
 
   // tRPC API
