@@ -3,22 +3,34 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { trpc } from "@/lib/trpc";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, Search, GraduationCap, Mail, Calendar } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 
 export default function LecturerStudents() {
   const { isAllowed } = useRoleGuard("lecturer");
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
+  const [courseTab, setCourseTab] = useState("all");
 
+  const { data: courses } = trpc.lecturer.courses.list.useQuery(undefined, {
+    enabled: isAllowed,
+  });
   const { data: students, isLoading } = trpc.lecturer.students.listAll.useQuery(undefined, {
     enabled: isAllowed,
   });
 
+  const scoped = useMemo(() => {
+    const rows = students ?? [];
+    if (courseTab === "all") return rows;
+    const courseId = Number(courseTab);
+    return rows.filter((s) => s.courseId === courseId);
+  }, [students, courseTab]);
+
   if (!isAllowed) return null;
 
-  const filtered = (students ?? []).filter(
+  const filtered = scoped.filter(
     (s) =>
       s.name?.toLowerCase().includes(search.toLowerCase()) ||
       s.email?.toLowerCase().includes(search.toLowerCase()) ||
@@ -46,8 +58,23 @@ export default function LecturerStudents() {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Students</h1>
-          <p className="mt-1 text-sm text-slate-500">All students enrolled across your courses.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Only students enrolled in your courses appear here. Use a course tab to narrow the list.
+          </p>
         </div>
+
+        {(courses?.length ?? 0) > 0 ? (
+          <Tabs value={courseTab} onValueChange={setCourseTab}>
+            <TabsList className="rounded-xl flex flex-wrap h-auto gap-1">
+              <TabsTrigger value="all" className="rounded-lg">All courses</TabsTrigger>
+              {(courses ?? []).map((course) => (
+                <TabsTrigger key={course.id} value={String(course.id)} className="rounded-lg">
+                  {course.title}{course.isActive ? "" : " (archived)"}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        ) : null}
 
         {/* Search + count */}
         <div className="rounded-2xl border border-slate-100 bg-white shadow-sm px-6 py-4">

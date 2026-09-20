@@ -29,7 +29,6 @@ import {
   EyeOff,
   ChevronLeft,
   ChevronRight,
-  SlidersHorizontal,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,6 +53,7 @@ export default function AdminUsers() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  const [roleTab, setRoleTab] = useState<"user" | "lecturer">("user");
   const [showPassword, setShowPassword] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -62,7 +62,12 @@ export default function AdminUsers() {
     if (user && user.role !== "admin") setLocation("/login");
   }, [user, setLocation]);
 
-  const { data: usersPage, isLoading, refetch } = trpc.admin.listUsers.useQuery({ page, pageSize: PAGE_SIZE, search: searchQuery }, {
+  const { data: usersPage, isLoading, refetch } = trpc.admin.listUsers.useQuery({
+    page,
+    pageSize: PAGE_SIZE,
+    search: searchQuery,
+    role: roleTab,
+  }, {
     enabled: user?.role === "admin",
   });
 
@@ -112,17 +117,38 @@ export default function AdminUsers() {
           </p>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">System Users</h1>
           <p className="mt-1 text-sm text-slate-500">
-            View and manage all users registered in the system.
+            Students and lecturers are listed separately. Students sign up in the mobile app; lecturers are created here.
           </p>
+        </div>
+
+        <div className="flex gap-1 rounded-xl bg-slate-100 p-1 w-fit">
+          <button
+            type="button"
+            onClick={() => { setRoleTab("user"); setPage(1); }}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+              roleTab === "user" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            Students
+          </button>
+          <button
+            type="button"
+            onClick={() => { setRoleTab("lecturer"); setPage(1); }}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+              roleTab === "lecturer" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            Lecturers
+          </button>
         </div>
 
         {/* ── Find Users ── */}
         <div className="rounded-2xl border border-slate-100 bg-white px-6 py-5 shadow-sm">
           <div className="mb-1 flex items-center gap-2">
             <Search className="h-4 w-4 text-emerald-600" />
-            <span className="font-semibold text-slate-800">Find Users</span>
+            <span className="font-semibold text-slate-800">Find {roleTab === "lecturer" ? "lecturers" : "students"}</span>
           </div>
-          <p className="mb-4 text-xs text-slate-500">Search for users by name or email address.</p>
+          <p className="mb-4 text-xs text-slate-500">Search by name or email address.</p>
           <div className="flex gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -133,10 +159,6 @@ export default function AdminUsers() {
                 className="h-10 rounded-xl border-slate-200 pl-9 text-sm focus-visible:ring-emerald-500"
               />
             </div>
-            <Button variant="outline" className="h-10 gap-2 rounded-xl border-slate-200 px-4 text-sm font-medium">
-              <SlidersHorizontal className="h-4 w-4" />
-              Filters
-            </Button>
           </div>
         </div>
 
@@ -147,7 +169,7 @@ export default function AdminUsers() {
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-emerald-600" />
               <span className="font-semibold text-slate-800">
-                All Users ({usersPage?.total ?? 0})
+                {roleTab === "lecturer" ? "Lecturers" : "Students"} ({usersPage?.total ?? 0})
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -160,7 +182,7 @@ export default function AdminUsers() {
                 Export
               </Button>
 
-              {/* Add User dialog */}
+              {roleTab === "lecturer" ? (
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
@@ -168,7 +190,7 @@ export default function AdminUsers() {
                     className="h-9 gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 shadow-sm"
                   >
                     <UserPlus className="h-4 w-4" />
-                    Add User
+                    Add lecturer
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="rounded-2xl sm:max-w-md">
@@ -229,6 +251,7 @@ export default function AdminUsers() {
                   </form>
                 </DialogContent>
               </Dialog>
+              ) : null}
             </div>
           </div>
 
@@ -329,7 +352,11 @@ export default function AdminUsers() {
                 ) : (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                      {searchQuery ? "No users match your search." : "No users in the system."}
+                      {searchQuery
+                        ? `No ${roleTab === "lecturer" ? "lecturers" : "students"} match your search.`
+                        : roleTab === "lecturer"
+                          ? "No lecturer accounts yet."
+                          : "No students have signed up in the app yet."}
                     </td>
                   </tr>
                 )}

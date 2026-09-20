@@ -25,20 +25,23 @@ Do **not** treat Capacitor (`android/`, `ios/`, `pnpm cap:*`) as the student pro
 | Student app | Expo / React Native (`mobile/`) |
 | API | Node.js, Express, tRPC |
 | Database | SQLite via Drizzle ORM |
-| LLM | Google Gemini and/or local LM Studio (`USE_LOCAL_LLM`) |
+| LLM | LM Studio (default). Optional Forge/Gemini path exists but is not required |
 | Embeddings | `@xenova/transformers` (local) |
 | Vector store | Flat index JSON under `data/vectorstores/` |
+
+**Backend detail:** [BACKEND.md](BACKEND.md) — HTTP routes, tRPC map, auth roles, learning agent, RAG, database, voice, and environment.
 
 ## Project structure
 
 ```
 ├── client/          # Staff web portal (lecturers + admins)
 ├── mobile/          # Student Expo app
-├── server/          # Express + tRPC API
+├── server/          # Express + tRPC API (see BACKEND.md)
 ├── shared/          # Types and constants
 ├── drizzle/         # Schema and SQL migrations
 ├── data/            # SQLite DB, uploads, vector stores
 ├── android/, ios/   # Optional Capacitor wrap of the staff web UI
+├── BACKEND.md       # Full backend architecture
 ```
 
 ## Getting started

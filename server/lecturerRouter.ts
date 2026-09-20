@@ -83,17 +83,12 @@ export const lecturerRouter = router({
         if (!course) throw new TRPCError({ code: "NOT_FOUND" });
         return course;
       }),
-    create: lecturerProcedure
-      .input(
-        z.object({
-          title: z.string().min(1).max(200),
-          subject: z.string().max(100).optional(),
-          description: z.string().max(2000).optional(),
-        })
-      )
-      .mutation(({ ctx, input }) =>
-        lecturerQueries.createCourse(ctx.user.id, input)
-      ),
+    create: lecturerProcedure.mutation(() => {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "An administrator must create the course and assign it to you.",
+      });
+    }),
     update: lecturerProcedure
       .input(
         z.object({
@@ -110,13 +105,12 @@ export const lecturerRouter = router({
         if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
         return updated;
       }),
-    delete: lecturerProcedure
-      .input(z.object({ courseId: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        const ok = await lecturerQueries.deleteCourse(input.courseId, ctx.user.id);
-        if (!ok) throw new TRPCError({ code: "NOT_FOUND" });
-        return { success: true as const };
-      }),
+    delete: lecturerProcedure.mutation(() => {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Only an administrator can remove a course from the catalogue.",
+      });
+    }),
   }),
 
   students: router({

@@ -466,7 +466,7 @@ export default function Home() {
         <div>
           <b>For Lecturers</b>
           <Link href="/lecturer/signup">Lesson tools</Link>
-          <Link href="/lecturer/signup">Create course</Link>
+          <Link href="/login">Staff portal</Link>
         </div>
         <div>
           <b>Get in touch</b>

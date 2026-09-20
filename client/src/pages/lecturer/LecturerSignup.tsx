@@ -53,7 +53,7 @@ export default function LecturerSignup() {
   return (
     <AuthLayout
       title="Lecturer registration"
-      subtitle="Create your teaching account to manage courses and students."
+      subtitle="Create your teaching account. An administrator assigns the courses you teach."
     >
       <form onSubmit={onSubmit} className="space-y-5">
         <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 flex gap-3 text-sm text-indigo-900">

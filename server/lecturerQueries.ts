@@ -140,6 +140,9 @@ export async function enrollStudentByEmail(
 
   const owned = await getCourseOwnedBy(lecturerId, courseId);
   if (!owned) return { success: false, message: "Course not found" };
+  if (!owned.isActive) {
+    return { success: false, message: "Restore this archived course before enrolling students" };
+  }
 
   const normalized = email.trim().toLowerCase();
   const studentRows = await db.select().from(users).where(eq(users.email, normalized)).limit(1);
@@ -191,7 +194,7 @@ export async function getCourseStudents(courseId: number, lecturerId: number) {
     })
     .from(courseEnrollments)
     .innerJoin(users, eq(courseEnrollments.studentId, users.id))
-    .where(eq(courseEnrollments.courseId, courseId))
+    .where(and(eq(courseEnrollments.courseId, courseId), eq(users.role, "user")))
     .orderBy(desc(courseEnrollments.enrolledAt));
 }
 
@@ -216,7 +219,7 @@ export async function getAllLecturerStudents(lecturerId: number) {
     .from(courseEnrollments)
     .innerJoin(users, eq(courseEnrollments.studentId, users.id))
     .innerJoin(courses, eq(courseEnrollments.courseId, courses.id))
-    .where(inArray(courseEnrollments.courseId, courseIds))
+    .where(and(inArray(courseEnrollments.courseId, courseIds), eq(users.role, "user")))
     .orderBy(desc(courseEnrollments.enrolledAt));
 }
 

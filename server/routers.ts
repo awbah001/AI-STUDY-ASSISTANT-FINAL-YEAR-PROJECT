@@ -1099,7 +1099,7 @@ export const appRouter = router({
       const dbConn = await db.getDb(); if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const inactiveBefore = new Date(Date.now() - 14 * 86_400_000);
       const [courseRows, atRisk, topicWeaknesses] = await Promise.all([
-        dbConn.select({ courseId: courses.id, title: courses.title, code: courses.code, lecturerName: users.name, enrolled: sql<number>`cast(count(distinct ${courseEnrollments.studentId}) as integer)`, averageScore: sql<number>`coalesce(avg(${progressTracking.averageQuizScore}), 0)` }).from(courses).leftJoin(users, eq(courses.lecturerId, users.id)).leftJoin(courseEnrollments, eq(courses.id, courseEnrollments.courseId)).leftJoin(progressTracking, eq(courseEnrollments.studentId, progressTracking.userId)).groupBy(courses.id).orderBy(desc(sql`count(distinct ${courseEnrollments.studentId})`)),
+        dbConn.select({ courseId: courses.id, title: courses.title, code: courses.code, lecturerId: courses.lecturerId, lecturerName: users.name, enrolled: sql<number>`cast(count(distinct ${courseEnrollments.studentId}) as integer)`, averageScore: sql<number>`coalesce(avg(${progressTracking.averageQuizScore}), 0)` }).from(courses).leftJoin(users, eq(courses.lecturerId, users.id)).leftJoin(courseEnrollments, eq(courses.id, courseEnrollments.courseId)).leftJoin(progressTracking, eq(courseEnrollments.studentId, progressTracking.userId)).groupBy(courses.id).orderBy(desc(sql`count(distinct ${courseEnrollments.studentId})`)),
         dbConn.select({ id: users.id, name: users.name, email: users.email, lastActivity: sql<Date>`max(${progressTracking.lastActivityAt})`, averageScore: sql<number>`coalesce(avg(${progressTracking.averageQuizScore}), 0)`, overdue: sql<number>`cast(sum(case when ${assignmentSubmissions.status} = 'late' then 1 else 0 end) as integer)` }).from(users).leftJoin(progressTracking, eq(users.id, progressTracking.userId)).leftJoin(assignmentSubmissions, eq(users.id, assignmentSubmissions.studentId)).where(eq(users.role, "user")).groupBy(users.id).having(sql`max(${progressTracking.lastActivityAt}) is null or max(${progressTracking.lastActivityAt}) < ${inactiveBefore} or avg(${progressTracking.averageQuizScore}) < 50 or sum(case when ${assignmentSubmissions.status} = 'late' then 1 else 0 end) > 0`).limit(50),
         dbConn.select({ topic: documents.subject, attempted: sql<number>`cast(count(${quizzes.id}) as integer)`, averageScore: sql<number>`coalesce(avg(cast(${quizzes.score} as real)), 0)` }).from(quizzes).leftJoin(documents, eq(quizzes.documentId, documents.id)).where(sql`${quizzes.completedAt} is not null`).groupBy(documents.subject).orderBy(sql`avg(cast(${quizzes.score} as real)) asc`).limit(10),
       ]);
@@ -1140,11 +1140,55 @@ export const appRouter = router({
       return dbConn.select({ id: adminAuditLogs.id, action: adminAuditLogs.action, targetType: adminAuditLogs.targetType, targetId: adminAuditLogs.targetId, reason: adminAuditLogs.reason, metadata: adminAuditLogs.metadata, createdAt: adminAuditLogs.createdAt, adminName: users.name }).from(adminAuditLogs).leftJoin(users, eq(adminAuditLogs.adminId, users.id)).where(where.length ? and(...where) : undefined).orderBy(desc(adminAuditLogs.createdAt)).limit(input.limit);
     }),
 
+    createCourse: adminProcedure
+      .input(
+        z.object({
+          title: z.string().min(1).max(200),
+          subject: z.string().max(100).optional(),
+          description: z.string().max(2000).optional(),
+          lecturerId: z.number().int().positive(),
+          reason: z.string().min(3).max(500),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const lecturer = await db.getUserById(input.lecturerId);
+        if (!lecturer || lecturer.role !== "lecturer" || lecturer.isBanned) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Select an active lecturer account." });
+        }
+        const course = await lecturerQueries.createCourse(input.lecturerId, {
+          title: input.title,
+          subject: input.subject,
+          description: input.description,
+        });
+        const dbConn = await db.getDb();
+        if (dbConn) {
+          await dbConn.insert(notifications).values({
+            userId: lecturer.id,
+            title: "Course assigned",
+            body: `You have been assigned to teach ${course.title} (${course.code}).`,
+            data: { type: "course_assigned", courseId: course.id },
+          });
+        }
+        await writeAdminAudit(ctx.user.id, "course.created", "course", course.id, input.reason, {
+          lecturerId: lecturer.id,
+          code: course.code,
+        });
+        return course;
+      }),
+
     assignLecturerToCourse: adminProcedure.input(z.object({ courseId: z.number(), lecturerId: z.number(), reason: z.string().min(3).max(500) })).mutation(async ({ ctx, input }) => {
       const lecturer = await db.getUserById(input.lecturerId);
-      if (!lecturer || lecturer.role !== "lecturer") throw new TRPCError({ code: "BAD_REQUEST", message: "Select an active lecturer account." });
+      if (!lecturer || lecturer.role !== "lecturer" || lecturer.isBanned) throw new TRPCError({ code: "BAD_REQUEST", message: "Select an active lecturer account." });
       const dbConn = await db.getDb(); if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [existing] = await dbConn.select({ id: courses.id, title: courses.title, code: courses.code }).from(courses).where(eq(courses.id, input.courseId)).limit(1);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Course not found." });
       await dbConn.update(courses).set({ lecturerId: input.lecturerId, updatedAt: new Date() }).where(eq(courses.id, input.courseId));
+      await dbConn.insert(notifications).values({
+        userId: lecturer.id,
+        title: "Course assigned",
+        body: `You have been assigned to teach ${existing.title} (${existing.code}).`,
+        data: { type: "course_assigned", courseId: existing.id },
+      });
       await writeAdminAudit(ctx.user.id, "course.lecturer_assigned", "course", input.courseId, input.reason, { lecturerId: input.lecturerId });
       return { success: true };
     }),

@@ -51,7 +51,8 @@
           "microphonePermission": "Allow Cognify to use the microphone so you can ask questions by voice.",
           "speechRecognitionPermission": "Allow Cognify to convert your speech into text for Ask AI."
         }
-      ]
+      ],
+      "expo-splash-screen"
     ],
     "scheme": "cognify"
   }

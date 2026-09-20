@@ -5,13 +5,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { trpc } from "@/lib/trpc";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  BookMarked, Plus, Copy, Users, FileText,
-  Pencil, Trash2, ToggleLeft, ToggleRight,
+  BookMarked, Copy, Pencil, Archive, ArchiveRestore,
 } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -20,13 +20,8 @@ import { toast } from "sonner";
 export default function LecturerCourses() {
   const { isAllowed } = useRoleGuard("lecturer");
   const [, setLocation] = useLocation();
-  const [createOpen, setCreateOpen] = useState(false);
   const [editCourse, setEditCourse] = useState<any>(null);
-
-  // Create form
-  const [title, setTitle] = useState("");
-  const [subject, setSubject] = useState("");
-  const [description, setDescription] = useState("");
+  const [listTab, setListTab] = useState<"active" | "archived">("active");
 
   // Edit form
   const [editTitle, setEditTitle] = useState("");
@@ -36,31 +31,15 @@ export default function LecturerCourses() {
   const utils = trpc.useUtils();
   const { data: courses, isLoading } = trpc.lecturer.courses.list.useQuery(undefined, { enabled: isAllowed });
 
-  const createCourse = trpc.lecturer.courses.create.useMutation({
-    onSuccess: () => {
-      toast.success("Course created");
-      utils.lecturer.courses.list.invalidate();
-      utils.lecturer.dashboardStats.invalidate();
-      setCreateOpen(false);
-      setTitle(""); setSubject(""); setDescription("");
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
   const updateCourse = trpc.lecturer.courses.update.useMutation({
-    onSuccess: () => {
-      toast.success("Course updated");
+    onSuccess: (_data, vars) => {
+      toast.success(
+        typeof vars.isActive === "boolean"
+          ? vars.isActive ? "Course restored" : "Course archived"
+          : "Course updated"
+      );
       utils.lecturer.courses.list.invalidate();
       setEditCourse(null);
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const deleteCourse = trpc.lecturer.courses.delete.useMutation({
-    onSuccess: () => {
-      toast.success("Course deleted");
-      utils.lecturer.courses.list.invalidate();
-      utils.lecturer.dashboardStats.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -87,26 +66,10 @@ export default function LecturerCourses() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">My Courses</h1>
-            <p className="mt-1 text-sm text-slate-500">Create and manage subjects. Share enrollment codes with students.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Courses assigned to you by an administrator. Archive a course to stop new enrollments; enrolled students keep access.
+            </p>
           </div>
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogTrigger asChild>
-              <Button className="rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 gap-2">
-                <Plus className="h-4 w-4" /> New course
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="rounded-2xl sm:max-w-md">
-              <DialogHeader><DialogTitle>Create Course</DialogTitle></DialogHeader>
-              <CourseForm
-                title={title} setTitle={setTitle}
-                subject={subject} setSubject={setSubject}
-                description={description} setDescription={setDescription}
-                onSubmit={() => createCourse.mutate({ title, subject: subject || undefined, description: description || undefined })}
-                pending={createCourse.isPending}
-                label="Create course"
-              />
-            </DialogContent>
-          </Dialog>
         </div>
 
         {/* Edit dialog */}
@@ -129,6 +92,21 @@ export default function LecturerCourses() {
           </DialogContent>
         </Dialog>
 
+        {(() => {
+          const visible = (courses ?? []).filter((c) => listTab === "active" ? c.isActive : !c.isActive);
+          const activeCount = (courses ?? []).filter((c) => c.isActive).length;
+          const archivedCount = (courses ?? []).length - activeCount;
+          return (
+        <>
+        {courses && courses.length > 0 ? (
+          <Tabs value={listTab} onValueChange={(v) => setListTab(v as "active" | "archived")}>
+            <TabsList className="rounded-xl">
+              <TabsTrigger value="active" className="rounded-lg">Active ({activeCount})</TabsTrigger>
+              <TabsTrigger value="archived" className="rounded-lg">Archived ({archivedCount})</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        ) : null}
+
         {/* Course list */}
         {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2">
@@ -137,12 +115,24 @@ export default function LecturerCourses() {
         ) : !courses || courses.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-slate-200 py-16 text-center">
             <BookMarked className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-            <p className="text-sm font-medium text-slate-500">No courses yet</p>
-            <p className="text-xs text-slate-400 mt-1">Create your first course to get started.</p>
+            <p className="text-sm font-medium text-slate-500">No courses assigned yet</p>
+            <p className="text-xs text-slate-400 mt-1">An administrator must create a course and assign it to you.</p>
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="rounded-2xl border-2 border-dashed border-slate-200 py-16 text-center">
+            <Archive className="mx-auto h-10 w-10 text-slate-300 mb-3" />
+            <p className="text-sm font-medium text-slate-500">
+              {listTab === "archived" ? "No archived courses" : "No active courses"}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              {listTab === "archived"
+                ? "Archive a course when it is no longer taking new students."
+                : "Restore a course from the Archived tab to make it active again."}
+            </p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {courses.map((course) => (
+            {visible.map((course) => (
               <div
                 key={course.id}
                 className="group rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer border-t-4 border-t-indigo-500"
@@ -157,7 +147,7 @@ export default function LecturerCourses() {
                       )}
                     </div>
                     <span className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${course.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                      {course.isActive ? "Active" : "Inactive"}
+                      {course.isActive ? "Active" : "Archived"}
                     </span>
                   </div>
                   {course.description && (
@@ -192,25 +182,17 @@ export default function LecturerCourses() {
                       size="sm"
                       variant="outline"
                       className="flex-1 rounded-xl border-slate-200 gap-1.5 text-xs font-semibold"
-                      onClick={() => updateCourse.mutate({ courseId: course.id, isActive: !course.isActive })}
+                      onClick={() => {
+                        if (course.isActive) {
+                          if (!confirm(`Archive "${course.title}"? Students will not be able to join with the enrollment code. Students already enrolled keep access.`)) return;
+                        }
+                        updateCourse.mutate({ courseId: course.id, isActive: !course.isActive });
+                      }}
                       disabled={updateCourse.isPending}
                     >
                       {course.isActive
-                        ? <><ToggleRight className="h-3.5 w-3.5 text-emerald-600" /> Deactivate</>
-                        : <><ToggleLeft className="h-3.5 w-3.5" /> Activate</>}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-xl border-red-100 text-red-500 hover:bg-red-50 gap-1.5 text-xs"
-                      onClick={() => {
-                        if (confirm(`Delete "${course.title}"? This also removes all materials and enrollments.`)) {
-                          deleteCourse.mutate({ courseId: course.id });
-                        }
-                      }}
-                      disabled={deleteCourse.isPending}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
+                        ? <><Archive className="h-3.5 w-3.5" /> Archive</>
+                        : <><ArchiveRestore className="h-3.5 w-3.5 text-emerald-600" /> Restore</>}
                     </Button>
                   </div>
                 </div>
@@ -218,6 +200,9 @@ export default function LecturerCourses() {
             ))}
           </div>
         )}
+        </>
+          );
+        })()}
       </div>
     </DashboardLayout>
   );

@@ -290,7 +290,12 @@ export default function LecturerCourseDetail() {
         <div className="rounded-2xl border border-indigo-100 bg-white px-6 py-5 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">{course.title}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-slate-900">{course.title}</h1>
+                {!course.isActive ? (
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">Archived</span>
+                ) : null}
+              </div>
               {course.subject ? <p className="text-indigo-600 font-medium mt-0.5">{course.subject}</p> : null}
             </div>
             <div className="text-right shrink-0">
@@ -299,6 +304,12 @@ export default function LecturerCourseDetail() {
             </div>
           </div>
         </div>
+
+        {!course.isActive ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">
+            This course is archived. Students already enrolled keep access, but new students cannot join until you restore it from My Courses.
+          </div>
+        ) : null}
 
         <Tabs defaultValue="materials">
           <TabsList className="rounded-2xl flex flex-wrap h-auto gap-1">
@@ -537,12 +548,16 @@ export default function LecturerCourseDetail() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Enroll Student</p>
-                  <p className="text-xs text-slate-500">Enter student email to add them to this course</p>
+                  <p className="text-xs text-slate-500">
+                    {course.isActive
+                      ? "Enter student email to add them to this course"
+                      : "Restore the course before adding new students"}
+                  </p>
                 </div>
               </div>
               <div className="flex gap-2 p-6">
-                <Input placeholder="student@university.edu" value={enrollEmail} onChange={(e) => setEnrollEmail(e.target.value)} className="rounded-xl border-slate-200" />
-                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0" onClick={() => enrollStudent.mutate({ courseId, email: enrollEmail })}>Add</Button>
+                <Input placeholder="student@university.edu" value={enrollEmail} onChange={(e) => setEnrollEmail(e.target.value)} className="rounded-xl border-slate-200" disabled={!course.isActive} />
+                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0" disabled={!course.isActive} onClick={() => enrollStudent.mutate({ courseId, email: enrollEmail })}>Add</Button>
               </div>
             </div>
 
