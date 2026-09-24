@@ -96,6 +96,37 @@ describe("structured validation", () => {
     expect(valid).toHaveLength(1);
   });
 
+  it("accepts object-shaped options and letter answers from small models", () => {
+    const valid = validateQuizQuestions({
+      questions: [
+        {
+          question: "What is GIS?",
+          options: {
+            A: "A geographic information system",
+            B: "A graphics editor",
+            C: "A satellite brand",
+            D: "A database lock",
+          },
+          correctAnswer: "A",
+        },
+      ],
+    });
+    expect(valid).toHaveLength(1);
+    expect(valid[0].options).toHaveLength(4);
+    expect(valid[0].correctAnswer).toBe("A geographic information system");
+  });
+
+  it("drops letter-only options that are not real answers", () => {
+    const valid = validateQuizQuestions([
+      {
+        question: "What is 3NF?",
+        options: ["A", "B", "C", "D"],
+        correctAnswer: "A",
+      },
+    ]);
+    expect(valid).toHaveLength(0);
+  });
+
   it("drops quizzes whose answer is not in the options", () => {
     const valid = validateQuizQuestions([
       {

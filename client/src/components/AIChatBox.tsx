@@ -385,6 +385,7 @@ export function AIChatBox({
 
   const stopSpeaking = () => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.resume();
       window.speechSynthesis.cancel();
     }
     setIsSpeaking(false);

@@ -203,7 +203,7 @@ describe("Database Queries", () => {
         }),
       });
 
-      const result = await queries.getDocumentChatHistory(1);
+      const result = await queries.getDocumentChatHistory(1, 1);
       expect(result).toEqual(mockMessages);
       expect(result.length).toBe(2);
     });

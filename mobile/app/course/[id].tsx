@@ -8,17 +8,72 @@ import {
   Linking,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect, useRef } from "react";
 import { trpc, API_URL } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
 import { showLocalNotification } from "../../src/lib/notifications";
 import { studyFormatLabel } from "../../src/lib/studyDocuments";
+import { GreenAppBar, HEADER_GREEN } from "../../src/components/GreenAppBar";
+
+type TabKey = "overview" | "materials" | "quizzes" | "assignment";
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "overview", label: "Overview" },
+  { key: "materials", label: "Materials" },
+  { key: "quizzes", label: "Quizzes" },
+  { key: "assignment", label: "Assignment" },
+];
 
 function mediaUrl(url?: string | null) {
   if (!url) return "";
   return url.startsWith("http") ? url : `${API_URL}${url}`;
+}
+
+function formatBytes(n?: number | null) {
+  if (!n) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
+  return `${(n / (1024 * 1024)).toFixed(n >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+}
+
+function courseGlyph(title?: string, subject?: string | null): keyof typeof Ionicons.glyphMap {
+  const t = `${title ?? ""} ${subject ?? ""}`.toLowerCase();
+  if (t.includes("react")) return "logo-react";
+  if (t.includes("python")) return "logo-python";
+  if (t.includes("android")) return "logo-android";
+  if (t.includes("apple") || t.includes("ios")) return "logo-apple";
+  if (t.includes("web") || t.includes("html") || t.includes("css")) return "globe-outline";
+  if (t.includes("gis") || t.includes("map")) return "map-outline";
+  if (t.includes("market")) return "megaphone-outline";
+  if (t.includes("data") || t.includes("sql")) return "server-outline";
+  return "book";
+}
+
+function materialVisual(doc: {
+  title: string;
+  fileName: string;
+  fileUrl?: string | null;
+  materialType?: string | null;
+  mimeType?: string | null;
+}) {
+  const blob = `${doc.title} ${doc.fileName} ${doc.fileUrl ?? ""} ${doc.materialType ?? ""}`.toLowerCase();
+  if (blob.includes("github") || blob.includes(".git")) {
+    return { icon: "logo-github" as const, bg: "#ecf1f4", color: "#1f2937", kind: "GitHub repository" };
+  }
+  if (blob.startsWith("http") && !blob.includes("localhost") && (blob.includes("http://") || blob.includes("https://"))) {
+    return { icon: "globe-outline" as const, bg: "#e8f1ff", color: "#2563eb", kind: "External link" };
+  }
+  const mime = (doc.mimeType ?? "").toLowerCase();
+  if (mime.includes("presentation") || blob.includes("ppt") || blob.includes("slide")) {
+    return { icon: "easel-outline" as const, bg: "#fff1f2", color: "#e11d48", kind: "Lecture slides" };
+  }
+  if (mime.includes("pdf") || blob.includes("pdf")) {
+    return { icon: "document-text" as const, bg: "#fff1f2", color: "#e11d48", kind: "PDF" };
+  }
+  if (mime.includes("word") || blob.includes("doc")) {
+    return { icon: "document-outline" as const, bg: "#eff6ff", color: "#2563eb", kind: "Document" };
+  }
+  return { icon: "document-text-outline" as const, bg: "#eef8f3", color: colors.primary, kind: studyFormatLabel(doc.materialType, doc.fileName) };
 }
 
 export default function CourseDetailScreen() {
@@ -26,6 +81,7 @@ export default function CourseDetailScreen() {
   const router = useRouter();
   const courseId = Number(id);
   const prevAnnouncementCount = useRef<number | null>(null);
+  const [tab, setTab] = useState<TabKey>("overview");
 
   const { data: courses } = trpc.studentCourses.list.useQuery();
   const course = courses?.find((c) => c.id === courseId);
@@ -44,323 +100,365 @@ export default function CourseDetailScreen() {
 
   const { data: mySubmissions } =
     trpc.assignments.mySubmissionsForCourse.useQuery({ courseId }, { enabled: !Number.isNaN(courseId) });
+  const { data: progress } = trpc.progress.stats.useQuery();
+  const recordActivity = trpc.studentLearning.recordActivity.useMutation();
 
-  // Local notification when new announcements arrive
+  useEffect(() => {
+    if (Number.isNaN(courseId) || courseId <= 0) return;
+    recordActivity.mutate({ type: "COURSE_OPENED", courseId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseId]);
+
   useEffect(() => {
     if (!announcements) return;
     const count = announcements.length;
     if (prevAnnouncementCount.current !== null && count > prevAnnouncementCount.current) {
       const newest = announcements[0];
       showLocalNotification(
-        `📢 New announcement: ${course?.title ?? "Your course"}`,
+        `New announcement: ${course?.title ?? "Your course"}`,
         newest?.title ?? "Check your course for updates."
       );
     }
     prevAnnouncementCount.current = count;
-  }, [announcements]);
+  }, [announcements, course?.title]);
 
-  // Helper: find submission for a given assignment
   const getSubmission = (assignmentId: number) =>
     mySubmissions?.find((s) => s.assignmentId === assignmentId);
 
-  // Helper: is assignment past due?
   const isOverdue = (dueDate: Date | null | undefined) =>
     dueDate ? new Date(dueDate).getTime() < Date.now() : false;
 
+  const materialIds = new Set((materials ?? []).map((m) => m.id));
+  const rows = (progress ?? []).filter((p) => materialIds.has(p.documentId));
+  const pct =
+    rows.length === 0
+      ? 0
+      : Math.round(
+          rows.reduce((sum, p) => {
+            const reviews = p.flashcardsReviewed ?? 0;
+            const quizzesN = p.quizzesAttempted ?? 0;
+            const mins = p.totalStudyTimeMinutes ?? 0;
+            if (!reviews && !quizzesN && !mins) return sum;
+            const score =
+              Math.min(reviews / 10, 1) * 50 +
+              Math.min(quizzesN / 1, 1) * 30 +
+              Math.min(mins / 30, 1) * 20;
+            return sum + Math.max(5, Math.round(score));
+          }, 0) / Math.max(rows.length, 1)
+        );
+  const firstMaterial = materials?.[0];
+
+  const continueLearning = () => {
+    if (firstMaterial) {
+      router.push({ pathname: "/document/[id]", params: { id: firstMaterial.id } });
+      return;
+    }
+    if (quizzes?.[0]) {
+      router.push({
+        pathname: "/document/[id]",
+        params: { id: quizzes[0].documentId, tab: "quiz", quizId: quizzes[0].id },
+      });
+    }
+  };
+
   return (
-    <SafeAreaView style={st.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={st.content} showsVerticalScrollIndicator={false}>
-        {/* Back */}
-        <TouchableOpacity style={st.back} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={colors.primary} />
-          <Text style={st.backText}>Courses</Text>
-        </TouchableOpacity>
-
-        {/* Course header */}
-        <View style={st.courseHeader}>
-          <View style={st.courseBadge}>
-            <Text style={st.courseBadgeText}>
-              {(course?.title ?? "?").charAt(0).toUpperCase()}
-            </Text>
+    <View style={st.root}>
+      <GreenAppBar title="Course" onBack={() => router.back()} />
+      <View style={st.sheet}>
+        <ScrollView contentContainerStyle={st.content} showsVerticalScrollIndicator={false}>
+          <View style={st.courseHead}>
+            <View style={st.logoWrap}>
+              <Ionicons name={courseGlyph(course?.title, (course as any)?.subject)} size={28} color="#2563eb" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={st.courseTitle}>{course?.title ?? "Course"}</Text>
+              <Text style={st.courseMeta}>
+                {(course as any)?.code ?? "—"}
+                {(course as any)?.subject ? `  ·  ${(course as any).subject}` : ""}
+              </Text>
+            </View>
           </View>
-          <Text style={st.courseTitle}>{course?.title ?? "Course"}</Text>
-          {(course as any)?.subject ? (
-            <Text style={st.courseSubject}>{(course as any).subject}</Text>
-          ) : null}
-          <Text style={st.courseLecturer}>
-            Lecturer: {(course as any)?.lecturerName ?? "—"}
-          </Text>
-        </View>
 
-        {/* ── Materials ── */}
-        <SectionHeader icon="document-text" title="Course Materials" />
-        {materialsLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginBottom: 20 }} />
-        ) : !materials || materials.length === 0 ? (
-          <EmptyState text="No materials available yet." />
-        ) : (
-          materials.map((doc) => (
-            <TouchableOpacity
-              key={doc.id}
-              style={st.itemCard}
-              onPress={() => router.push({ pathname: "/document/[id]", params: { id: doc.id } })}
-              activeOpacity={0.75}
-            >
-              <View style={[st.itemIcon, { backgroundColor: colors.primaryLight }]}>
-                <Ionicons name="document-text" size={20} color={colors.primary} />
+          <View style={st.tabs}>
+            {TABS.map((item) => {
+              const active = tab === item.key;
+              return (
+                <TouchableOpacity key={item.key} style={st.tabBtn} onPress={() => setTab(item.key)}>
+                  <Text style={[st.tabLabel, active && st.tabLabelActive]}>{item.label}</Text>
+                  {active ? <View style={st.tabUnderline} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {tab === "overview" ? (
+            <>
+              <View style={st.progressRow}>
+                <Text style={st.progressLabel}>{pct}% Complete</Text>
+                <Text style={st.progressPct}>{pct}%</Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.itemTitle} numberOfLines={1}>{doc.title}</Text>
-                <Text style={st.itemMeta}>{studyFormatLabel((doc as any).materialType, doc.fileName)} · {doc.fileName}</Text>
+              <View style={st.progBg}>
+                <View style={[st.progFill, { width: `${pct}%` }]} />
               </View>
-              <Text style={st.openLink}>Open →</Text>
-            </TouchableOpacity>
-          ))
-        )}
+              <Text style={st.description}>
+                {(course as any)?.description?.trim()
+                  ? (course as any).description
+                  : `Learn ${(course as any)?.subject ?? course?.title ?? "this course"} with lectures, materials, and AI support from your lecturer.`}
+              </Text>
 
-        {/* ── Assignments ── */}
-        <SectionHeader icon="clipboard" title="Assignments" style={{ marginTop: 24 }} />
-        {assignmentsLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginBottom: 20 }} />
-        ) : !assignments || assignments.length === 0 ? (
-          <EmptyState text="No assignments yet. Check back later." />
-        ) : (
-          assignments.map((asgn) => {
-            const submission = getSubmission(asgn.id);
-            const overdue = isOverdue(asgn.dueDate);
-            const statusColor = submission?.status === "graded"
-              ? colors.primary
-              : submission?.status === "submitted"
-              ? "#3b82f6"
-              : overdue ? "#ef4444" : "#f59e0b";
-            const statusLabel = submission?.status === "graded"
-              ? `Graded${submission.grade ? ` · ${submission.grade}` : ""}`
-              : submission?.status === "submitted"
-              ? "Submitted"
-              : overdue ? "Overdue" : "Pending";
+              <Text style={st.sectionTitle}>Course Materials</Text>
+              {materialsLoading ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : !materials?.length ? (
+                <Text style={st.empty}>No materials available yet.</Text>
+              ) : (
+                materials.slice(0, 6).map((doc) => (
+                  <MaterialRow
+                    key={doc.id}
+                    doc={doc}
+                    onPress={() => router.push({ pathname: "/document/[id]", params: { id: doc.id } })}
+                  />
+                ))
+              )}
 
-            return (
-              <View key={asgn.id} style={st.assignCard}>
-                <View style={st.assignLeft}>
-                  <View style={[st.itemIcon, { backgroundColor: "#fff7ed" }]}>
-                    <Ionicons name="clipboard" size={20} color="#f59e0b" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={st.itemTitle} numberOfLines={1}>{asgn.title}</Text>
-                    {asgn.description ? (
-                      <Text style={st.itemMeta} numberOfLines={2}>{asgn.description}</Text>
-                    ) : null}
-                    {asgn.fileUrl ? (
-                      <TouchableOpacity
-                        onPress={() => void Linking.openURL(mediaUrl(asgn.fileUrl))}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={st.openLink}>
-                          {asgn.fileName ? `Open ${asgn.fileName}` : "Open assignment document"}
-                        </Text>
-                      </TouchableOpacity>
-                    ) : null}
-                    <View style={st.assignMeta}>
-                      {asgn.dueDate ? (
-                        <Text style={[st.dueLabel, overdue && !submission && { color: "#ef4444" }]}>
-                          Due {new Date(asgn.dueDate).toLocaleDateString(undefined, { dateStyle: "medium" })}
-                        </Text>
-                      ) : null}
-                      <View style={[st.statusBadge, { backgroundColor: statusColor + "20" }]}>
-                        <Text style={[st.statusText, { color: statusColor }]}>{statusLabel}</Text>
-                      </View>
+              {announcementsLoading ? null : announcements?.length ? (
+                <>
+                  <Text style={[st.sectionTitle, { marginTop: 18 }]}>Announcements</Text>
+                  {announcements.slice(0, 3).map((a) => (
+                    <View key={a.id} style={st.announcementCard}>
+                      <Text style={st.itemTitle}>{a.title}</Text>
+                      <Text style={st.itemMeta} numberOfLines={3}>{a.content}</Text>
                     </View>
-                  </View>
-                </View>
+                  ))}
+                </>
+              ) : null}
+            </>
+          ) : null}
 
-                {/* Submit / Resubmit / View button */}
+          {tab === "materials" ? (
+            materialsLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : !materials?.length ? (
+              <Text style={st.empty}>No materials available yet.</Text>
+            ) : (
+              materials.map((doc) => (
+                <MaterialRow
+                  key={doc.id}
+                  doc={doc}
+                  onPress={() => router.push({ pathname: "/document/[id]", params: { id: doc.id } })}
+                />
+              ))
+            )
+          ) : null}
+
+          {tab === "quizzes" ? (
+            quizzesLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : !quizzes?.length ? (
+              <Text style={st.empty}>No quizzes assigned yet.</Text>
+            ) : (
+              quizzes.map((quiz) => (
                 <TouchableOpacity
-                  style={[st.submitBtn, submission && st.submitBtnDone]}
+                  key={quiz.id}
+                  style={st.itemCard}
                   onPress={() =>
                     router.push({
-                      pathname: "/submit-assignment",
-                      params: {
-                        assignmentId: String(asgn.id),
-                        courseId: String(courseId),
-                        title: asgn.title,
-                        description: asgn.description ?? "",
-                        dueDate: asgn.dueDate ? String(new Date(asgn.dueDate).getTime()) : "",
-                        fileUrl: asgn.fileUrl ?? "",
-                        fileName: asgn.fileName ?? "",
-                      },
+                      pathname: "/document/[id]",
+                      params: { id: quiz.documentId, tab: "quiz", quizId: quiz.id },
                     })
                   }
-                  activeOpacity={0.8}
                 >
-                  <Text style={[st.submitBtnText, submission && st.submitBtnTextDone]}>
-                    {submission ? "View / Edit" : "Submit"}
-                  </Text>
+                  <View style={[st.itemIcon, { backgroundColor: "#fce7f3" }]}>
+                    <Ionicons name="help-buoy-outline" size={18} color="#db2777" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={st.itemTitle}>{quiz.title}</Text>
+                    <Text style={st.itemMeta}>{quiz.totalQuestions} questions</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
                 </TouchableOpacity>
-              </View>
-            );
-          })
-        )}
+              ))
+            )
+          ) : null}
 
-        {/* ── Quizzes ── */}
-        <SectionHeader icon="help-circle" title="Quizzes" style={{ marginTop: 24 }} />
-        {quizzesLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginBottom: 20 }} />
-        ) : !quizzes || quizzes.length === 0 ? (
-          <EmptyState text="No quizzes assigned yet. Check back later." />
-        ) : (
-          quizzes.map((quiz) => (
-            <TouchableOpacity
-              key={quiz.id}
-              style={st.quizCard}
-              onPress={() =>
-                router.push({
-                  pathname: "/document/[id]",
-                  params: { id: quiz.documentId, tab: "quiz", quizId: quiz.id },
-                })
-              }
-              activeOpacity={0.75}
-            >
-              <View style={[st.itemIcon, { backgroundColor: "#ede9fe" }]}>
-                <Ionicons name="help-circle" size={20} color="#7c3aed" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.itemTitle} numberOfLines={1}>{quiz.title}</Text>
-                <Text style={st.itemMeta}>
-                  {quiz.totalQuestions} questions ·{" "}
-                  {new Date(quiz.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
-                </Text>
-              </View>
-              {quiz.completedAt ? (
-                <View style={st.scoreBadge}>
-                  <Text style={st.scoreText}>
-                    {quiz.score ? `${Number(quiz.score).toFixed(0)}%` : "Done"}
-                  </Text>
-                </View>
-              ) : (
-                <Text style={st.openLink}>Start →</Text>
-              )}
-            </TouchableOpacity>
-          ))
-        )}
+          {tab === "assignment" ? (
+            assignmentsLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : !assignments?.length ? (
+              <Text style={st.empty}>No assignments yet.</Text>
+            ) : (
+              assignments.map((asgn) => {
+                const submission = getSubmission(asgn.id);
+                const overdue = isOverdue(asgn.dueDate);
+                return (
+                  <View key={asgn.id} style={st.itemCard}>
+                    <View style={[st.itemIcon, { backgroundColor: "#ede9fe" }]}>
+                      <Ionicons name="document-text" size={18} color="#7c3aed" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={st.itemTitle}>{asgn.title}</Text>
+                      <Text style={st.itemMeta}>
+                        {asgn.dueDate
+                          ? `Due: ${new Date(asgn.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
+                          : "No due date"}
+                        {overdue && !submission ? "  ·  Overdue" : ""}
+                      </Text>
+                      {asgn.fileUrl ? (
+                        <TouchableOpacity onPress={() => void Linking.openURL(mediaUrl(asgn.fileUrl))}>
+                          <Text style={st.link}>Open attachment</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                    <TouchableOpacity
+                      style={st.smallCta}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/submit-assignment",
+                          params: {
+                            assignmentId: String(asgn.id),
+                            courseId: String(courseId),
+                            title: asgn.title,
+                            description: asgn.description ?? "",
+                            dueDate: asgn.dueDate ? String(new Date(asgn.dueDate).getTime()) : "",
+                            fileUrl: asgn.fileUrl ?? "",
+                            fileName: asgn.fileName ?? "",
+                          },
+                        })
+                      }
+                    >
+                      <Text style={st.smallCtaText}>{submission ? "View" : "Submit"}</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })
+            )
+          ) : null}
 
-        {/* ── Announcements ── */}
-        <SectionHeader icon="megaphone" title="Announcements" style={{ marginTop: 24 }} />
-        {announcementsLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginBottom: 20 }} />
-        ) : !announcements || announcements.length === 0 ? (
-          <EmptyState text="No announcements yet." />
-        ) : (
-          announcements.map((a) => (
-            <View key={a.id} style={st.announcementCard}>
-              <Text style={st.announcementTitle}>{a.title}</Text>
-              <Text style={st.announcementContent}>{a.content}</Text>
-              <Text style={st.announcementDate}>{new Date(a.createdAt).toLocaleString()}</Text>
-            </View>
-          ))
-        )}
+          <View style={{ height: 88 }} />
+        </ScrollView>
 
-        <View style={{ height: 32 }} />
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-// ── Small helpers ─────────────────────────────────────────────────────────────
-
-function SectionHeader({ icon, title, style }: { icon: string; title: string; style?: object }) {
-  return (
-    <View style={[{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }, style]}>
-      <Ionicons name={icon as any} size={18} color={colors.primary} />
-      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>{title}</Text>
+        <View style={st.footer}>
+          <TouchableOpacity style={st.continueBtn} onPress={continueLearning} activeOpacity={0.9}>
+            <Text style={st.continueText}>Continue Learning</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 }
 
-function EmptyState({ text }: { text: string }) {
+function MaterialRow({
+  doc,
+  onPress,
+}: {
+  doc: {
+    id: number;
+    title: string;
+    fileName: string;
+    fileUrl?: string | null;
+    fileSize?: number | null;
+    materialType?: string | null;
+    mimeType?: string | null;
+  };
+  onPress: () => void;
+}) {
+  const visual = materialVisual(doc);
+  const size = formatBytes(doc.fileSize);
   return (
-    <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 16 }}>{text}</Text>
+    <TouchableOpacity style={st.itemCard} onPress={onPress} activeOpacity={0.8}>
+      <View style={[st.itemIcon, { backgroundColor: visual.bg }]}>
+        <Ionicons name={visual.icon} size={18} color={visual.color} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={st.itemTitle} numberOfLines={1}>{doc.title}</Text>
+        <Text style={st.itemMeta} numberOfLines={1}>
+          {visual.kind}
+          {size ? `  ·  ${size}` : ""}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const st = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f5f6fa" },
-  content: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 16 },
-  back: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
-  backText: { fontSize: 15, color: colors.primary, fontWeight: "600" },
-
-  // Course header
-  courseHeader: {
-    backgroundColor: colors.primary + "15",
-    borderRadius: 20, padding: 20, alignItems: "center", marginBottom: 28,
+  root: { flex: 1, backgroundColor: HEADER_GREEN },
+  sheet: {
+    flex: 1,
+    backgroundColor: "#f3f7f5",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
   },
-  courseBadge: {
-    width: 60, height: 60, borderRadius: 18,
-    backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginBottom: 12,
+  content: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 16 },
+  courseHead: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 18 },
+  logoWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: "#e8f0ff",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  courseBadgeText: { fontSize: 28, fontWeight: "800", color: colors.white },
-  courseTitle: { fontSize: 20, fontWeight: "800", color: colors.text, textAlign: "center" },
-  courseSubject: { fontSize: 14, color: colors.primary, fontWeight: "600", marginTop: 4 },
-  courseLecturer: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
-
-  // Shared card
+  courseTitle: { fontSize: 20, fontWeight: "800", color: "#123047", letterSpacing: -0.3 },
+  courseMeta: { fontSize: 13, color: "#8aa0b4", marginTop: 4, fontWeight: "500" },
+  tabs: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e6edf0",
+    marginBottom: 18,
+  },
+  tabBtn: { flex: 1, alignItems: "center", paddingBottom: 10 },
+  tabLabel: { fontSize: 13, fontWeight: "600", color: "#9aa8b5" },
+  tabLabelActive: { color: colors.primary, fontWeight: "800" },
+  tabUnderline: {
+    position: "absolute",
+    bottom: -1,
+    height: 3,
+    width: "70%",
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+  },
+  progressRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  progressLabel: { fontSize: 13, fontWeight: "700", color: "#334155" },
+  progressPct: { fontSize: 12, fontWeight: "700", color: "#8aa0b4" },
+  progBg: { height: 7, borderRadius: 6, backgroundColor: "#e6eee9", marginTop: 8, overflow: "hidden" },
+  progFill: { height: "100%", backgroundColor: "#12a06e", borderRadius: 6 },
+  description: { fontSize: 14, color: "#5b6b7a", lineHeight: 22, marginTop: 14, marginBottom: 22 },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#123047", marginBottom: 12 },
   itemCard: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: colors.surface, borderRadius: 16,
-    padding: 14, marginBottom: 10,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
-  },
-  itemIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  itemTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
-  itemMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  openLink: { fontSize: 13, color: colors.primary, fontWeight: "600" },
-
-  // Assignment card
-  assignCard: {
-    backgroundColor: colors.surface, borderRadius: 16,
-    padding: 14, marginBottom: 10,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
-    borderLeftWidth: 3, borderLeftColor: "#f59e0b",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
     gap: 12,
   },
-  assignLeft: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
-  assignMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" },
-  dueLabel: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
-  statusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  statusText: { fontSize: 11, fontWeight: "700" },
-  submitBtn: {
-    alignSelf: "flex-end",
-    backgroundColor: colors.primary, borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 8,
-    shadowColor: colors.primary, shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25, shadowRadius: 6, elevation: 3,
-  },
-  submitBtnDone: { backgroundColor: "#e8fdf2", shadowOpacity: 0 },
-  submitBtnText: { fontSize: 13, fontWeight: "700", color: colors.white },
-  submitBtnTextDone: { color: colors.primaryDark },
-
-  // Quiz card
-  quizCard: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: colors.surface, borderRadius: 16,
-    padding: 14, marginBottom: 10,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
-    borderLeftWidth: 3, borderLeftColor: "#7c3aed",
-  },
-  scoreBadge: { backgroundColor: "#d1fae5", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  scoreText: { fontSize: 12, fontWeight: "700", color: "#065f46" },
-
-  // Announcement card
+  itemIcon: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+  itemTitle: { fontSize: 14, fontWeight: "700", color: "#123047" },
+  itemMeta: { fontSize: 12, color: "#8aa0b4", marginTop: 2 },
+  empty: { fontSize: 13, color: "#8aa0b4", marginBottom: 12 },
+  link: { fontSize: 12, color: colors.primary, fontWeight: "700", marginTop: 4 },
   announcementCard: {
-    backgroundColor: colors.surface, borderRadius: 16, padding: 16, marginBottom: 10,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
   },
-  announcementTitle: { fontSize: 15, fontWeight: "700", color: colors.text, marginBottom: 6 },
-  announcementContent: { fontSize: 14, color: colors.text, lineHeight: 20 },
-  announcementDate: { fontSize: 12, color: colors.textMuted, marginTop: 8 },
+  smallCta: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  smallCtaText: { color: colors.white, fontWeight: "700", fontSize: 12 },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 18,
+    backgroundColor: "#f3f7f5",
+  },
+  continueBtn: {
+    backgroundColor: HEADER_GREEN,
+    borderRadius: 16,
+    minHeight: 52,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  continueText: { color: colors.white, fontWeight: "800", fontSize: 16 },
 });

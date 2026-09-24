@@ -168,7 +168,7 @@ export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
           <CardContent className="space-y-4">
             <RadioGroup value={currentAnswer} onValueChange={handleSelectAnswer}>
               <div className="space-y-3">
-                {currentQuestion.options.map((option, idx) => (
+                {currentQuestion.options?.map((option, idx) => (
                   <div key={idx} className="flex items-center space-x-3 p-3 rounded-lg border border-input hover:bg-accent cursor-pointer transition-colors">
                     <RadioGroupItem value={option} id={`option-${idx}`} />
                     <Label htmlFor={`option-${idx}`} className="flex-1 cursor-pointer font-normal">

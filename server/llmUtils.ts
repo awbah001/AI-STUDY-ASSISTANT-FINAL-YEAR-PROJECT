@@ -5,6 +5,7 @@ import { invokeLLM } from "./_core/llm";
 import { resolveUploadPath } from "./_core/uploads";
 import { loadPdfBufferFromUrl } from "./rag/pdfBuffer";
 import { buildDocumentVectorIndex, retrieveRelevantChunks } from "./rag/index";
+import { validateQuizQuestions } from "./agent/structured";
 
 /**
  * Call invokeLLM and retry once if the response is empty or starts with
@@ -158,20 +159,6 @@ function parseJsonFromLlmContent(raw: string): unknown {
 
   console.error("[LLM] Could not parse JSON. Raw response (first 500 chars):", raw.slice(0, 500));
   throw new Error("Could not parse JSON from LLM response");
-}
-
-/** Walk nested `{ questions: [...] }` blobs that small models often emit. */
-function collectQuizLikeItems(raw: unknown, acc: unknown[]): void {
-  if (raw == null) return;
-  if (Array.isArray(raw)) {
-    for (const item of raw) collectQuizLikeItems(item, acc);
-    return;
-  }
-  if (typeof raw !== "object") return;
-  const obj = raw as Record<string, unknown>;
-  if (typeof obj.question === "string") acc.push(obj);
-  if ("questions" in obj) collectQuizLikeItems(obj.questions, acc);
-  if ("quiz" in obj) collectQuizLikeItems(obj.quiz, acc);
 }
 
 /** Last-resort scan when the whole payload is not valid JSON. */
@@ -378,43 +365,8 @@ function normalizeFlashcards(raw: unknown): Array<{ question: string; answer: st
   return cards;
 }
 
-function normalizeQuizQuestions(raw: unknown): Array<{
-  question: string;
-  options: string[];
-  correctAnswer: string;
-  explanation: string;
-}> {
-  const collected: unknown[] = [];
-  collectQuizLikeItems(raw, collected);
-  const list = collected.length ? collected : Array.isArray(raw) ? raw : [];
-  const questions: Array<{
-    question: string;
-    options: string[];
-    correctAnswer: string;
-    explanation: string;
-  }> = [];
-  for (const item of list) {
-    if (!item || typeof item !== "object") continue;
-    const question = String((item as { question?: unknown }).question ?? "").trim();
-    const options = Array.isArray((item as { options?: unknown }).options)
-      ? (item as { options: unknown[] }).options.map((opt) => String(opt ?? "").trim()).filter(Boolean)
-      : [];
-    const correctAnswer = String((item as { correctAnswer?: unknown }).correctAnswer ?? "").trim();
-    const explanation = String((item as { explanation?: unknown }).explanation ?? "").trim();
-    if (question.length < 3 || options.length < 2 || !correctAnswer) continue;
-    const uniqueOptions = [...new Set(options)].slice(0, 4);
-    if (uniqueOptions.length < 2) continue;
-    const matched =
-      uniqueOptions.find((opt) => opt.toLowerCase() === correctAnswer.toLowerCase()) ?? uniqueOptions[0];
-    if (!uniqueOptions.includes(matched)) uniqueOptions[0] = matched;
-    questions.push({
-      question,
-      options: uniqueOptions,
-      correctAnswer: matched,
-      explanation: explanation || "See the document for details.",
-    });
-  }
-  return questions;
+function normalizeQuizQuestions(raw: unknown) {
+  return validateQuizQuestions(raw, 4);
 }
 
 /**
@@ -537,45 +489,52 @@ export async function generateQuiz(
 
   const target = Math.min(20, Math.max(1, Math.round(questionCount)));
   const sourceText = `${context}\n${documentText}`.trim() || documentText;
-  const passages = splitQuizPassages(sourceText, Math.max(target * 2, target));
+  const passages = splitQuizPassages(sourceText, Math.max(target * 3, target));
   const allQuestions: Array<{
     question: string;
     options: string[];
     correctAnswer: string;
     explanation: string;
   }> = [];
+  const maxAttempts = Math.max(passages.length, target * 6);
 
-  for (let attempt = 0; attempt < passages.length && allQuestions.length < target; attempt++) {
-    const focus = passages[attempt] || sourceText.slice(0, 1200);
-    const response = await invokeLLM({
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a quiz generator. Output ONLY valid JSON. No markdown, no explanation. Begin with { and end with }.",
-        },
-        {
-          role: "user",
-          content: [
-            `Document title: "${documentTitle}".`,
-            `Write exactly 1 multiple-choice question from THIS excerpt only (question #${allQuestions.length + 1} of ${target}):`,
-            `---`,
-            focus.slice(0, 1400),
-            `---`,
-            allQuestions.length
-              ? `Forbidden (too similar to these — ask about a different fact):\n${allQuestions.map((q) => `- ${q.question}`).join("\n")}`
-              : "",
-            `Required JSON:`,
-            `{"questions":[{"question":"...","options":["A","B","C","D"],"correctAnswer":"A","explanation":"..."}]}`,
-            `Rules: one question, four options, correctAnswer must copy one option, different topic from forbidden list.`,
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        },
-      ],
-      max_tokens: 400,
-      temperature: 0.8,
-    });
+  for (let attempt = 0; attempt < maxAttempts && allQuestions.length < target; attempt++) {
+    const focus = passages[attempt % passages.length] || sourceText.slice(0, 1200);
+    let response: Awaited<ReturnType<typeof invokeLLM>>;
+    try {
+      response = await invokeLLMWithRetry({
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a quiz generator. Output ONLY valid JSON. No markdown, no explanation. Begin with { and end with }.",
+          },
+          {
+            role: "user",
+            content: [
+              `Document title: "${documentTitle}".`,
+              `Write exactly 1 multiple-choice question from THIS excerpt only (question #${allQuestions.length + 1} of ${target}):`,
+              `---`,
+              focus.slice(0, 1400),
+              `---`,
+              allQuestions.length
+                ? `Forbidden (too similar to these — ask about a different fact):\n${allQuestions.map((q) => `- ${q.question}`).join("\n")}`
+                : "",
+              `Required JSON:`,
+              `{"questions":[{"question":"What is GIS?","options":["A geographic information system","A graphics editing program","A satellite vendor","A type of database lock"],"correctAnswer":"A geographic information system","explanation":"GIS stores and analyses spatial data."}]}`,
+              `Rules: exactly one question; exactly four complete option phrases (never letters only like A,B,C,D); correctAnswer must copy one option string exactly; different topic from the forbidden list.`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          },
+        ],
+        max_tokens: 700,
+        temperature: 0.7,
+      });
+    } catch (error) {
+      console.warn("[LLM] Quiz attempt failed:", error);
+      continue;
+    }
 
     const raw = llmMessageText(response.choices[0]?.message?.content);
     if (!raw.trim()) continue;
@@ -588,6 +547,7 @@ export async function generateQuiz(
     }
 
     for (const q of parsedQuestions) {
+      if (q.options.length < 4) continue;
       if (allQuestions.some((existing) => questionsAreSimilar(existing.question, q.question))) continue;
       allQuestions.push(q);
       if (allQuestions.length >= target) break;

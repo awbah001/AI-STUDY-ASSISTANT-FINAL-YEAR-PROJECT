@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { trpc } from "@/lib/trpc";
 import { Megaphone, Send, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -13,9 +14,38 @@ export default function AdminCommunications() {
   const send = trpc.admin.sendAnnouncement.useMutation({ onSuccess: ({ recipients }) => { toast.success(`Announcement sent to ${recipients} learner${recipients === 1 ? "" : "s"}.`); setTitle(""); setBody(""); utils.admin.getCommunicationStats.invalidate(); }, onError: e => toast.error(e.message) });
   if (!user || user.role !== "admin") return null;
   const submit = (e: FormEvent) => { e.preventDefault(); if (!title.trim() || !body.trim()) return toast.error("A title and message are required."); if (audience === "course" && !courseId) return toast.error("Select a course."); send.mutate({ audience, title: title.trim(), body: body.trim(), courseId: audience === "course" ? Number(courseId) : undefined }); };
-  return <DashboardLayout><main className="mx-auto max-w-6xl space-y-6"><header><h1 className="text-2xl font-bold text-slate-900">Communications</h1><p className="text-sm text-slate-500">Send targeted notices and monitor inbox delivery.</p></header>
-    <section className="grid gap-4 sm:grid-cols-3"><Metric label="Messages delivered" value={stats?.sent ?? 0} /><Metric label="Messages read" value={stats?.read ?? 0} /><Metric label="Read rate" value={`${stats?.readRate ?? 0}%`} /></section>
-    <section className="grid gap-6 lg:grid-cols-[1fr_0.8fr]"><form onSubmit={submit} className="space-y-4 rounded-2xl border bg-white p-6 shadow-sm"><div className="flex items-center gap-2"><Megaphone className="h-5 w-5 text-emerald-600" /><h2 className="font-semibold">New announcement</h2></div><label className="block text-sm font-medium">Audience<select value={audience} onChange={e => setAudience(e.target.value as typeof audience)} className="mt-1 h-10 w-full rounded-xl border px-3"><option value="all">All students</option><option value="inactive">Inactive students (14+ days)</option><option value="course">Specific course</option></select></label>{audience === "course" && <label className="block text-sm font-medium">Course<select value={courseId} onChange={e => setCourseId(e.target.value)} className="mt-1 h-10 w-full rounded-xl border px-3"><option value="">Select a course</option>{academic?.courses.map(c => <option key={c.courseId} value={c.courseId}>{c.code} — {c.title}</option>)}</select></label>}<label className="block text-sm font-medium">Title<input maxLength={160} value={title} onChange={e => setTitle(e.target.value)} className="mt-1 h-10 w-full rounded-xl border px-3" placeholder="Important update" /></label><label className="block text-sm font-medium">Message<textarea maxLength={2000} value={body} onChange={e => setBody(e.target.value)} className="mt-1 min-h-32 w-full rounded-xl border p-3" placeholder="Write your announcement…" /></label><button disabled={send.isPending} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white disabled:opacity-50"><Send className="h-4 w-4" />{send.isPending ? "Sending…" : "Send announcement"}</button></form><section className="overflow-hidden rounded-2xl border bg-white shadow-sm"><div className="border-b px-5 py-4"><h2 className="font-semibold">Recent delivery</h2><p className="text-xs text-slate-500">Read state is updated when recipients open their notification.</p></div><div className="divide-y">{stats?.recent.length ? stats.recent.map(item => <div key={item.id} className="px-5 py-3"><div className="flex justify-between gap-3"><p className="font-medium">{item.title}</p><span className={`text-xs ${item.isRead ? "text-emerald-600" : "text-slate-400"}`}>{item.isRead ? "Read" : "Unread"}</span></div><p className="mt-1 line-clamp-2 text-sm text-slate-500">{item.body}</p><p className="mt-1 text-xs text-slate-400">{new Date(item.createdAt).toLocaleString()}</p></div>) : <p className="p-8 text-center text-sm text-slate-500">No admin announcements sent yet.</p>}</div></section></section>
+  return <DashboardLayout><main className="mx-auto max-w-6xl space-y-6"><AdminPageHeader eyebrow="Outreach" title="Communications" description="Send targeted notices and monitor inbox delivery." />
+    <section className="grid gap-4 sm:grid-cols-3">
+      <Metric label="Messages delivered" value={stats?.sent ?? 0} tone="emerald" />
+      <Metric label="Messages read" value={stats?.read ?? 0} tone="sky" />
+      <Metric label="Read rate" value={`${stats?.readRate ?? 0}%`} tone="violet" />
+    </section>
+    <section className="grid gap-6 lg:grid-cols-[1fr_0.8fr]">
+      <form onSubmit={submit} className="space-y-4 rounded-2xl border border-emerald-100/80 bg-gradient-to-b from-emerald-50/50 to-white p-6 shadow-sm">
+        <div className="flex items-center gap-2"><Megaphone className="h-5 w-5 text-emerald-600" /><h2 className="font-semibold">New announcement</h2></div>
+        <label className="block text-sm font-medium">Audience<select value={audience} onChange={e => setAudience(e.target.value as typeof audience)} className="mt-1 h-10 w-full rounded-xl border px-3"><option value="all">All students</option><option value="inactive">Inactive students (14+ days)</option><option value="course">Specific course</option></select></label>
+        {audience === "course" && <label className="block text-sm font-medium">Course<select value={courseId} onChange={e => setCourseId(e.target.value)} className="mt-1 h-10 w-full rounded-xl border px-3"><option value="">Select a course</option>{academic?.courses.map(c => <option key={c.courseId} value={c.courseId}>{c.code} — {c.title}</option>)}</select></label>}
+        <label className="block text-sm font-medium">Title<input maxLength={160} value={title} onChange={e => setTitle(e.target.value)} className="mt-1 h-10 w-full rounded-xl border px-3" placeholder="Important update" /></label>
+        <label className="block text-sm font-medium">Message<textarea maxLength={2000} value={body} onChange={e => setBody(e.target.value)} className="mt-1 min-h-32 w-full rounded-xl border p-3" placeholder="Write your announcement…" /></label>
+        <button disabled={send.isPending} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white disabled:opacity-50"><Send className="h-4 w-4" />{send.isPending ? "Sending…" : "Send announcement"}</button>
+      </form>
+      <section className="overflow-hidden rounded-2xl border border-sky-100/80 bg-gradient-to-b from-sky-50/50 to-white shadow-sm">
+        <div className="border-b border-sky-100/70 px-5 py-4"><h2 className="font-semibold">Recent delivery</h2><p className="text-xs text-slate-500">Read state is updated when recipients open their notification.</p></div>
+        <div className="divide-y divide-sky-50">{stats?.recent.length ? stats.recent.map(item => <div key={item.id} className="px-5 py-3"><div className="flex justify-between gap-3"><p className="font-medium">{item.title}</p><span className={`text-xs ${item.isRead ? "text-emerald-600" : "text-slate-400"}`}>{item.isRead ? "Read" : "Unread"}</span></div><p className="mt-1 line-clamp-2 text-sm text-slate-500">{item.body}</p><p className="mt-1 text-xs text-slate-400">{new Date(item.createdAt).toLocaleString()}</p></div>) : <p className="p-8 text-center text-sm text-slate-500">No admin announcements sent yet.</p>}</div>
+      </section>
+    </section>
   </main></DashboardLayout>;
 }
-function Metric({ label, value }: { label: string; value: string | number }) { return <div className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex items-center gap-2 text-sm text-emerald-600"><Users className="h-4 w-4" />{label}</div><p className="mt-2 text-3xl font-bold">{value}</p></div>; }
+function Metric({ label, value, tone }: { label: string; value: string | number; tone: "emerald" | "sky" | "violet" }) {
+  const tones = {
+    emerald: "from-emerald-50 to-white border-emerald-100 text-emerald-700",
+    sky: "from-sky-50 to-white border-sky-100 text-sky-700",
+    violet: "from-violet-50 to-white border-violet-100 text-violet-700",
+  };
+  return (
+    <div className={`rounded-2xl border bg-gradient-to-br p-5 shadow-sm ${tones[tone]}`}>
+      <div className="flex items-center gap-2 text-sm font-medium"><Users className="h-4 w-4" />{label}</div>
+      <p className="mt-2 text-3xl font-bold text-slate-900">{value}</p>
+    </div>
+  );
+}

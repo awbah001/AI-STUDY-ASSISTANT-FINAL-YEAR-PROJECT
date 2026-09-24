@@ -199,9 +199,20 @@ describe("LLM Utils", () => {
                 questions: Array(5)
                   .fill(null)
                   .map((_, i) => ({
-                    question: `Q${i}?`,
-                    options: ["A", "B", "C", "D"],
-                    correctAnswer: "A",
+                    question: [
+                      "What is the primary function of GIS?",
+                      "How did GIS originate in the 1960s?",
+                      "What does a spatial database store?",
+                      "Which output is a typical GIS map product?",
+                      "What role does remote sensing play in GIS?",
+                    ][i],
+                    options: [
+                      `Correct fact ${i} from the lecture`,
+                      "A graphics-only drawing tool",
+                      "A satellite manufacturing firm",
+                      "A type of database lock",
+                    ],
+                    correctAnswer: `Correct fact ${i} from the lecture`,
                     explanation: "Explanation",
                   })),
               }),
@@ -219,10 +230,19 @@ describe("LLM Utils", () => {
 
     it("retries until the requested quiz count is reached", async () => {
       const q = (n: number) => ({
-        question: `Question ${n}?`,
-        options: ["A", "B", "C", "D"],
-        correctAnswer: "A",
-        explanation: "Because A",
+        question:
+          n === 1
+            ? "What is the primary function of GIS in this course?"
+            : "How did Roger Tomlinson contribute to GIS history?",
+        options: [
+          n === 1 ? "Location-based spatial analysis" : "He pioneered the Canada Geographic Information System",
+          "It is only used for drawing posters",
+          "It replaces all statistical software",
+          "It is a brand of GPS hardware",
+        ],
+        correctAnswer:
+          n === 1 ? "Location-based spatial analysis" : "He pioneered the Canada Geographic Information System",
+        explanation: "Taken from the lecture excerpt.",
       });
       vi.mocked(invokeLLM)
         .mockResolvedValueOnce({

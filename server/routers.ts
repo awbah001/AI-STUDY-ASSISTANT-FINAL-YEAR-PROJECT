@@ -2,6 +2,11 @@ import { ONE_YEAR_MS } from "../shared/const";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure, adminProcedure, studentProcedure } from "./_core/trpc";
 import { lecturerRouter, studentCoursesRouter } from "./lecturerRouter";
+import { studentLearningRouter } from "./studentLearningRouter";
+import { settingsRouter } from "./settingsRouter";
+import { stripSensitiveUser } from "./userSafe";
+import { getPasswordMinLength, getFeatureFlags } from "./settings";
+import { verifyTotp, consumeRecoveryCode } from "./totp";
 import * as lecturerQueries from "./lecturerQueries";
 import { canAccessDocument } from "./documentAccess";
 import { sql, and, desc, eq, gte, inArray, like, or } from "drizzle-orm";
@@ -19,11 +24,6 @@ import type { User } from "../drizzle/schema";
 import * as documentAi from "./documentAiService";
 import { runLearningAgent } from "./agent";
 import * as calendar from "./calendar";
-
-function stripSensitiveUser(u: User) {
-  const { passwordHash: _p, ...safe } = u;
-  return safe;
-}
 
 async function writeAdminAudit(adminId: number, action: string, targetType: string, targetId: number, reason?: string, metadata?: Record<string, unknown>) {
   const dbConn = await db.getDb();
@@ -98,6 +98,13 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
+        const minLen = await getPasswordMinLength();
+        if (input.password.length < minLen) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Password must be at least ${minLen} characters.`,
+          });
+        }
         const email = normalizeEmail(input.email);
         const existing = await db.getUserByEmail(email);
         if (existing) {
@@ -126,9 +133,13 @@ export const appRouter = router({
           });
         }
 
+        const { beginStudentOnboarding } = await import("./studentLearningRouter");
+        await beginStudentOnboarding(user.id);
+
         const token = await sdk.createSessionToken(openId, {
           name: user.name || "",
           expiresInMs: ONE_YEAR_MS,
+          tokenVersion: user.tokenVersion ?? 0,
         });
         return { token, user: stripSensitiveUser(user) } as const;
       }),
@@ -137,6 +148,7 @@ export const appRouter = router({
         z.object({
           email: z.string().email(),
           password: z.string().min(1).max(200),
+          totpCode: z.string().min(6).max(64).optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -146,6 +158,12 @@ export const appRouter = router({
         const ok = stored ? await verifyPassword(input.password, stored) : false;
 
         if (!user || !ok) {
+          await queries.recordSystemEvent({
+            category: "auth",
+            severity: "warning",
+            message: "LOGIN_FAILED",
+            userId: user?.id,
+          }).catch(() => undefined);
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Invalid email or password.",
@@ -159,9 +177,27 @@ export const appRouter = router({
           });
         }
 
+        if (user.totpEnabled) {
+          if (!input.totpCode) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: "Two-factor authentication code required.",
+            });
+          }
+          const totpOk = user.totpSecret ? verifyTotp(user.totpSecret, input.totpCode) : false;
+          const remaining = totpOk ? null : consumeRecoveryCode(user.totpRecoveryHashes ?? [], input.totpCode);
+          if (!totpOk && !remaining) {
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid authenticator code." });
+          }
+          if (remaining) {
+            await db.updateUserByOpenId(user.openId, { totpRecoveryHashes: remaining });
+          }
+        }
+
         const token = await sdk.createSessionToken(user.openId, {
           name: user.name || "",
           expiresInMs: ONE_YEAR_MS,
+          tokenVersion: user.tokenVersion ?? 0,
         });
 
         // Keep `lastSignedIn` fresh.
@@ -232,6 +268,8 @@ export const appRouter = router({
             });
           }
           user = created;
+          const { beginStudentOnboarding } = await import("./studentLearningRouter");
+          await beginStudentOnboarding(created.id);
         } else {
           const patch: { name?: string; avatarUrl?: string } = { };
           if (!user.name && profile.name) patch.name = profile.name;
@@ -262,6 +300,7 @@ export const appRouter = router({
         const token = await sdk.createSessionToken(user.openId, {
           name: user.name || "",
           expiresInMs: ONE_YEAR_MS,
+          tokenVersion: user.tokenVersion ?? 0,
         });
         return { token, user: stripSensitiveUser(user) } as const;
       }),
@@ -321,6 +360,13 @@ export const appRouter = router({
             message: "Password change is only available for accounts that use email and password.",
           });
         }
+        const minLen = await getPasswordMinLength();
+        if (input.newPassword.length < minLen) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Password must be at least ${minLen} characters.`,
+          });
+        }
         const ok = await verifyPassword(input.currentPassword, user.passwordHash);
         if (!ok) {
           throw new TRPCError({
@@ -328,12 +374,21 @@ export const appRouter = router({
             message: "Current password is incorrect.",
           });
         }
+        const nextVersion = (user.tokenVersion ?? 0) + 1;
         const passwordHash = await hashPassword(input.newPassword);
-        const updated = await db.updateUserByOpenId(user.openId, { passwordHash });
+        const updated = await db.updateUserByOpenId(user.openId, {
+          passwordHash,
+          tokenVersion: nextVersion,
+        });
         if (!updated) {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to update password." });
         }
-        return { success: true as const };
+        const token = await sdk.createSessionToken(user.openId, {
+          name: user.name || "",
+          expiresInMs: ONE_YEAR_MS,
+          tokenVersion: nextVersion,
+        });
+        return { success: true as const, token };
       }),
 
     forgotPassword: publicProcedure
@@ -420,6 +475,14 @@ export const appRouter = router({
         extractedText: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const { getSystemSettings } = await import("./settings");
+        const cfg = await getSystemSettings();
+        if (input.fileSize > cfg.content.maxUploadMb * 1024 * 1024) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `File exceeds the ${cfg.content.maxUploadMb} MB upload limit.`,
+          });
+        }
         const doc = await queries.createDocument({
           userId: ctx.user.id,
           title: input.title,
@@ -432,7 +495,7 @@ export const appRouter = router({
           mimeType: input.mimeType || "application/pdf",
         });
         await queries.getOrCreateProgress(doc.id, ctx.user.id);
-        if (doc.extractedText?.trim()) {
+        if (doc.extractedText?.trim() && cfg.content.autoIndex) {
           // Background indexing — non-blocking, upload returns immediately
           llmUtils.indexDocumentForRag(doc.id, doc.extractedText)
             .catch(e => console.error("[RAG] Background indexing failed:", e));
@@ -473,6 +536,14 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const { getSystemSettings } = await import("./settings");
+        const cfg = await getSystemSettings();
+        if (input.fileSize > cfg.content.maxUploadMb * 1024 * 1024) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `File exceeds the ${cfg.content.maxUploadMb} MB upload limit.`,
+          });
+        }
         const doc = await queries.createDocument({
           userId: ctx.user.id,
           title: input.title,
@@ -494,7 +565,9 @@ export const appRouter = router({
           .then(async (text) => {
             if (!text?.trim()) return;
             await queries.updateDocument(doc.id, { extractedText: text });
-            await llmUtils.indexDocumentForRag(doc.id, text);
+            if (cfg.content.autoIndex) {
+              await llmUtils.indexDocumentForRag(doc.id, text);
+            }
           })
           .catch((e) => console.error("[Upload] Background extraction failed:", e));
 
@@ -507,12 +580,23 @@ export const appRouter = router({
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
         await assertDocumentAccess(ctx.user.id, input.documentId);
-        const messages = await queries.getDocumentChatHistory(input.documentId);
+        const messages = await queries.getDocumentChatHistory(input.documentId, ctx.user.id);
         return messages;
       }),
     send: protectedProcedure
-      .input(z.object({ documentId: z.number(), message: z.string() }))
+      .input(z.object({
+        documentId: z.number(),
+        message: z.string(),
+        courseId: z.number().int().positive().optional(),
+      }))
       .mutation(async ({ ctx, input }) => {
+        const flags = await getFeatureFlags();
+        if (!flags.aiChat) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "AI Chat is currently disabled by an administrator.",
+          });
+        }
         // documentId === 0 → general Ask AI (no document context, no RAG)
         const isGeneral = input.documentId === 0;
 
@@ -542,16 +626,28 @@ export const appRouter = router({
               content: input.message,
             });
             const history = await queries.getGeneralChatHistory(ctx.user.id, 12);
+            let scopedCourseId = input.courseId;
+            if (scopedCourseId && ctx.user.role === "user") {
+              const enrolled = await lecturerQueries.isStudentEnrolled(ctx.user.id, scopedCourseId);
+              if (!enrolled) scopedCourseId = undefined;
+            }
             const agent = await runLearningAgent({
               user: ctx.user,
               message: input.message,
               history: chronologicalAgentHistory(history),
+              courseId: scopedCourseId,
             });
             aiResponse = agent.response;
             await queries.createGeneralChatMessage({
               userId: ctx.user.id,
               role: "assistant",
               content: aiResponse,
+            });
+            const { recordStudentActivity } = await import("./studentActivity");
+            await recordStudentActivity({
+              userId: ctx.user.id,
+              type: "AI_QUESTION_ASKED",
+              courseId: scopedCourseId,
             });
           } else if (slash?.type === "summary") {
             await documentAi.generateSummaryForDocument(input.documentId);
@@ -572,7 +668,7 @@ export const appRouter = router({
             );
             aiResponse = `I've created a new **AI quiz** (${quiz.totalQuestions} questions). Open the **Quizzes** tab to take it.`;
           } else {
-            const history = await queries.getDocumentChatHistory(input.documentId);
+            const history = await queries.getDocumentChatHistory(input.documentId, ctx.user.id);
             const agent = await runLearningAgent({
               user: ctx.user,
               message: input.message,
@@ -583,6 +679,13 @@ export const appRouter = router({
               history: chronologicalAgentHistory(history),
             });
             aiResponse = agent.response;
+            const { recordStudentActivity } = await import("./studentActivity");
+            await recordStudentActivity({
+              userId: ctx.user.id,
+              type: "AI_QUESTION_ASKED",
+              courseId: doc?.courseId,
+              documentId: input.documentId,
+            });
           }
         } catch (err) {
           if (err instanceof TRPCError) {
@@ -638,7 +741,7 @@ export const appRouter = router({
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
         await assertDocumentAccess(ctx.user.id, input.documentId);
-        return queries.getDocumentFlashcards(input.documentId);
+        return queries.getDocumentFlashcards(input.documentId, ctx.user.id);
       }),
     generate: protectedProcedure
       .input(
@@ -660,9 +763,8 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const existing = await queries.getFlashcardById(input.flashcardId);
         if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
-        const doc = await queries.getDocumentById(existing.documentId);
-        if (!doc || !(await canAccessDocument(ctx.user.id, doc))) {
-          throw new TRPCError({ code: "FORBIDDEN" });
+        if (existing.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You can only favourite your own flashcards." });
         }
         const card = await queries.toggleFlashcardFavorite(input.flashcardId);
         if (!card) throw new TRPCError({ code: "NOT_FOUND" });
@@ -677,7 +779,11 @@ export const appRouter = router({
         if (!doc || !(await canAccessDocument(ctx.user.id, doc))) {
           throw new TRPCError({ code: "FORBIDDEN" });
         }
-        const card = await queries.updateFlashcardReview(input.flashcardId);
+        // Shared lecturer cards: log study time only — do not mutate another user's SM-2 state.
+        const card =
+          existing.userId === ctx.user.id
+            ? await queries.updateFlashcardReview(input.flashcardId)
+            : existing;
         if (!card) throw new TRPCError({ code: "NOT_FOUND" });
         const progress = await queries.getOrCreateProgress(card.documentId, ctx.user.id);
         await queries.logStudyActivity({
@@ -713,20 +819,22 @@ export const appRouter = router({
           throw new TRPCError({ code: "FORBIDDEN" });
         }
 
-        // Import SM-2 at call-time so it is tree-shaken from the client bundle
-        const { applySm2 } = await import("./sm2");
-        const sm2Result = applySm2(
-          {
-            easeFactor: existing.easeFactor ?? 2.5,
-            srInterval: existing.srInterval ?? 0,
-            repetitions: existing.repetitions ?? 0,
-            dueDate: existing.dueDate ?? null,
-          },
-          input.rating
-        );
-
-        const card = await queries.applyFlashcardSm2(input.flashcardId, sm2Result);
-        if (!card) throw new TRPCError({ code: "NOT_FOUND" });
+        let card = existing;
+        if (existing.userId === ctx.user.id) {
+          const { applySm2 } = await import("./sm2");
+          const sm2Result = applySm2(
+            {
+              easeFactor: existing.easeFactor ?? 2.5,
+              srInterval: existing.srInterval ?? 0,
+              repetitions: existing.repetitions ?? 0,
+              dueDate: existing.dueDate ?? null,
+            },
+            input.rating
+          );
+          const updated = await queries.applyFlashcardSm2(input.flashcardId, sm2Result);
+          if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+          card = updated;
+        }
 
         const progress = await queries.getOrCreateProgress(card.documentId, ctx.user.id);
         await queries.logStudyActivity({
@@ -768,7 +876,7 @@ export const appRouter = router({
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
         await assertDocumentAccess(ctx.user.id, input.documentId);
-        return queries.getDocumentQuizzes(input.documentId);
+        return queries.getDocumentQuizzes(input.documentId, ctx.user.id);
       }),
     generate: protectedProcedure
       .input(
@@ -809,20 +917,26 @@ export const appRouter = router({
         const existingQuiz = await queries.getQuizById(input.quizId);
         if (!existingQuiz) throw new TRPCError({ code: "NOT_FOUND" });
         await assertDocumentAccess(ctx.user.id, existingQuiz.documentId);
-        const quiz = await queries.updateQuizScore(input.quizId, input.score, new Date());
-        if (!quiz) throw new TRPCError({ code: "NOT_FOUND" });
 
-        // ── Persist per-question answers (userAnswer + isCorrect) ──────────
-        if (input.answers && Object.keys(input.answers).length > 0) {
-          const questions = await queries.getQuizQuestions(input.quizId);
-          await Promise.all(
-            questions.map((q) => {
-              const userAnswer = input.answers![String(q.id)];
-              if (userAnswer === undefined) return Promise.resolve();
-              const isCorrect = userAnswer === q.correctAnswer;
-              return queries.updateQuizQuestionAnswer(q.id, userAnswer, isCorrect);
-            })
-          );
+        // Only the quiz owner may write score/answers onto the shared quiz row.
+        // Lecturer quizzes stay clean; each student's attempt is tracked via progress.
+        let quiz = existingQuiz;
+        if (existingQuiz.userId === ctx.user.id) {
+          const updated = await queries.updateQuizScore(input.quizId, input.score, new Date());
+          if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+          quiz = updated;
+
+          if (input.answers && Object.keys(input.answers).length > 0) {
+            const questions = await queries.getQuizQuestions(input.quizId);
+            await Promise.all(
+              questions.map((q) => {
+                const userAnswer = input.answers![String(q.id)];
+                if (userAnswer === undefined) return Promise.resolve();
+                const isCorrect = userAnswer === q.correctAnswer;
+                return queries.updateQuizQuestionAnswer(q.id, userAnswer, isCorrect);
+              })
+            );
+          }
         }
 
         const progress = await queries.getOrCreateProgress(quiz.documentId, ctx.user.id);
@@ -839,6 +953,16 @@ export const appRouter = router({
             quizzesAttempted: newAttempts,
             averageQuizScore: newAvg,
           },
+        });
+
+        const doc = await queries.getDocumentById(quiz.documentId);
+        const { recordStudentActivity } = await import("./studentActivity");
+        await recordStudentActivity({
+          userId: ctx.user.id,
+          type: "QUIZ_COMPLETED",
+          courseId: doc?.courseId,
+          documentId: quiz.documentId,
+          metadata: { quizId: quiz.id, score: input.score },
         });
 
         return quiz;
@@ -998,6 +1122,8 @@ export const appRouter = router({
   }),
 
   admin: router({
+    settings: settingsRouter,
+
     createLecturer: adminProcedure
       .input(
         z.object({
@@ -1064,7 +1190,11 @@ export const appRouter = router({
 
     listUsers: adminProcedure
       .input(z.object({ page: z.number().int().min(1).default(1), pageSize: z.number().int().min(1).max(100).default(20), search: z.string().max(100).default(""), role: z.enum(["user", "lecturer", "admin"]).optional(), status: z.enum(["active", "banned"]).optional() }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        const { userHasPermission } = await import("./settings");
+        if (!(await userHasPermission(ctx.user, "users.view"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to view users." });
+        }
         const dbConn = await db.getDb(); if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         const conditions = [] as any[];
         if (input.search) conditions.push(or(like(users.name, `%${input.search}%`), like(users.email, `%${input.search}%`)));
@@ -1384,6 +1514,10 @@ export const appRouter = router({
     deleteUser: adminProcedure
       .input(z.object({ userId: z.number(), reason: z.string().min(3).max(500) }))
       .mutation(async ({ ctx, input }) => {
+        const { userHasPermission } = await import("./settings");
+        if (!(await userHasPermission(ctx.user, "users.delete"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to delete users." });
+        }
         forbidSelfAction(ctx.user.id, input.userId);
         await queries.deleteUser(input.userId);
         await writeAdminAudit(ctx.user.id, "user.deleted", "user", input.userId, input.reason);
@@ -1393,6 +1527,10 @@ export const appRouter = router({
     toggleUserBan: adminProcedure
       .input(z.object({ userId: z.number(), reason: z.string().min(3).max(500) }))
       .mutation(async ({ ctx, input }) => {
+        const { userHasPermission } = await import("./settings");
+        if (!(await userHasPermission(ctx.user, "users.edit"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to moderate users." });
+        }
         forbidSelfAction(ctx.user.id, input.userId);
         const user = await queries.toggleUserBan(input.userId);
         if (!user) throw new TRPCError({ code: "NOT_FOUND" });
@@ -1471,6 +1609,7 @@ export const appRouter = router({
 
   lecturer: lecturerRouter,
   studentCourses: studentCoursesRouter,
+  studentLearning: studentLearningRouter,
 
   // ── Assignment submissions ────────────────────────────────────────────────
   assignments: router({
@@ -1499,6 +1638,13 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "Assignment not found." });
         }
         const status = assignment.dueDate && new Date() > assignment.dueDate ? "late" as const : "submitted" as const;
+        const { recordStudentActivity } = await import("./studentActivity");
+        await recordStudentActivity({
+          userId: ctx.user.id,
+          type: "ASSIGNMENT_SUBMITTED",
+          courseId: input.courseId,
+          metadata: { assignmentId: input.assignmentId },
+        });
 
         // Check if already submitted — update if so
         const existing = await queries.getSubmissionByStudentAndAssignment(ctx.user.id, input.assignmentId);

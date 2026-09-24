@@ -17,6 +17,7 @@ import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
   password: z.string().min(1, "Password is required"),
+  totpCode: z.string().optional(),
   rememberMe: z.boolean().optional(),
 });
 
@@ -26,10 +27,11 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const [showPassword, setShowPassword] = useState(false);
+  const [needsTotp, setNeedsTotp] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { email: "", password: "", rememberMe: true },
+    defaultValues: { email: "", password: "", totpCode: "", rememberMe: true },
   });
 
   const login = trpc.auth.login.useMutation({
@@ -46,7 +48,14 @@ export default function Login() {
       toast.success("Signed in");
       setLocation(getDashboardPathForRole(data.user.role));
     },
-    onError: (err) => toast.error(err.message || "Failed to sign in"),
+    onError: (err) => {
+      if (err.data?.code === "PRECONDITION_FAILED") {
+        setNeedsTotp(true);
+        toast.message("Enter your authenticator code to continue.");
+        return;
+      }
+      toast.error(err.message || "Failed to sign in");
+    },
   });
 
   const googleLogin = trpc.auth.google.useMutation({
@@ -67,7 +76,11 @@ export default function Login() {
   );
 
   const onSubmit = form.handleSubmit((values) => {
-    login.mutate({ email: values.email, password: values.password });
+    login.mutate({
+      email: values.email,
+      password: values.password,
+      totpCode: values.totpCode || undefined,
+    });
   });
 
   return (
@@ -122,6 +135,17 @@ export default function Login() {
             <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
           ) : null}
         </div>
+
+        {needsTotp ? (
+          <div className="space-y-1.5">
+            <Input
+              autoComplete="one-time-code"
+              className="h-11 rounded-xl border-slate-200 bg-slate-50/50"
+              placeholder="Authenticator code"
+              {...form.register("totpCode")}
+            />
+          </div>
+        ) : null}
 
         <div className="flex items-center justify-between gap-3">
           <label className="flex items-center gap-2 text-sm text-muted-foreground">

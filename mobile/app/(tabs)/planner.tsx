@@ -13,10 +13,10 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { trpc } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
+import { GreenAppBar, HEADER_GREEN } from "../../src/components/GreenAppBar";
 import {
   notificationsAllowed,
   registerForPushNotifications,
@@ -31,7 +31,7 @@ const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 const EVENT_TYPES = ["exam", "test", "quiz", "study", "other"] as const;
-const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TYPE_COLOR: Record<string, string> = {
   exam: "#b91c1c",
   test: "#c2410c",
@@ -94,11 +94,7 @@ function KeyboardSheet({
       <View style={s.sheetRoot}>
         <Pressable style={s.sheetBackdrop} onPress={onClose} />
         <View style={[s.sheetCard, { marginBottom: keyboardHeight }]}>
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-          >
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             {children}
           </ScrollView>
         </View>
@@ -107,20 +103,28 @@ function KeyboardSheet({
   );
 }
 
-function monthCells(view: Date) {
-  const first = new Date(view.getFullYear(), view.getMonth(), 1);
-  const start = first.getDay();
-  const days = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
-  const cells: Array<Date | null> = [];
-  for (let i = 0; i < start; i++) cells.push(null);
-  for (let d = 1; d <= days; d++) cells.push(new Date(view.getFullYear(), view.getMonth(), d));
-  while (cells.length % 7 !== 0) cells.push(null);
-  return cells;
+function weekOf(anchor: Date) {
+  const d = startOfDay(anchor);
+  const mondayOffset = (d.getDay() + 6) % 7;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - mondayOffset);
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(monday);
+    x.setDate(monday.getDate() + i);
+    return x;
+  });
+}
+
+function eventVisual(type: string) {
+  if (type === "assignment") return { icon: "document-text" as const, bg: "#ede9fe", color: "#7c3aed" };
+  if (type === "quiz" || type === "test") return { icon: "help-buoy-outline" as const, bg: "#fce7f3", color: "#db2777" };
+  if (type === "exam") return { icon: "school-outline" as const, bg: "#fee2e2", color: "#dc2626" };
+  return { icon: "book-outline" as const, bg: "#e8f5ee", color: colors.primary };
 }
 
 export default function PlannerScreen() {
   const utils = trpc.useUtils();
-  const { data, isLoading, refetch } = trpc.planner.today.useQuery();
+  const { data } = trpc.planner.today.useQuery();
   const [viewMonth, setViewMonth] = useState(() => startOfDay(new Date()));
   const [selected, setSelected] = useState(() => startOfDay(new Date()));
   const [editing, setEditing] = useState(false);
@@ -205,12 +209,21 @@ export default function PlannerScreen() {
   });
 
   const goal = data?.goal;
-  const pct = goal ? Math.min(100, Math.round((data!.completedMinutes / goal.dailyStudyMinutes) * 100)) : 0;
-  const cells = monthCells(viewMonth);
+  const weekDays = weekOf(selected);
+  const weekStart = weekDays[0];
+  const weekEnd = weekDays[6];
   const dayEvents = events.filter((e) => sameDay(new Date(eventMs(e.startsAt)), selected));
   const upcoming = [...events]
     .sort((a, b) => eventMs(a.startsAt) - eventMs(b.startsAt))
-    .filter((e) => eventMs(e.startsAt) >= Date.now() - 60 * 60 * 1000);
+    .filter((e) => !sameDay(new Date(eventMs(e.startsAt)), selected) && eventMs(e.startsAt) >= selected.getTime());
+  const todayLabel = selected.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const shiftWeek = (dir: number) => {
+    const next = new Date(selected);
+    next.setDate(selected.getDate() + dir * 7);
+    const day = startOfDay(next);
+    setSelected(day);
+    setViewMonth(day);
+  };
 
   const openGoalEditor = () => {
     setMinutes(String(goal?.dailyStudyMinutes ?? 30));
@@ -235,196 +248,152 @@ export default function PlannerScreen() {
   };
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
+    <View style={s.root}>
+      <GreenAppBar
+        title="Study Planner"
+        right={
+          <TouchableOpacity onPress={() => setAskOpen(true)} hitSlop={8}>
+            <Ionicons name="sparkles" size={18} color={colors.white} />
+          </TouchableOpacity>
+        }
+      />
       <VoiceCapture listening={voice.listening} usingWebSpeech={voice.usingWebSpeech} onMessage={voice.handleWebMessage} />
-      <ScrollView
-        contentContainerStyle={s.scroll}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        automaticallyAdjustKeyboardInsets={false}
-      >
-        <View style={s.header}>
-          <View>
-            <Text style={s.eyebrow}>STUDY CALENDAR</Text>
-            <Text style={s.title}>Planner</Text>
-            <Text style={s.subtitle}>Ask AI to timetable exams — you get an alarm on each study day and at session time.</Text>
+      <View style={s.sheet}>
+        <ScrollView
+          contentContainerStyle={s.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          <View style={s.weekCard}>
+            <View style={s.weekHead}>
+              <View>
+                <Text style={s.weekTitle}>This Week</Text>
+                <Text style={s.weekRange}>
+                  {weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} –{" "}
+                  {weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                </Text>
+              </View>
+              <View style={s.weekNav}>
+                <TouchableOpacity onPress={() => shiftWeek(-1)} style={s.navHit}>
+                  <Ionicons name="chevron-back" size={16} color="#8aa0b4" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => shiftWeek(1)} style={s.navHit}>
+                  <Ionicons name="chevron-forward" size={16} color="#8aa0b4" />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={s.weekStrip}>
+              {weekDays.map((day, i) => {
+                const isSel = sameDay(day, selected);
+                const isToday = sameDay(day, new Date());
+                return (
+                  <TouchableOpacity key={day.toISOString()} style={s.weekCell} onPress={() => setSelected(startOfDay(day))}>
+                    <Text style={[s.weekDow, (isSel || isToday) && s.weekDowActive]}>{WEEKDAYS[i]}</Text>
+                    <View style={[s.dateChip, isSel && s.dateChipSel, isToday && !isSel && s.dateChipToday]}>
+                      <Text style={[s.dateNum, isSel && s.dateNumSel, isToday && !isSel && s.dateNumToday]}>
+                        {day.getDate()}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-          <TouchableOpacity
-            style={s.refresh}
-            onPress={() => {
-              refetch();
-              calendarQuery.refetch();
-            }}
-          >
-            <Ionicons name="refresh" size={20} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
 
-        <View style={s.actionsRow}>
-          <TouchableOpacity style={s.askBtn} onPress={() => setAskOpen(true)}>
-            <Ionicons name="sparkles" size={16} color={colors.white} />
-            <Text style={s.askBtnText}>Ask AI to plan</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.addBtn} onPress={() => setAddOpen(true)}>
-            <Ionicons name="add" size={18} color="#033c35" />
-            <Text style={s.addBtnText}>Add</Text>
-          </TouchableOpacity>
-        </View>
+          {!!planText && (
+            <View style={s.planCard}>
+              <Text style={s.planLabel}>STRUCTURED AI PLAN</Text>
+              <Text style={s.planBody}>{planText}</Text>
+            </View>
+          )}
 
-        <View style={s.calCard}>
-          <View style={s.calNav}>
-            <TouchableOpacity
-              onPress={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))}
-            >
-              <Ionicons name="chevron-back" size={20} color={colors.text} />
-            </TouchableOpacity>
-            <Text style={s.calMonth}>
-              {viewMonth.toLocaleString(undefined, { month: "long", year: "numeric" })}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))}
-            >
-              <Ionicons name="chevron-forward" size={20} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-          <View style={s.weekRow}>
-            {WEEKDAYS.map((d, i) => (
-              <Text key={`${d}-${i}`} style={s.weekDay}>
-                {d}
+          <View style={s.sectionHead}>
+            <Text style={[s.sectionTitle, { marginTop: 0, marginBottom: 0 }]}>Today · {todayLabel}</Text>
+            <TouchableOpacity onPress={openGoalEditor}>
+              <Text style={s.goalLink}>
+                {data?.completedMinutes ?? 0}/{goal?.dailyStudyMinutes ?? 30}m
               </Text>
-            ))}
+            </TouchableOpacity>
           </View>
-          <View style={s.grid}>
-            {cells.map((day, i) => {
-              if (!day) return <View key={`e-${i}`} style={s.cell} />;
-              const isSel = sameDay(day, selected);
-              const isToday = sameDay(day, new Date());
-              const marked = events.some((e) => sameDay(new Date(eventMs(e.startsAt)), day));
+          {dayEvents.length ? (
+            dayEvents.map((event) => {
+              const done = eventMs(event.startsAt) < Date.now();
               return (
-                <TouchableOpacity key={day.toISOString()} style={s.cell} onPress={() => setSelected(startOfDay(day))}>
-                  <View style={[s.dayChip, isSel && s.dayChipSel, isToday && !isSel && s.dayChipToday]}>
-                    <Text style={[s.dayNum, isSel && s.dayNumSel]}>{day.getDate()}</Text>
+                <View key={event.id} style={s.taskCard}>
+                  <View style={[s.check, done && s.checkOn]}>
+                    {done ? <Ionicons name="checkmark" size={14} color={colors.white} /> : null}
                   </View>
-                  {marked ? <View style={s.dot} /> : <View style={s.dotSpacer} />}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.taskTitle, done && s.taskDone]}>{event.title}</Text>
+                    <Text style={s.taskDetail}>
+                      {new Date(eventMs(event.startsAt)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                      {event.notes ? ` · ${event.notes}` : ""}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() =>
+                      Alert.alert("Remove event?", event.title, [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Delete", style: "destructive", onPress: () => deleteEvent.mutate({ id: event.id }) },
+                      ])
+                    }
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#c4cdd4" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })
+          ) : sameDay(selected, new Date()) && data?.tasks.length ? (
+            data.tasks.map((task) => (
+              <TouchableOpacity key={task.id} style={s.taskCard} onPress={() => router.push(task.href as any)}>
+                <View style={s.check}>
+                  <Ionicons name={ICONS[task.type] ?? "ellipse-outline"} size={14} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.taskTitle}>{task.title}</Text>
+                  <Text style={s.taskDetail}>{task.detail}</Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Text style={s.empty}>Nothing scheduled this day. Tap + to add a session.</Text>
+          )}
+
+          <Text style={s.sectionTitle}>Upcoming</Text>
+          {upcoming.length ? (
+            upcoming.slice(0, 6).map((event) => {
+              const vis = eventVisual(event.type);
+              return (
+                <TouchableOpacity
+                  key={`up-${event.id}`}
+                  style={s.taskCard}
+                  onPress={() => setSelected(startOfDay(new Date(eventMs(event.startsAt))))}
+                >
+                  <View style={[s.upIcon, { backgroundColor: vis.bg }]}>
+                    <Ionicons name={vis.icon} size={18} color={vis.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.taskTitle}>
+                      {event.type[0].toUpperCase() + event.type.slice(1)}: {event.title}
+                    </Text>
+                    <Text style={s.taskDetail}>
+                      Due: {new Date(eventMs(event.startsAt)).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               );
-            })}
-          </View>
-        </View>
+            })
+          ) : (
+            <Text style={s.empty}>No upcoming deadlines. Ask AI to plan an exam timetable.</Text>
+          )}
+          <View style={{ height: 72 }} />
+        </ScrollView>
 
-        {!!planText && (
-          <View style={s.planCard}>
-            <Text style={s.planLabel}>STRUCTURED AI PLAN</Text>
-            <Text style={s.planBody}>{planText}</Text>
-          </View>
-        )}
-
-        <Text style={s.sectionTitle}>Your timetable</Text>
-        {upcoming.length ? (
-          upcoming.map((event) => (
-            <TouchableOpacity
-              key={`up-${event.id}`}
-              style={s.eventRow}
-              onPress={() => setSelected(startOfDay(new Date(eventMs(event.startsAt))))}
-            >
-              <View style={[s.typePill, { backgroundColor: TYPE_COLOR[event.type] ?? "#334155" }]}>
-                <Text style={s.typePillText}>{event.type}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.eventTitle}>{event.title}</Text>
-                <Text style={s.eventMeta}>{new Date(eventMs(event.startsAt)).toLocaleString()}</Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        ) : (
-          <Text style={s.empty}>No upcoming plan yet. Tap Ask AI to plan and include the exam date.</Text>
-        )}
-
-        <Text style={s.sectionTitle}>
-          {selected.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
-        </Text>
-        {dayEvents.length ? (
-          dayEvents.map((event) => (
-            <View key={event.id} style={s.eventRow}>
-              <View style={[s.typePill, { backgroundColor: TYPE_COLOR[event.type] ?? "#334155" }]}>
-                <Text style={s.typePillText}>{event.type}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.eventTitle}>{event.title}</Text>
-                <Text style={s.eventMeta}>
-                  {new Date(event.startsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  {event.source === "agent" ? " · AI plan" : ""}
-                  {" · alarm on the day"}
-                </Text>
-                {event.notes ? <Text style={s.eventNotes}>{event.notes}</Text> : null}
-              </View>
-              <TouchableOpacity
-                onPress={() =>
-                  Alert.alert("Remove event?", event.title, [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Delete", style: "destructive", onPress: () => deleteEvent.mutate({ id: event.id }) },
-                  ])
-                }
-              >
-                <Ionicons name="trash-outline" size={18} color="#b91c1c" />
-              </TouchableOpacity>
-            </View>
-          ))
-        ) : (
-          <Text style={s.empty}>Nothing else on this day.</Text>
-        )}
-
-        <View style={s.goalCard}>
-          <View style={s.goalTop}>
-            <View>
-              <Text style={s.goalLabel}>YOUR DAILY GOALS</Text>
-              <Text style={s.goalValue}>
-                {data?.completedMinutes ?? 0}{" "}
-                <Text style={s.goalUnit}>/ {goal?.dailyStudyMinutes ?? 30} min</Text>
-              </Text>
-            </View>
-            <TouchableOpacity onPress={openGoalEditor} style={s.settings}>
-              <Ionicons name="settings-outline" size={20} color={colors.white} />
-            </TouchableOpacity>
-          </View>
-          <View style={s.barBg}>
-            <View style={[s.barFill, { width: `${pct}%` }]} />
-          </View>
-          <Text style={s.goalCaption}>
-            {pct >= 100
-              ? "Study goal complete — keep the momentum going!"
-              : `${Math.max(0, (goal?.dailyStudyMinutes ?? 30) - (data?.completedMinutes ?? 0))} study minutes remaining today`}
-          </Text>
-        </View>
-
-        <View style={s.sectionHead}>
-          <Text style={s.sectionTitle}>Your next steps</Text>
-          <Text style={s.count}>{data?.tasks.length ?? 0} tasks</Text>
-        </View>
-        {isLoading ? (
-          <Text style={s.empty}>Building your plan…</Text>
-        ) : data?.tasks.length ? (
-          data.tasks.map((task) => (
-            <TouchableOpacity key={task.id} style={s.task} onPress={() => router.push(task.href as any)}>
-              <View style={s.taskIcon}>
-                <Ionicons name={ICONS[task.type] ?? "ellipse-outline"} size={21} color={colors.primary} />
-              </View>
-              <View style={s.taskContent}>
-                <Text style={s.taskTitle}>{task.title}</Text>
-                <Text style={s.taskDetail}>{task.detail}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textLight} />
-            </TouchableOpacity>
-          ))
-        ) : (
-          <View style={s.emptyCard}>
-            <Ionicons name="checkmark-circle" size={34} color={colors.primary} />
-            <Text style={s.emptyTitle}>You’re all caught up</Text>
-            <Text style={s.empty}>No urgent work right now. Explore a course or review a document.</Text>
-          </View>
-        )}
-      </ScrollView>
+        <TouchableOpacity style={s.fab} onPress={() => setAddOpen(true)} activeOpacity={0.9}>
+          <Ionicons name="add" size={28} color={colors.white} />
+        </TouchableOpacity>
+      </View>
 
       <KeyboardSheet visible={editing} onClose={() => setEditing(false)}>
         <Text style={s.modalTitle}>Set your daily goals</Text>
@@ -540,130 +509,76 @@ export default function PlannerScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardSheet>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f6f8f7" },
+  root: { flex: 1, backgroundColor: HEADER_GREEN },
+  sheet: { flex: 1, backgroundColor: "#f3f7f5", borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: "hidden" },
   scroll: { padding: 20, paddingBottom: 36 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginTop: 10 },
-  eyebrow: { fontSize: 11, fontWeight: "800", letterSpacing: 1, color: "#075c45" },
-  title: { fontSize: 30, fontWeight: "800", color: colors.text, marginTop: 3 },
-  subtitle: { fontSize: 14, color: colors.textMuted, marginTop: 3, maxWidth: 260 },
-  refresh: { padding: 10, backgroundColor: colors.surface, borderRadius: 12 },
-  actionsRow: { flexDirection: "row", gap: 10, marginTop: 16 },
-  askBtn: {
-    flex: 1,
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#033c35",
-    borderRadius: 14,
-    paddingVertical: 12,
-  },
-  askBtnText: { color: colors.white, fontWeight: "800" },
-  addBtn: {
-    flexDirection: "row",
-    gap: 4,
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  addBtnText: { fontWeight: "800", color: "#033c35" },
-  calCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 14,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  calNav: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  calMonth: { fontSize: 16, fontWeight: "800", color: colors.text },
-  weekRow: { flexDirection: "row" },
-  weekDay: { flex: 1, textAlign: "center", fontSize: 11, fontWeight: "700", color: colors.textMuted },
-  grid: { flexDirection: "row", flexWrap: "wrap", marginTop: 6 },
-  cell: { width: "14.28%", alignItems: "center", paddingVertical: 4 },
-  dayChip: { height: 32, width: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  dayChipSel: { backgroundColor: "#033c35" },
-  dayChipToday: { backgroundColor: "#e9f8ef" },
-  dayNum: { fontSize: 13, fontWeight: "700", color: colors.text },
-  dayNumSel: { color: colors.white },
-  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#047857", marginTop: 2 },
-  dotSpacer: { height: 7 },
-  sectionTitle: { fontSize: 18, fontWeight: "800", color: colors.text, marginTop: 20 },
-  planCard: {
-    marginTop: 18,
-    backgroundColor: "#eef8f3",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#cfe8dc",
-  },
+  weekCard: { backgroundColor: colors.white, borderRadius: 20, padding: 16 },
+  weekHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 },
+  weekTitle: { fontSize: 18, fontWeight: "800", color: "#123047" },
+  weekRange: { fontSize: 12, color: "#8aa0b4", marginTop: 4 },
+  weekNav: { flexDirection: "row", gap: 4 },
+  navHit: { padding: 6 },
+  weekStrip: { flexDirection: "row" },
+  weekCell: { flex: 1, alignItems: "center", gap: 8 },
+  weekDow: { fontSize: 11, fontWeight: "700", color: "#9aa8b5" },
+  weekDowActive: { color: colors.primary },
+  dateChip: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  dateChipSel: { backgroundColor: HEADER_GREEN },
+  dateChipToday: { borderWidth: 1.5, borderColor: colors.primary },
+  dateNum: { fontSize: 14, fontWeight: "700", color: "#123047" },
+  dateNumSel: { color: colors.white },
+  dateNumToday: { color: colors.primary },
+  planCard: { marginTop: 16, backgroundColor: "#eef8f3", borderRadius: 16, padding: 14 },
   planLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1, color: "#075c45", marginBottom: 8 },
   planBody: { fontSize: 13, color: colors.text, lineHeight: 20 },
-  eventRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "flex-start",
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    padding: 12,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  typePill: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginTop: 2 },
-  typePillText: { color: colors.white, fontSize: 10, fontWeight: "800", textTransform: "uppercase" },
-  eventTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
-  eventMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  eventNotes: { fontSize: 12, color: colors.text, marginTop: 4 },
-  empty: { fontSize: 13, color: colors.textMuted, marginTop: 8 },
-  goalCard: {
-    backgroundColor: "#033c35",
-    borderRadius: 24,
-    padding: 20,
-    marginTop: 22,
-  },
-  goalTop: { flexDirection: "row", justifyContent: "space-between" },
-  settings: { backgroundColor: "rgba(255,255,255,.13)", padding: 8, borderRadius: 11 },
-  goalLabel: { fontSize: 11, color: "#b9e6cf", fontWeight: "800", letterSpacing: 1 },
-  goalValue: { fontSize: 30, color: colors.white, fontWeight: "800", marginTop: 4 },
-  goalUnit: { fontSize: 15, fontWeight: "600" },
-  barBg: { height: 9, borderRadius: 6, backgroundColor: "rgba(255,255,255,.18)", marginTop: 18, overflow: "hidden" },
-  barFill: { height: "100%", backgroundColor: "#9ae6b4", borderRadius: 6 },
-  goalCaption: { color: "#d8f7e4", fontSize: 12, marginTop: 12 },
-  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 28, marginBottom: 10 },
-  count: { fontSize: 12, color: colors.textMuted },
-  task: {
+  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 22, marginBottom: 10 },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#123047", marginTop: 18, marginBottom: 10 },
+  goalLink: { fontSize: 12, fontWeight: "700", color: colors.primary, marginTop: 18 },
+  taskCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     borderRadius: 16,
     padding: 14,
     marginBottom: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  taskIcon: { height: 42, width: 42, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "#e9f8ef" },
-  taskContent: { flex: 1 },
-  taskTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
-  taskDetail: { fontSize: 12, color: colors.textMuted, marginTop: 3 },
-  emptyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
+  check: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: "#cfe3d8",
     alignItems: "center",
-    padding: 28,
-    borderWidth: 1,
-    borderColor: colors.border,
+    justifyContent: "center",
   },
-  emptyTitle: { fontSize: 16, fontWeight: "800", color: colors.text, marginTop: 8 },
+  checkOn: { backgroundColor: "#12a06e", borderColor: "#12a06e" },
+  taskTitle: { fontSize: 14, fontWeight: "700", color: "#123047" },
+  taskDone: { textDecorationLine: "line-through", color: "#8aa0b4" },
+  taskDetail: { fontSize: 12, color: "#8aa0b4", marginTop: 3 },
+  upIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  empty: { fontSize: 13, color: "#8aa0b4", marginBottom: 8 },
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: HEADER_GREEN,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 8,
+    shadowColor: HEADER_GREEN,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+  },
   sheetRoot: { flex: 1, justifyContent: "flex-end" },
   sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,.45)" },
   sheetCard: {

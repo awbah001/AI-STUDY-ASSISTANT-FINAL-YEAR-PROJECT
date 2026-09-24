@@ -2,6 +2,7 @@ import { NOT_ADMIN_ERR_MSG, NOT_LECTURER_ERR_MSG, NOT_STUDENT_ERR_MSG, UNAUTHED_
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import { isMaintenanceMode } from "../settings";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -52,6 +53,13 @@ export const lecturerProcedure = t.procedure.use(
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_LECTURER_ERR_MSG });
     }
 
+    if (await isMaintenanceMode()) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Cognify is in maintenance mode. Please try again shortly.",
+      });
+    }
+
     return next({
       ctx: {
         ...ctx,
@@ -77,6 +85,13 @@ export const studentProcedure = t.procedure.use(
 
     if (ctx.user.role !== 'user') {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_STUDENT_ERR_MSG });
+    }
+
+    if (await isMaintenanceMode()) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Cognify is in maintenance mode. Please try again shortly.",
+      });
     }
 
     return next({

@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { View, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../src/theme/colors";
+import { useAuth } from "../../src/contexts/AuthContext";
 import type { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
 
 function AskAITabButton(props: BottomTabBarButtonProps) {
@@ -19,41 +20,38 @@ function AskAITabButton(props: BottomTabBarButtonProps) {
 }
 
 export default function TabLayout() {
+  const { user } = useAuth();
   return (
     <Tabs
+      key={user?.id != null ? `tabs-${user.id}` : "tabs-guest"}
       initialRouteName="dashboard"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: "#9ca3af",
+        tabBarInactiveTintColor: "#9aa3af",
         tabBarStyle: styles.tabBar,
         tabBarLabelStyle: styles.tabLabel,
         tabBarShowLabel: true,
       }}
     >
-      {/* 1 — Home */}
       <Tabs.Screen
         name="dashboard"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="home-outline" size={22} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
           ),
         }}
       />
-
-      {/* 2 — Courses */}
       <Tabs.Screen
         name="courses"
         options={{
           title: "Courses",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="book-outline" size={22} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "book" : "book-outline"} size={22} color={color} />
           ),
         }}
       />
-
-      {/* 3 — Ask AI  (center FAB) */}
       <Tabs.Screen
         name="askai"
         options={{
@@ -65,35 +63,29 @@ export default function TabLayout() {
           tabBarLabel: () => null,
         }}
       />
-
-      {/* 4 — Library */}
       <Tabs.Screen
-        name="library"
+        name="planner"
         options={{
-          title: "Library",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="library-outline" size={22} color={color} />
+          title: "Planner",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "calendar" : "calendar-outline"} size={22} color={color} />
           ),
         }}
       />
-
-      {/* 5 — Profile */}
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="person-outline" size={22} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "person" : "person-outline"} size={22} color={color} />
           ),
         }}
       />
-
-      {/* ── Hidden screens (still reachable by URL, not shown in tab bar) ── */}
-      <Tabs.Screen name="documents"  options={{ href: null }} />
+      <Tabs.Screen name="library" options={{ href: null }} />
+      <Tabs.Screen name="documents" options={{ href: null }} />
       <Tabs.Screen name="flashcards" options={{ href: null }} />
-      <Tabs.Screen name="quizzes"    options={{ href: null }} />
-      <Tabs.Screen name="progress"   options={{ href: null }} />
-      <Tabs.Screen name="planner"    options={{ href: null }} />
+      <Tabs.Screen name="quizzes" options={{ href: null }} />
+      <Tabs.Screen name="progress" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -102,13 +94,13 @@ const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: colors.white,
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    borderTopColor: "#eef1f4",
     height: Platform.OS === "ios" ? 84 : 64,
     paddingBottom: Platform.OS === "ios" ? 24 : 8,
     paddingTop: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 10,
   },

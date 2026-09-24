@@ -10,7 +10,7 @@ const SPLASH_MS = 2400;
 
 export default function SplashScreen() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
   const fade = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
@@ -42,10 +42,10 @@ export default function SplashScreen() {
     if (loading) return;
     const wait = Math.max(0, readyAt.current - Date.now());
     const timer = setTimeout(() => {
-      router.replace(user ? "/(tabs)/dashboard" : "/(auth)/login");
+      router.replace("/(auth)/login");
     }, wait);
     return () => clearTimeout(timer);
-  }, [loading, router, user]);
+  }, [loading, router]);
 
   const robotY = bob.interpolate({ inputRange: [0, 1], outputRange: [8, -14] });
   const blobScale = glow.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });

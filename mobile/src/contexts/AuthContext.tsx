@@ -6,7 +6,8 @@ import React, {
   useState,
 } from "react";
 import * as SecureStore from "expo-secure-store";
-import { trpc } from "../lib/api";
+import { trpc, bumpAuthSession } from "../lib/api";
+import { setAuthSessionKey } from "../lib/authSession";
 import { registerForPushNotifications } from "../lib/notifications";
 
 const TOKEN_KEY = "cognify_auth_token";
@@ -39,15 +40,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setTokenState] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const utils = trpc.useUtils();
-
   const savePushToken = trpc.auth.savePushToken.useMutation();
 
-  // On mount, restore token from secure store
+  // Cold start always requires an explicit login. Do not restore a previous session.
   useEffect(() => {
     (async () => {
-      const stored = await SecureStore.getItemAsync(TOKEN_KEY);
-      if (stored) setTokenState(stored);
+      bumpAuthSession();
+      await SecureStore.deleteItemAsync(TOKEN_KEY);
+      setAuthSessionKey("guest");
+      setTokenState(null);
+      setUser(null);
       setLoading(false);
     })();
   }, []);
@@ -61,11 +63,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (meQuery.data) {
-      setUser(meQuery.data as AuthUser);
-    } else if (!meQuery.isLoading && token) {
-      setUser(null);
+      const next = meQuery.data as AuthUser;
+      setUser(next);
+      setAuthSessionKey(`user-${next.id}`);
+      return;
     }
-  }, [meQuery.data, meQuery.isLoading, token]);
+    if (meQuery.isError && !meQuery.isLoading) {
+      setUser(null);
+      setAuthSessionKey("guest");
+    }
+  }, [meQuery.data, meQuery.isError, meQuery.isLoading]);
 
   // When a student is logged in, register their push token with the server
   useEffect(() => {
@@ -78,17 +85,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]);
 
   const login = useCallback(async (newToken: string, newUser: AuthUser) => {
+    bumpAuthSession();
     await SecureStore.setItemAsync(TOKEN_KEY, newToken);
+    setAuthSessionKey(`user-${newUser.id}`);
     setTokenState(newToken);
     setUser(newUser);
   }, []);
 
   const logout = useCallback(async () => {
+    bumpAuthSession();
     await SecureStore.deleteItemAsync(TOKEN_KEY);
+    setAuthSessionKey("guest");
     setTokenState(null);
     setUser(null);
-    utils.auth.me.setData(undefined, null);
-  }, [utils]);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, token, loading, login, logout }}>

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import {
   announcements,
   assignmentSubmissions,
@@ -20,6 +20,7 @@ import {
   type InsertDocument,
 } from "../drizzle/schema";
 import { getDb } from "./db";
+import { sanitizeStoredQuizQuestion } from "./agent/structured";
 
 function generateCourseCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -635,6 +636,40 @@ export async function enrollStudentByCode(studentId: number, code: string) {
   return { success: true, message: "Enrolled successfully", course };
 }
 
+export async function listActiveCourseCatalog() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: courses.id,
+      title: courses.title,
+      subject: courses.subject,
+      code: courses.code,
+      description: courses.description,
+    })
+    .from(courses)
+    .where(eq(courses.isActive, true))
+    .orderBy(courses.title);
+}
+
+export async function enrollStudentInCourses(studentId: number, courseIds: number[]) {
+  const unique = [...new Set(courseIds.filter((id) => Number.isInteger(id) && id > 0))];
+  const enrolled: number[] = [];
+  for (const courseId of unique) {
+    const course = await getCourseById(courseId);
+    if (!course?.isActive) continue;
+    if (await isStudentEnrolled(studentId, courseId)) {
+      enrolled.push(courseId);
+      continue;
+    }
+    const db = await getDb();
+    if (!db) continue;
+    await db.insert(courseEnrollments).values({ courseId, studentId });
+    enrolled.push(courseId);
+  }
+  return enrolled;
+}
+
 export async function getStudentEnrolledCourses(studentId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -724,11 +759,13 @@ export async function getCourseQuizWithQuestions(
     .limit(1);
   if (docRows[0]?.courseId !== courseId) return null;
 
-  const questions = await db
-    .select()
-    .from(quizQuestions)
-    .where(eq(quizQuestions.quizId, quizId))
-    .orderBy(quizQuestions.id);
+  const questions = (
+    await db
+      .select()
+      .from(quizQuestions)
+      .where(eq(quizQuestions.quizId, quizId))
+      .orderBy(quizQuestions.id)
+  ).map((q) => sanitizeStoredQuizQuestion(q));
 
   return { ...quiz, questions };
 }
@@ -775,19 +812,34 @@ export async function getStudentCourseQuizzes(studentId: number, courseId: numbe
   const docIds = courseDocs.map((d) => d.id);
   if (docIds.length === 0) return [];
 
-  return db
+  const course = await getCourseById(courseId);
+  if (!course) return [];
+
+  const rows = await db
     .select({
       id: quizzes.id,
       title: quizzes.title,
       totalQuestions: quizzes.totalQuestions,
       documentId: quizzes.documentId,
+      userId: quizzes.userId,
       score: quizzes.score,
       completedAt: quizzes.completedAt,
       createdAt: quizzes.createdAt,
     })
     .from(quizzes)
-    .where(inArray(quizzes.documentId, docIds))
+    .where(
+      and(
+        inArray(quizzes.documentId, docIds),
+        or(eq(quizzes.userId, studentId), eq(quizzes.userId, course.lecturerId))
+      )
+    )
     .orderBy(desc(quizzes.createdAt));
+
+  return rows.map((quiz) =>
+    quiz.userId === studentId
+      ? quiz
+      : { ...quiz, score: null, completedAt: null }
+  );
 }
 
 /** All quizzes from courses a student is enrolled in, for learning dashboards. */
@@ -815,7 +867,12 @@ export async function getStudentEnrolledCourseQuizzes(studentId: number) {
     .from(quizzes)
     .innerJoin(documents, eq(quizzes.documentId, documents.id))
     .innerJoin(courses, eq(documents.courseId, courses.id))
-    .where(inArray(documents.courseId, courseIds))
+    .where(
+      and(
+        inArray(documents.courseId, courseIds),
+        or(eq(quizzes.userId, studentId), eq(quizzes.userId, courses.lecturerId))
+      )
+    )
     .orderBy(desc(quizzes.createdAt));
 }
 

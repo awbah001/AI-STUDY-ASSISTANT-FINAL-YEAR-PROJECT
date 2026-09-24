@@ -25,6 +25,13 @@ export const users = sqliteTable("users", {
   avatarUrl: text("avatarUrl"),
   role: text("role", { enum: ["user", "admin", "lecturer"] }).default("user").notNull(),
   isBanned: integer("isBanned", { mode: "boolean" }).default(false).notNull(),
+  isSuperAdmin: integer("isSuperAdmin", { mode: "boolean" }).default(false).notNull(),
+  phone: text("phone"),
+  jobTitle: text("jobTitle"),
+  tokenVersion: integer("tokenVersion").default(0).notNull(),
+  totpEnabled: integer("totpEnabled", { mode: "boolean" }).default(false).notNull(),
+  totpSecret: text("totpSecret"),
+  totpRecoveryHashes: text("totpRecoveryHashes", { mode: "json" }).$type<string[]>(),
   /** Expo push token — saved when student registers their device */
   expoPushToken: text("expoPushToken"),
   createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
@@ -475,3 +482,67 @@ export const calendarEvents = sqliteTable("calendarEvents", {
 
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
 export type InsertCalendarEvent = typeof calendarEvents.$inferInsert;
+
+/** Key/value JSON configuration for the admin Settings hub. */
+export const systemSettings = sqliteTable("systemSettings", {
+  key: text("key").primaryKey(),
+  value: text("value", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+  updatedBy: integer("updatedBy"),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+});
+
+export const userPreferences = sqliteTable("userPreferences", {
+  userId: integer("userId").primaryKey(),
+  theme: text("theme").default("light"),
+  language: text("language").default("en"),
+  timezone: text("timezone").default("UTC"),
+  dateFormat: text("dateFormat").default("dd MMM yyyy"),
+  timeFormat: text("timeFormat").default("24h"),
+  landingPage: text("landingPage").default("/admin"),
+  sidebarCollapsed: integer("sidebarCollapsed", { mode: "boolean" }).default(false).notNull(),
+  notifications: text("notifications", { mode: "json" }).$type<Record<string, boolean>>(),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+});
+
+export const systemBackups = sqliteTable("systemBackups", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  fileName: text("fileName").notNull(),
+  sizeBytes: integer("sizeBytes").notNull().default(0),
+  createdBy: integer("createdBy"),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+});
+
+/** Student onboarding + academic profile. One row per student. */
+export const studentProfiles = sqliteTable("studentProfiles", {
+  userId: integer("userId").primaryKey(),
+  faculty: text("faculty"),
+  department: text("department"),
+  programme: text("programme"),
+  academicLevel: text("academicLevel"),
+  semester: text("semester"),
+  academicYear: text("academicYear"),
+  learnModes: text("learnModes", { mode: "json" }).$type<string[]>(),
+  focusGoals: text("focusGoals", { mode: "json" }).$type<string[]>(),
+  onboardingStep: text("onboardingStep").default("welcome").notNull(),
+  /** True only for newly self-registered students until they finish onboarding. */
+  onboardingRequired: integer("onboardingRequired", { mode: "boolean" }).default(false).notNull(),
+  onboardingCompletedAt: integer("onboardingCompletedAt", { mode: "timestamp_ms" }),
+  lastCourseId: integer("lastCourseId"),
+  lastDocumentId: integer("lastDocumentId"),
+  lastQuizId: integer("lastQuizId"),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+});
+
+export const studentActivities = sqliteTable("studentActivities", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull(),
+  type: text("type").notNull(),
+  courseId: integer("courseId"),
+  documentId: integer("documentId"),
+  metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+}, (table) => ({
+  userCreatedIdx: index("student_activity_user_created_idx").on(table.userId, table.createdAt),
+  userCourseIdx: index("student_activity_user_course_idx").on(table.userId, table.courseId),
+}));
+

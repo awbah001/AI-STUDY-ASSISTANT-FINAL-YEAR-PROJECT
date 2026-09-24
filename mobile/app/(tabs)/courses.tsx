@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../src/contexts/AuthContext";
 import { trpc } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
 
@@ -27,6 +28,7 @@ const COURSE_COLORS = [
 
 export default function CoursesScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [code, setCode] = useState("");
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -34,7 +36,9 @@ export default function CoursesScreen() {
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
   const utils = trpc.useUtils();
 
-  const { data: courses, isLoading, refetch } = trpc.studentCourses.list.useQuery();
+  const { data: courses, isLoading, refetch } = trpc.studentCourses.list.useQuery(undefined, {
+    enabled: !!user?.id,
+  });
 
   const enroll = trpc.studentCourses.enroll.useMutation({
     onSuccess: (r: any) => {

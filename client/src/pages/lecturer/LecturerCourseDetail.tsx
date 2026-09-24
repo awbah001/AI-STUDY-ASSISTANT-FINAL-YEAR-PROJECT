@@ -868,9 +868,9 @@ function QuizRow({
                   {q.question}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {(q.options as string[]).map((opt) => (
+                  {(Array.isArray(q.options) ? q.options : []).map((opt, optIdx) => (
                     <div
-                      key={opt}
+                      key={`${q.id}-${optIdx}`}
                       className={[
                         "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
                         opt === q.correctAnswer

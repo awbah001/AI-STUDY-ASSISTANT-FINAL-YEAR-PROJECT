@@ -10,14 +10,9 @@ import { hashPassword, localOpenIdForEmail, normalizeEmail } from "./_core/local
 import { sdk } from "./_core/sdk";
 import { ONE_YEAR_MS } from "../shared/const";
 import { isAllowedStudyDocument, STUDY_DOC_ERROR } from "../shared/studyDocuments";
-import type { User } from "../drizzle/schema";
+import { stripSensitiveUser } from "./userSafe";
 import { assessmentTemplates, assignmentSubmissions, assignments, courseEnrollments, notifications, progressTracking, users } from "../drizzle/schema";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-
-function stripSensitiveUser(u: User) {
-  const { passwordHash: _p, ...safe } = u;
-  return safe;
-}
 
 const materialTypeSchema = z.enum(["pdf", "docx", "pptx"]);
 
@@ -64,6 +59,7 @@ export const lecturerRouter = router({
       const token = await sdk.createSessionToken(openId, {
         name: user.name || "",
         expiresInMs: ONE_YEAR_MS,
+        tokenVersion: user.tokenVersion ?? 0,
       });
       return { token, user: stripSensitiveUser(user) } as const;
     }),
@@ -529,6 +525,14 @@ export const studentCoursesRouter = router({
   list: studentProcedure.query(({ ctx }) =>
     lecturerQueries.getStudentEnrolledCourses(ctx.user.id)
   ),
+  catalog: studentProcedure.query(() => lecturerQueries.listActiveCourseCatalog()),
+  enrollMany: studentProcedure
+    .input(z.object({ courseIds: z.array(z.number().int().positive()).max(40) }))
+    .mutation(async ({ ctx, input }) => {
+      const { assertPendingStudentOnboarding } = await import("./studentLearningRouter");
+      await assertPendingStudentOnboarding(ctx.user.id);
+      return lecturerQueries.enrollStudentInCourses(ctx.user.id, input.courseIds);
+    }),
   enroll: studentProcedure
     .input(z.object({ code: z.string().min(4).max(10) }))
     .mutation(({ ctx, input }) =>

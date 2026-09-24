@@ -1,4 +1,5 @@
 import { ENV } from "./env";
+import { getAiSettings } from "../settings";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -270,10 +271,11 @@ async function isLocalLLMHealthy(): Promise<boolean> {
 async function invokeLocalChatCompletion(
   params: InvokeParams
 ): Promise<InvokeResult> {
+  const ai = await getAiSettings().catch(() => null);
   const url = `${ENV.lmStudioBaseUrl}/chat/completions`;
-  const maxTokens = params.max_tokens ?? params.maxTokens ?? 1024;  // smaller default → faster for 3B model
+  const maxTokens = params.max_tokens ?? params.maxTokens ?? ai?.maxTokens ?? 1024;
   const body: Record<string, unknown> = {
-    model: ENV.lmStudioModel,
+    model: (ai?.model && ai.model.trim()) || ENV.lmStudioModel,
     messages: params.messages.map(m => {
       const role =
         m.role === "system" || m.role === "user" || m.role === "assistant"
@@ -282,7 +284,7 @@ async function invokeLocalChatCompletion(
       return { role, content: flattenMessageContent(m) };
     }),
     max_tokens: maxTokens,
-    temperature: params.temperature ?? 0.3,
+    temperature: params.temperature ?? ai?.temperature ?? 0.3,
     stream: false,
   };
 

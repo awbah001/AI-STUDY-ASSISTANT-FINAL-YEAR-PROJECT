@@ -10,6 +10,7 @@ import { colors } from "../../src/theme/colors";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { useChatVoice, VoiceCapture } from "../../src/lib/useChatVoice";
 import { oldestFirstById } from "../../src/lib/chatHistory";
+import { useLocalSearchParams } from "expo-router";
 
 const QUICK_PROMPTS = [
   "Explain Binary Search algorithm",
@@ -21,23 +22,30 @@ const QUICK_PROMPTS = [
 export default function AskAIScreen() {
   const { user } = useAuth();
   const firstName = user?.name?.split(/\s+/)[0] ?? "there";
+  const params = useLocalSearchParams<{ courseId?: string; prompt?: string }>();
+  const courseId = Number(params.courseId);
+  const scopedCourseId = Number.isInteger(courseId) && courseId > 0 ? courseId : undefined;
   const [message, setMessage] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const utils = trpc.useUtils();
 
-  // ── Load persistent history from server ──────────────────────────────────
   const { data: savedHistory, isLoading: historyLoading } =
     trpc.generalChat.history.useQuery(undefined, {
       staleTime: 0,
+      enabled: !!user?.id,
     });
 
-  // Local messages buffer — start from server history, then append new messages
   const [localMessages, setLocalMessages] = useState<
     Array<{ id: string; role: "user" | "assistant"; content: string; time: string }>
   >([]);
 
-  // Always hydrate from the server in insertion order (oldest at top).
+  useEffect(() => {
+    setLocalMessages([]);
+    setMessage("");
+    setIsThinking(false);
+  }, [user?.id]);
+
   useEffect(() => {
     if (!savedHistory) return;
     if (isThinking) return;
@@ -79,7 +87,6 @@ export default function AskAIScreen() {
       ]);
       setIsThinking(false);
       voice.speak(aiContent);
-      // Invalidate so history is refreshed from server
       utils.generalChat.history.invalidate();
       scrollToBottom();
     },
@@ -123,7 +130,7 @@ export default function AskAIScreen() {
     setMessage("");
     setIsThinking(true);
     scrollToBottom();
-    sendMsg.mutate({ documentId: 0, message: content });
+    sendMsg.mutate({ documentId: 0, message: content, courseId: scopedCourseId });
   };
 
   const handleClear = () => {
@@ -137,7 +144,6 @@ export default function AskAIScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity style={s.menuBtn}>
           <Ionicons name="menu" size={22} color={colors.textSub} />
@@ -152,7 +158,7 @@ export default function AskAIScreen() {
           </View>
         </View>
         <View style={s.headerActions}>
-          <TouchableOpacity style={s.iconBtn} onPress={voice.toggleMute} hitSlop={8}>
+          <TouchableOpacity style={s.iconBtn} onPress={voice.togglePlayback} hitSlop={8}>
             <Ionicons
               name={voice.muted ? "volume-mute-outline" : voice.speaking ? "volume-high" : "volume-medium-outline"}
               size={18}
@@ -173,13 +179,11 @@ export default function AskAIScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
       >
-        {/* Loading history */}
         {historyLoading && isEmpty ? (
           <View style={s.emptyContainer}>
             <ActivityIndicator color={colors.primary} />
           </View>
         ) : isEmpty ? (
-          // Welcome / empty state
           <View style={s.emptyContainer}>
             <View style={s.welcomeBox}>
               <View style={s.aiBubbleIcon}>
@@ -187,11 +191,16 @@ export default function AskAIScreen() {
               </View>
               <Text style={s.hiText}>Hi {firstName}! 👋</Text>
               <Text style={s.hiSub}>
-                Ask me anything about your{"\n"}courses or documents.
+                {scopedCourseId
+                  ? "I'll use this course's materials when answering."
+                  : "Ask me anything about your\ncourses or documents."}
               </Text>
             </View>
             <View style={s.promptGrid}>
-              {QUICK_PROMPTS.map((p, i) => (
+              {(scopedCourseId
+                ? ["Explain this", "Simplify this topic", "Give an example", "Summarize", "Create flashcards", "Quiz me", "Explain step-by-step"]
+                : QUICK_PROMPTS
+              ).map((p, i) => (
                 <TouchableOpacity key={i} style={s.promptChip} onPress={() => handleSend(p)}>
                   <Text style={s.promptText}>{p}</Text>
                 </TouchableOpacity>
@@ -199,7 +208,6 @@ export default function AskAIScreen() {
             </View>
           </View>
         ) : (
-          // Chat messages
           <ScrollView
             ref={scrollRef}
             style={s.msgList}
@@ -227,8 +235,18 @@ export default function AskAIScreen() {
                       {item.time}
                     </Text>
                     {item.role === "assistant" ? (
-                      <TouchableOpacity onPress={() => voice.speak(item.content)} hitSlop={8}>
-                        <Ionicons name="volume-medium-outline" size={14} color={colors.primary} />
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (voice.speaking) voice.stopSpeaking();
+                          else void voice.speak(item.content, { ignoreMute: true });
+                        }}
+                        hitSlop={8}
+                      >
+                        <Ionicons
+                          name={voice.speaking ? "stop-circle-outline" : "volume-medium-outline"}
+                          size={14}
+                          color={colors.primary}
+                        />
                       </TouchableOpacity>
                     ) : null}
                   </View>
@@ -236,7 +254,6 @@ export default function AskAIScreen() {
               </View>
             ))}
 
-            {/* Typing indicator */}
             {isThinking && (
               <View style={[s.bubbleRow, s.bubbleRowAI]}>
                 <View style={s.aiAvatar}>
@@ -251,7 +268,6 @@ export default function AskAIScreen() {
           </ScrollView>
         )}
 
-        {/* Input bar */}
         <View style={s.inputRow}>
           <TextInput
             style={s.input}

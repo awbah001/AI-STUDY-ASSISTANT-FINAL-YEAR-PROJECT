@@ -1,11 +1,12 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AuthProvider } from "../src/contexts/AuthContext";
+import { AuthProvider, useAuth } from "../src/contexts/AuthContext";
+import { getAuthSessionKey, subscribeAuthSession } from "../src/lib/authSession";
 import { trpc, createTrpcClient } from "../src/lib/api";
 import {
   registerForPushNotifications,
@@ -14,30 +15,57 @@ import {
 
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
-  const router = useRouter();
-  const [queryClient] = useState(() => new QueryClient({
+function createAppQueryClient() {
+  return new QueryClient({
     defaultOptions: {
-      queries: { staleTime: 30_000, retry: 1, retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 4_000), refetchOnWindowFocus: false },
+      queries: {
+        staleTime: 0,
+        gcTime: 0,
+        retry: 1,
+        retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 4_000),
+        refetchOnWindowFocus: false,
+      },
       mutations: { retry: 0 },
     },
-  }));
-  const [trpcClient] = useState(() => createTrpcClient());
+  });
+}
 
+export default function RootLayout() {
   const [loaded] = useFonts({});
+  const sessionKey = useSyncExternalStore(subscribeAuthSession, getAuthSessionKey, getAuthSessionKey);
+  const queryClient = useMemo(() => createAppQueryClient(), [sessionKey]);
+  const trpcClient = useMemo(() => createTrpcClient(), [sessionKey]);
 
   useEffect(() => {
     if (loaded) SplashScreen.hideAsync();
   }, [loaded]);
 
-  useEffect(() => {
-    // Request push permission on mount (no-ops if expo-notifications not installed)
-    registerForPushNotifications();
+  if (!loaded) return null;
 
-    // Listen for notifications
+  return (
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <SafeAreaProvider>
+          <AuthProvider>
+            <StatusBar style="dark" backgroundColor="#f4f6f9" />
+            <AuthedNavigation />
+          </AuthProvider>
+        </SafeAreaProvider>
+      </QueryClientProvider>
+    </trpc.Provider>
+  );
+}
+
+function AuthedNavigation() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const sessionKey = user?.id != null ? `user-${user.id}` : "guest";
+
+  useEffect(() => {
+    registerForPushNotifications();
     const cleanup = addNotificationListener(
       () => {
-        // Refresh the inbox/badge as soon as a foreground notification arrives.
         queryClient.invalidateQueries();
       },
       (response) => {
@@ -51,32 +79,22 @@ export default function RootLayout() {
         else router.push("/notifications");
       }
     );
-
     return cleanup;
   }, [queryClient, router]);
 
-  if (!loaded) return null;
-
   return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <SafeAreaProvider>
-          <AuthProvider>
-            <StatusBar style="dark" backgroundColor="#f4f6f9" />
-            <Stack
-              initialRouteName="index"
-              screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#f5f6fa" } }}
-            >
-              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="flashcard-study" options={{ headerShown: false, presentation: "card" }} />
-              <Stack.Screen name="upload-document" options={{ headerShown: false, presentation: "card" }} />
-              <Stack.Screen name="submit-assignment" options={{ headerShown: false, presentation: "card" }} />
-              <Stack.Screen name="notifications" options={{ headerShown: false, presentation: "card" }} />
-            </Stack>
-          </AuthProvider>
-        </SafeAreaProvider>
-      </QueryClientProvider>
-    </trpc.Provider>
+    <Stack
+      key={sessionKey}
+      initialRouteName="index"
+      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#f5f6fa" } }}
+    >
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="flashcard-study" options={{ headerShown: false, presentation: "card" }} />
+      <Stack.Screen name="upload-document" options={{ headerShown: false, presentation: "card" }} />
+      <Stack.Screen name="submit-assignment" options={{ headerShown: false, presentation: "card" }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false, presentation: "card" }} />
+    </Stack>
   );
 }

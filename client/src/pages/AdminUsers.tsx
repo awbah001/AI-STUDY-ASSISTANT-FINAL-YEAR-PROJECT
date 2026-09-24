@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,34 +100,20 @@ export default function AdminUsers() {
     <DashboardLayout>
       <div className="mx-auto max-w-6xl space-y-6">
 
-        {/* ── Page header ── */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white px-8 py-6 shadow-sm">
-          {/* decorative right illustration */}
-          <div className="pointer-events-none absolute right-8 top-1/2 -translate-y-1/2 hidden sm:flex items-end gap-3 opacity-30">
-            <div className="h-10 w-10 rounded-full bg-slate-300" />
-            <div className="relative h-14 w-14 rounded-full bg-emerald-400 ring-4 ring-white">
-              <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
-                <ShieldCheck className="h-3 w-3 text-white" />
-              </div>
-            </div>
-            <div className="h-10 w-10 rounded-full bg-slate-200" />
-          </div>
+        <AdminPageHeader
+          eyebrow="Directory"
+          title="Users"
+          description="Students and lecturers are listed separately. Students sign up in the mobile app; lecturers are created here."
+        />
 
-          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-emerald-600">
-            System Users
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">System Users</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Students and lecturers are listed separately. Students sign up in the mobile app; lecturers are created here.
-          </p>
-        </div>
-
-        <div className="flex gap-1 rounded-xl bg-slate-100 p-1 w-fit">
+        <div className="flex w-fit gap-1 rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-sky-50 p-1">
           <button
             type="button"
             onClick={() => { setRoleTab("user"); setPage(1); }}
             className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-              roleTab === "user" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+              roleTab === "user"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Students
@@ -135,7 +122,9 @@ export default function AdminUsers() {
             type="button"
             onClick={() => { setRoleTab("lecturer"); setPage(1); }}
             className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-              roleTab === "lecturer" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+              roleTab === "lecturer"
+                ? "bg-violet-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Lecturers
@@ -143,9 +132,9 @@ export default function AdminUsers() {
         </div>
 
         {/* ── Find Users ── */}
-        <div className="rounded-2xl border border-slate-100 bg-white px-6 py-5 shadow-sm">
+        <div className="rounded-2xl border border-sky-100/80 bg-gradient-to-br from-sky-50/70 via-white to-white px-6 py-5 shadow-sm">
           <div className="mb-1 flex items-center gap-2">
-            <Search className="h-4 w-4 text-emerald-600" />
+            <Search className="h-4 w-4 text-sky-600" />
             <span className="font-semibold text-slate-800">Find {roleTab === "lecturer" ? "lecturers" : "students"}</span>
           </div>
           <p className="mb-4 text-xs text-slate-500">Search by name or email address.</p>
@@ -163,11 +152,17 @@ export default function AdminUsers() {
         </div>
 
         {/* ── All Users table ── */}
-        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+        <div className={`overflow-hidden rounded-2xl border shadow-sm ${
+          roleTab === "lecturer"
+            ? "border-violet-100/80 bg-gradient-to-b from-violet-50/50 to-white"
+            : "border-emerald-100/80 bg-gradient-to-b from-emerald-50/50 to-white"
+        }`}>
           {/* table header */}
-          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div className={`flex items-center justify-between border-b px-6 py-4 ${
+            roleTab === "lecturer" ? "border-violet-100/70" : "border-emerald-100/70"
+          }`}>
             <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-emerald-600" />
+              <Users className={`h-5 w-5 ${roleTab === "lecturer" ? "text-violet-600" : "text-emerald-600"}`} />
               <span className="font-semibold text-slate-800">
                 {roleTab === "lecturer" ? "Lecturers" : "Students"} ({usersPage?.total ?? 0})
               </span>

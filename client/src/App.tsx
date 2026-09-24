@@ -12,11 +12,11 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminUsers from "./pages/AdminUsers";
-import AdminContent from "./pages/AdminContent";
 import AdminAcademic from "./pages/AdminAcademic";
 import AdminOperations from "./pages/AdminOperations";
 import AdminAudit from "./pages/AdminAudit";
 import AdminCommunications from "./pages/AdminCommunications";
+import AdminSettings from "./pages/AdminSettings";
 import LecturerSignup from "./pages/lecturer/LecturerSignup";
 import LecturerDashboard from "./pages/lecturer/LecturerDashboard";
 import LecturerCourses from "./pages/lecturer/LecturerCourses";
@@ -72,11 +72,12 @@ function Router() {
         {/* Admin */}
         <Route path="/admin" component={AdminDashboard} />
         <Route path="/admin/users" component={AdminUsers} />
-        <Route path="/admin/content" component={AdminContent} />
         <Route path="/admin/academic" component={AdminAcademic} />
         <Route path="/admin/operations" component={AdminOperations} />
         <Route path="/admin/audit" component={AdminAudit} />
         <Route path="/admin/communications" component={AdminCommunications} />
+        <Route path="/admin/settings/:section" component={AdminSettings} />
+        <Route path="/admin/settings" component={AdminSettings} />
         {/* Shared staff pages */}
         <Route path={"/profile"} component={Profile} />
         <Route path={"/settings"} component={Settings} />

@@ -1,7 +1,8 @@
-import { eq, and, desc, like, sql, inArray, lt, gt } from "drizzle-orm";
+import { eq, and, or, desc, like, sql, inArray, lt, gt } from "drizzle-orm";
 import fs from "fs/promises";
 import { vectorStorePath } from "./rag/faissFlat";
 import { resolveUploadPath } from "./_core/uploads";
+import { sanitizeStoredQuizQuestion } from "./agent/structured";
 import {
   users,
   documents,
@@ -73,7 +74,7 @@ export async function getUserDocuments(userId: number): Promise<Document[]> {
   const owned = await db
     .select()
     .from(documents)
-    .where(sql`${documents.userId} = ${userId} OR ${documents.isPublic} = true`)
+    .where(eq(documents.userId, userId))
     .orderBy(desc(documents.createdAt));
 
   const enrollments = await db
@@ -205,6 +206,7 @@ export async function createChatMessage(data: InsertChatMessage): Promise<ChatMe
 
 export async function getDocumentChatHistory(
   documentId: number,
+  userId: number,
   limit: number = 50
 ): Promise<ChatMessage[]> {
   const db = await getDb();
@@ -213,7 +215,7 @@ export async function getDocumentChatHistory(
   const rows = await db
     .select()
     .from(chatMessages)
-    .where(eq(chatMessages.documentId, documentId))
+    .where(and(eq(chatMessages.documentId, documentId), eq(chatMessages.userId, userId)))
     .orderBy(desc(chatMessages.id))
     .limit(limit);
   return [...rows].sort((a, b) => a.id - b.id);
@@ -291,14 +293,32 @@ export async function getFlashcardById(id: number): Promise<Flashcard | undefine
   return rows[0];
 }
 
-export async function getDocumentFlashcards(documentId: number): Promise<Flashcard[]> {
+export async function getDocumentFlashcards(
+  documentId: number,
+  viewerUserId?: number
+): Promise<Flashcard[]> {
   const db = await getDb();
   if (!db) return [];
+
+  if (viewerUserId === undefined) {
+    return db
+      .select()
+      .from(flashcards)
+      .where(eq(flashcards.documentId, documentId))
+      .orderBy(desc(flashcards.createdAt));
+  }
+
+  const doc = await getDocumentById(documentId);
+  const ownerId = doc?.userId;
+  const ownerClause =
+    ownerId && ownerId !== viewerUserId
+      ? or(eq(flashcards.userId, viewerUserId), eq(flashcards.userId, ownerId))
+      : eq(flashcards.userId, viewerUserId);
 
   return db
     .select()
     .from(flashcards)
-    .where(eq(flashcards.documentId, documentId))
+    .where(and(eq(flashcards.documentId, documentId), ownerClause))
     .orderBy(desc(flashcards.createdAt));
 }
 
@@ -445,15 +465,40 @@ export async function createQuiz(data: InsertQuiz): Promise<Quiz> {
   return quizList[0];
 }
 
-export async function getDocumentQuizzes(documentId: number): Promise<Quiz[]> {
+export async function getDocumentQuizzes(
+  documentId: number,
+  viewerUserId?: number
+): Promise<Quiz[]> {
   const db = await getDb();
   if (!db) return [];
 
-  return db
+  if (viewerUserId === undefined) {
+    return db
+      .select()
+      .from(quizzes)
+      .where(eq(quizzes.documentId, documentId))
+      .orderBy(desc(quizzes.createdAt));
+  }
+
+  const doc = await getDocumentById(documentId);
+  const ownerId = doc?.userId;
+  const ownerClause =
+    ownerId && ownerId !== viewerUserId
+      ? or(eq(quizzes.userId, viewerUserId), eq(quizzes.userId, ownerId))
+      : eq(quizzes.userId, viewerUserId);
+
+  const rows = await db
     .select()
     .from(quizzes)
-    .where(eq(quizzes.documentId, documentId))
+    .where(and(eq(quizzes.documentId, documentId), ownerClause))
     .orderBy(desc(quizzes.createdAt));
+
+  // Never surface another user's completion state on shared lecturer quizzes.
+  return rows.map((quiz) =>
+    quiz.userId === viewerUserId
+      ? quiz
+      : { ...quiz, score: null, completedAt: null }
+  );
 }
 
 export async function getQuizById(quizId: number): Promise<Quiz | undefined> {
@@ -498,7 +543,8 @@ export async function getQuizQuestions(quizId: number): Promise<QuizQuestion[]> 
   const db = await getDb();
   if (!db) return [];
 
-  return db.select().from(quizQuestions).where(eq(quizQuestions.quizId, quizId));
+  const rows = await db.select().from(quizQuestions).where(eq(quizQuestions.quizId, quizId));
+  return rows.map((q) => sanitizeStoredQuizQuestion(q));
 }
 
 export async function updateQuizQuestionAnswer(

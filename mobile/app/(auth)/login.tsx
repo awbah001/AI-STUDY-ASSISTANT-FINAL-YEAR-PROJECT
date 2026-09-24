@@ -104,11 +104,7 @@ export default function LoginScreen() {
                 pending={googleMutation.isPending}
                 disabled={!google.ready}
                 onPress={() => {
-                  if (!google.configured) {
-                    Alert.alert("Google sign-in", "Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in mobile/.env and restart Expo.");
-                    return;
-                  }
-                  google.prompt();
+                  void google.prompt();
                 }}
               />
 

@@ -50,6 +50,18 @@ export async function getDb() {
       } catch (migErr) {
         console.warn("[migration] Admin operations migration skipped:", migErr);
       }
+      try {
+        const { runAdminSettingsMigration } = await import("./migrations/addAdminSettings");
+        await runAdminSettingsMigration(client);
+      } catch (migErr) {
+        console.warn("[migration] Admin settings migration skipped:", migErr);
+      }
+      try {
+        const { runStudentLearningMigration } = await import("./migrations/addStudentLearning");
+        await runStudentLearningMigration(client);
+      } catch (migErr) {
+        console.warn("[migration] Student learning migration skipped:", migErr);
+      }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -180,7 +192,7 @@ export async function createUser(user: InsertUser) {
 
 export async function updateUserByOpenId(
   openId: string,
-  patch: Partial<Pick<InsertUser, "name" | "avatarUrl" | "passwordHash" | "role" | "isBanned">>
+  patch: Partial<Pick<InsertUser, "name" | "avatarUrl" | "passwordHash" | "role" | "isBanned" | "tokenVersion" | "totpRecoveryHashes" | "phone" | "jobTitle" | "expoPushToken">>
 ): Promise<User | undefined> {
   const dbConn = await getDb();
   if (!dbConn) {
@@ -198,7 +210,7 @@ export async function updateUserByOpenId(
 
 export async function updateUserById(
   userId: number,
-  patch: Partial<Pick<InsertUser, "name" | "avatarUrl" | "passwordHash" | "role" | "isBanned">>
+  patch: Partial<Pick<InsertUser, "name" | "avatarUrl" | "passwordHash" | "role" | "isBanned" | "tokenVersion" | "totpRecoveryHashes" | "phone" | "jobTitle" | "expoPushToken">>
 ): Promise<User | undefined> {
   const dbConn = await getDb();
   if (!dbConn) return undefined;

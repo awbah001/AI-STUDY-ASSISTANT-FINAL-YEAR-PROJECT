@@ -68,7 +68,7 @@ async function transcribeWithLmStudio(buffer: Buffer, filename: string, mimeType
 async function transcribeWithWhisper(buffer: Buffer): Promise<string> {
   const { samples, sampleRate } = decodeWavPcm(buffer);
   if (!asr) {
-    asr = (await pipeline("automatic-speech-recognition", "Xenova/whisper-tiny.en")) as typeof asr;
+    asr = (await pipeline("automatic-speech-recognition", "Xenova/whisper-tiny.en")) as unknown as typeof asr;
   }
   if (!asr) throw new Error("Whisper model failed to load");
   const result = await asr(samples, { sampling_rate: sampleRate });

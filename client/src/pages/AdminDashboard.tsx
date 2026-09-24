@@ -7,7 +7,7 @@ import { useLocation } from "wouter";
 import { useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer,
+  Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
   Users, Layers, Brain,
@@ -50,20 +50,20 @@ export default function AdminDashboard() {
 
         {/* ── Stat cards ── */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total Users" value={isLoading ? null : metrics?.usersTotal ?? 0} icon={<Users className="h-5 w-5 text-white" />} color="bg-emerald-500" border="border-t-emerald-500" trend="registered" />
-          <StatCard label="Active Learners" value={isLoading ? null : metrics?.activeLearners ?? 0} icon={<Activity className="h-5 w-5 text-white" />} color="bg-blue-500" border="border-t-blue-500" trend="last 30 days" />
-          <StatCard label="Quiz Completion" value={isLoading ? null : metrics?.quizCompletionRate ?? 0} icon={<Brain className="h-5 w-5 text-white" />} color="bg-cyan-500" border="border-t-cyan-500" trend="percent completed" />
-          <StatCard label="Failed Jobs" value={isLoading ? null : metrics?.failedJobs ?? 0} icon={<Layers className="h-5 w-5 text-white" />} color="bg-violet-500" border="border-t-violet-500" trend={`${metrics?.queuedJobs ?? 0} queued`} />
+          <StatCard label="Total Users" value={isLoading ? null : metrics?.usersTotal ?? 0} icon={<Users className="h-5 w-5 text-white" />} color="bg-emerald-500" border="border-t-emerald-500" tint="from-emerald-50 via-white to-white" trend="registered" />
+          <StatCard label="Active Learners" value={isLoading ? null : metrics?.activeLearners ?? 0} icon={<Activity className="h-5 w-5 text-white" />} color="bg-sky-500" border="border-t-sky-500" tint="from-sky-50 via-white to-white" trend="last 30 days" />
+          <StatCard label="Quiz Completion" value={isLoading ? null : metrics?.quizCompletionRate ?? 0} icon={<Brain className="h-5 w-5 text-white" />} color="bg-teal-500" border="border-t-teal-500" tint="from-teal-50 via-white to-white" trend="percent completed" />
+          <StatCard label="Failed Jobs" value={isLoading ? null : metrics?.failedJobs ?? 0} icon={<Layers className="h-5 w-5 text-white" />} color="bg-violet-500" border="border-t-violet-500" tint="from-violet-50 via-white to-white" trend={`${metrics?.queuedJobs ?? 0} queued`} />
         </div>
 
         {/* ── Growth chart + side panels ── */}
         <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
 
           {/* Growth chart */}
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-            <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50">
-                <TrendingUp className="h-4 w-4 text-emerald-600" />
+          <div className="overflow-hidden rounded-2xl border border-emerald-100/80 bg-gradient-to-b from-emerald-50/60 to-white shadow-sm">
+            <div className="flex items-center gap-3 border-b border-emerald-100/70 px-6 py-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
+                <TrendingUp className="h-4 w-4 text-emerald-700" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-slate-800">Platform Growth</p>
@@ -98,11 +98,11 @@ export default function AdminDashboard() {
           <div className="flex flex-col gap-6">
 
             {/* System performance */}
-            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
+            <div className="overflow-hidden rounded-2xl border border-sky-100/80 bg-gradient-to-b from-sky-50/70 to-white shadow-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-sky-100/70 px-6 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50">
-                    <Server className="h-4 w-4 text-blue-600" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100">
+                    <Server className="h-4 w-4 text-sky-700" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-800">System Health</p>
@@ -123,10 +123,10 @@ export default function AdminDashboard() {
             </div>
 
             {/* Recent activity */}
-            <div className="flex-1 rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-              <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
-                  <Activity className="h-4 w-4 text-slate-600" />
+            <div className="flex-1 overflow-hidden rounded-2xl border border-violet-100/80 bg-gradient-to-b from-violet-50/60 to-white shadow-sm">
+              <div className="flex items-center gap-3 border-b border-violet-100/70 px-6 py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100">
+                  <Activity className="h-4 w-4 text-violet-700" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Recent Activity</p>
@@ -180,14 +180,14 @@ export default function AdminDashboard() {
 // ── Stat card ──────────────────────────────────────────────────────────────────
 
 function StatCard({
-  label, value, icon, color, border, trend,
+  label, value, icon, color, border, tint, trend,
 }: {
   label: string; value: number | null; icon: React.ReactNode;
-  color: string; border: string; trend: string;
+  color: string; border: string; tint: string; trend: string;
 }) {
   const trendUp = trend.startsWith("+");
   return (
-    <div className={`rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden border-t-4 ${border}`}>
+    <div className={`overflow-hidden rounded-2xl border border-slate-100/90 bg-gradient-to-br ${tint} shadow-sm border-t-4 ${border}`}>
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1.5">
@@ -197,11 +197,11 @@ function StatCard({
               : <p className="text-3xl font-black tabular-nums text-slate-900">{value.toLocaleString()}</p>
             }
           </div>
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color} shadow-sm`}>
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color} shadow-md shadow-slate-900/10`}>
             {icon}
           </div>
         </div>
-        <p className={`mt-3 text-xs font-medium ${trendUp ? "text-emerald-600" : "text-red-500"}`}>
+        <p className={`mt-3 text-xs font-medium ${trendUp ? "text-emerald-600" : "text-slate-500"}`}>
           {trend} <span className="text-slate-400 font-normal">vs last month</span>
         </p>
       </div>

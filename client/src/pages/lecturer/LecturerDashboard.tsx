@@ -38,23 +38,23 @@ export default function LecturerDashboard() {
 
         {/* ── Stats row 1 ── */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="Courses"   value={isLoading ? null : stats?.courseCount ?? 0}    icon={<BookMarked className="h-5 w-5 text-white" />}    color="bg-emerald-600"  border="border-t-emerald-500" />
-          <StatCard label="Students"  value={isLoading ? null : stats?.studentCount ?? 0}   icon={<Users className="h-5 w-5 text-white" />}         color="bg-violet-500"  border="border-t-violet-500" />
-          <StatCard label="Materials" value={isLoading ? null : stats?.documentCount ?? 0}  icon={<FileText className="h-5 w-5 text-white" />}      color="bg-teal-500"    border="border-t-teal-500" />
-          <StatCard label="Assignments" value={isLoading ? null : stats?.assignmentCount ?? 0} icon={<ClipboardList className="h-5 w-5 text-white" />} color="bg-amber-500" border="border-t-amber-500" />
+          <StatCard label="Courses"   value={isLoading ? null : stats?.courseCount ?? 0}    icon={<BookMarked className="h-5 w-5 text-white" />}    color="bg-emerald-600"  border="border-t-emerald-500" tint="from-emerald-50 via-white to-white" />
+          <StatCard label="Students"  value={isLoading ? null : stats?.studentCount ?? 0}   icon={<Users className="h-5 w-5 text-white" />}         color="bg-violet-500"  border="border-t-violet-500" tint="from-violet-50 via-white to-white" />
+          <StatCard label="Materials" value={isLoading ? null : stats?.documentCount ?? 0}  icon={<FileText className="h-5 w-5 text-white" />}      color="bg-teal-500"    border="border-t-teal-500" tint="from-teal-50 via-white to-white" />
+          <StatCard label="Assignments" value={isLoading ? null : stats?.assignmentCount ?? 0} icon={<ClipboardList className="h-5 w-5 text-white" />} color="bg-amber-500" border="border-t-amber-500" tint="from-amber-50 via-white to-white" />
         </div>
 
         {/* ── Stats row 2 ── */}
         <div className="grid grid-cols-3 gap-4">
-          <StatCard label="AI Quizzes"     value={isLoading ? null : stats?.quizCount ?? 0}         icon={<Brain className="h-5 w-5 text-white" />}    color="bg-purple-500"  border="border-t-purple-500" />
-          <StatCard label="Flashcard sets" value={isLoading ? null : stats?.flashcardCount ?? 0}    icon={<Layers className="h-5 w-5 text-white" />}   color="bg-fuchsia-500" border="border-t-fuchsia-500" />
-          <StatCard label="Announcements"  value={isLoading ? null : stats?.announcementCount ?? 0} icon={<Megaphone className="h-5 w-5 text-white" />} color="bg-rose-500"    border="border-t-rose-500" />
+          <StatCard label="AI Quizzes"     value={isLoading ? null : stats?.quizCount ?? 0}         icon={<Brain className="h-5 w-5 text-white" />}    color="bg-purple-500"  border="border-t-purple-500" tint="from-purple-50 via-white to-white" />
+          <StatCard label="Flashcard sets" value={isLoading ? null : stats?.flashcardCount ?? 0}    icon={<Layers className="h-5 w-5 text-white" />}   color="bg-fuchsia-500" border="border-t-fuchsia-500" tint="from-fuchsia-50 via-white to-white" />
+          <StatCard label="Announcements"  value={isLoading ? null : stats?.announcementCount ?? 0} icon={<Megaphone className="h-5 w-5 text-white" />} color="bg-rose-500"    border="border-t-rose-500" tint="from-rose-50 via-white to-white" />
         </div>
 
         {/* ── Engagement chart ── */}
-        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-emerald-50 px-6 py-4">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50">
+        <div className="overflow-hidden rounded-2xl border border-emerald-100/80 bg-gradient-to-b from-emerald-50/60 to-white shadow-sm">
+          <div className="flex items-center gap-3 border-b border-emerald-100/70 px-6 py-4">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
               <TrendingUp className="h-4 w-4 text-emerald-700" />
             </div>
             <div>
@@ -84,20 +84,20 @@ export default function LecturerDashboard() {
 
         {/* ── Quick nav cards ── */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <QuickNav icon={<BookMarked className="h-5 w-5 text-emerald-700" />} bg="bg-emerald-50" title="Course Management" desc="Create subjects, upload notes, and share enrollment codes." path="/lecturer/courses" setLocation={setLocation} />
-          <QuickNav icon={<Brain className="h-5 w-5 text-violet-600" />} bg="bg-violet-50" title="Student Performance" desc="Track quiz scores, study time, and participation." path="/lecturer/analytics" setLocation={setLocation} />
-          <QuickNav icon={<ClipboardList className="h-5 w-5 text-amber-600" />} bg="bg-amber-50" title="Progress Reports" desc="Generate detailed per-student progress reports." path="/lecturer/reports" setLocation={setLocation} />
+          <QuickNav icon={<BookMarked className="h-5 w-5 text-emerald-700" />} bg="bg-emerald-100" accent="border-l-emerald-500 hover:border-emerald-200 hover:bg-emerald-50/50" title="Course Management" desc="Create subjects, upload notes, and share enrollment codes." path="/lecturer/courses" setLocation={setLocation} />
+          <QuickNav icon={<Brain className="h-5 w-5 text-violet-700" />} bg="bg-violet-100" accent="border-l-violet-500 hover:border-violet-200 hover:bg-violet-50/50" title="Student Performance" desc="Track quiz scores, study time, and participation." path="/lecturer/analytics" setLocation={setLocation} />
+          <QuickNav icon={<ClipboardList className="h-5 w-5 text-amber-700" />} bg="bg-amber-100" accent="border-l-amber-500 hover:border-amber-200 hover:bg-amber-50/50" title="Progress Reports" desc="Generate detailed per-student progress reports." path="/lecturer/reports" setLocation={setLocation} />
         </div>
       </div>
     </DashboardLayout>
   );
 }
 
-function StatCard({ label, value, icon, color, border }: {
-  label: string; value: number | null; icon: React.ReactNode; color: string; border: string;
+function StatCard({ label, value, icon, color, border, tint }: {
+  label: string; value: number | null; icon: React.ReactNode; color: string; border: string; tint: string;
 }) {
   return (
-    <div className={`rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden border-t-4 ${border}`}>
+    <div className={`overflow-hidden rounded-2xl border border-slate-100/90 bg-gradient-to-br ${tint} shadow-sm border-t-4 ${border}`}>
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -107,7 +107,7 @@ function StatCard({ label, value, icon, color, border }: {
               : <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">{value}</p>
             }
           </div>
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color} shadow-sm`}>
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color} shadow-md shadow-slate-900/10`}>
             {icon}
           </div>
         </div>
@@ -116,15 +116,15 @@ function StatCard({ label, value, icon, color, border }: {
   );
 }
 
-function QuickNav({ icon, bg, title, desc, path, setLocation }: {
-  icon: React.ReactNode; bg: string; title: string; desc: string;
+function QuickNav({ icon, bg, accent, title, desc, path, setLocation }: {
+  icon: React.ReactNode; bg: string; accent: string; title: string; desc: string;
   path: string; setLocation: (p: string) => void;
 }) {
   return (
     <button
       type="button"
       onClick={() => setLocation(path)}
-      className="group rounded-2xl border border-slate-100 bg-white p-5 text-left shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+      className={`group rounded-2xl border border-slate-100 bg-white p-5 text-left shadow-sm border-l-4 transition-all hover:shadow-md hover:-translate-y-0.5 ${accent}`}
     >
       <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${bg}`}>{icon}</div>
       <div className="flex items-center justify-between gap-2">

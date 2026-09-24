@@ -54,6 +54,6 @@
       ],
       "expo-splash-screen"
     ],
-    "scheme": "cognify"
+    "scheme": ["cognify", "com.googleusercontent.apps.617096867928-h6rr00q9o0qi6qn008qi5out6j954jk9"]
   }
 }

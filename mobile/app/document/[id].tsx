@@ -40,6 +40,16 @@ export default function DocumentDetailScreen() {
     { id: docId },
     { enabled: !Number.isNaN(docId) }
   );
+  const recordActivity = trpc.studentLearning.recordActivity.useMutation();
+  useEffect(() => {
+    if (!doc?.id) return;
+    recordActivity.mutate({
+      type: "DOCUMENT_OPENED",
+      documentId: doc.id,
+      courseId: doc.courseId ?? undefined,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc?.id]);
 
   if (isLoading) {
     return (
@@ -252,11 +262,18 @@ function ChatTab({ docId }: { docId: number }) {
                 </Text>
                 {item.role === "assistant" ? (
                   <TouchableOpacity
-                    onPress={() => voice.speak(item.content)}
+                    onPress={() => {
+                      if (voice.speaking) voice.stopSpeaking();
+                      else void voice.speak(item.content, { ignoreMute: true });
+                    }}
                     hitSlop={8}
                     style={styles.speakBtn}
                   >
-                    <Ionicons name="volume-medium-outline" size={14} color={colors.primary} />
+                    <Ionicons
+                      name={voice.speaking ? "stop-circle-outline" : "volume-medium-outline"}
+                      size={14}
+                      color={colors.primary}
+                    />
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -519,9 +536,9 @@ function QuizTab({ docId, initialQuizId }: { docId: number; initialQuizId?: numb
               <View key={q.id} style={styles.questionCard}>
                 <Text style={styles.questionNumber}>Q{idx + 1}</Text>
                 <Text style={styles.questionText}>{q.question}</Text>
-                {(q.options as string[]).map((opt) => (
+                {(Array.isArray(q.options) ? q.options : []).map((opt, optIdx) => (
                   <TouchableOpacity
-                    key={opt}
+                    key={`${q.id}-${optIdx}`}
                     style={[styles.option, answers[q.id] === opt && styles.optionSelected]}
                     onPress={() => setAnswers((prev) => ({ ...prev, [q.id]: opt }))}
                   >

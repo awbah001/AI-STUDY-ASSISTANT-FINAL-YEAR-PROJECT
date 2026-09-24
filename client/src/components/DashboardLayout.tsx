@@ -5,9 +5,9 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard, LogOut, Bell, User, Users, Search,
-  Settings as SettingsIcon, ShieldCheck, FileText,
+  Settings as SettingsIcon, ShieldCheck,
   Sun, Moon, GraduationCap, Megaphone, ClipboardList, BarChart3,
-  BookMarked, ChevronRight, Menu, Activity,
+  BookMarked, ChevronRight, Menu, Server,
 } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -47,15 +47,14 @@ type MenuItem = {
 const getMenuItems = (role: string = "user"): MenuItem[] => {
   if (role === "admin") {
     return [
-      { icon: ShieldCheck, label: "Admin Panel", path: "/admin", section: "Overview" },
-      { icon: Users, label: "User Management", path: "/admin/users", section: "Workspace" },
-      { icon: FileText, label: "Content", path: "/admin/content", section: "Workspace" },
-      { icon: BarChart3, label: "Academic", path: "/admin/academic", section: "Workspace" },
-      { icon: Activity, label: "Operations", path: "/admin/operations", section: "Workspace" },
-      { icon: ShieldCheck, label: "Audit Log", path: "/admin/audit", section: "Workspace" },
+      { icon: LayoutDashboard, label: "Overview", path: "/admin", section: "Overview" },
+      { icon: Users, label: "Users", path: "/admin/users", section: "Workspace" },
+      { icon: GraduationCap, label: "Academic", path: "/admin/academic", section: "Workspace" },
+      { icon: Server, label: "Operations", path: "/admin/operations", section: "Workspace" },
+      { icon: ShieldCheck, label: "Audit", path: "/admin/audit", section: "Workspace" },
       { icon: Megaphone, label: "Communications", path: "/admin/communications", section: "Workspace" },
+      { icon: SettingsIcon, label: "Settings", path: "/admin/settings", section: "Workspace" },
       { icon: User, label: "Profile", path: "/profile", section: "Account" },
-      { icon: SettingsIcon, label: "Settings", path: "/settings", section: "Account" },
     ];
   }
   if (role === "lecturer") {
@@ -228,16 +227,17 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               >
                 {t.label}
               </span>
-              {activeItem && activeItem.label !== t.label && (
+              {activeItem && (
                 <>
                   <ChevronRight className="h-3.5 w-3.5" />
-                  <span className="text-slate-500">{activeItem.label}</span>
+                  <span className="font-semibold text-slate-700">{activeItem.label}</span>
                 </>
               )}
             </nav>
+            <p className="truncate text-sm font-semibold text-slate-800 lg:hidden">{activeItem?.label ?? t.label}</p>
             <label className="relative hidden w-[min(38vw,430px)] md:block">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input aria-label="Search" placeholder="Search courses, documents, or topics..." className="h-10 w-full rounded-full border border-slate-200 bg-slate-50/80 pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10" />
+              <input aria-label="Search" placeholder={role === "admin" ? "Jump to users, courses, or operations..." : "Search courses, documents, or topics..."} className="h-10 w-full rounded-full border border-slate-200 bg-slate-50/80 pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10" />
             </label>
           </div>
 
@@ -266,7 +266,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="dashboard-page flex-1 overflow-y-auto bg-[#f4f8f6] p-5 sm:p-8">
+        <main className="dashboard-page flex-1 overflow-y-auto p-5 sm:p-8">
           {children}
         </main>
       </div>

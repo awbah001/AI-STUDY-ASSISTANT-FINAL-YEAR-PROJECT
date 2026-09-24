@@ -63,10 +63,10 @@ export default function LecturerCourses() {
       <div className="mx-auto max-w-6xl space-y-6">
 
         {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <div className="portal-header px-5 py-5 sm:px-6">
+          <div className="relative z-[1] pl-2 sm:pl-3">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">My Courses</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 max-w-2xl text-sm text-slate-600">
               Courses assigned to you by an administrator. Archive a course to stop new enrollments; enrolled students keep access.
             </p>
           </div>
@@ -132,38 +132,45 @@ export default function LecturerCourses() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {visible.map((course) => (
+            {visible.map((course, idx) => {
+              const accents = [
+                { top: "border-t-emerald-500", wash: "from-emerald-50/70", code: "bg-emerald-50 text-emerald-800", label: "text-emerald-500", subject: "text-emerald-700" },
+                { top: "border-t-sky-500", wash: "from-sky-50/70", code: "bg-sky-50 text-sky-800", label: "text-sky-500", subject: "text-sky-700" },
+                { top: "border-t-violet-500", wash: "from-violet-50/70", code: "bg-violet-50 text-violet-800", label: "text-violet-500", subject: "text-violet-700" },
+                { top: "border-t-amber-500", wash: "from-amber-50/70", code: "bg-amber-50 text-amber-800", label: "text-amber-500", subject: "text-amber-700" },
+              ][idx % 4];
+              return (
               <div
                 key={course.id}
-                className="group rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer border-t-4 border-t-indigo-500"
+                className={`group cursor-pointer overflow-hidden rounded-2xl border border-slate-100 bg-gradient-to-b ${accents.wash} to-white shadow-sm transition-all hover:shadow-md border-t-4 ${accents.top}`}
                 onClick={() => setLocation(`/lecturer/courses/${course.id}`)}
               >
                 <div className="p-5">
-                  <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="mb-2 flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h3 className="font-bold text-slate-900 truncate">{course.title}</h3>
+                      <h3 className="truncate font-bold text-slate-900">{course.title}</h3>
                       {course.subject && (
-                        <p className="text-sm text-indigo-600 font-medium mt-0.5">{course.subject}</p>
+                        <p className={`mt-0.5 text-sm font-medium ${accents.subject}`}>{course.subject}</p>
                       )}
                     </div>
-                    <span className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${course.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                    <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${course.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
                       {course.isActive ? "Active" : "Archived"}
                     </span>
                   </div>
                   {course.description && (
-                    <p className="text-sm text-slate-500 line-clamp-2 mb-3">{course.description}</p>
+                    <p className="mb-3 line-clamp-2 text-sm text-slate-500">{course.description}</p>
                   )}
 
                   {/* Enrollment code */}
                   <div
-                    className="flex items-center justify-between rounded-xl bg-indigo-50 px-3 py-2 mb-4"
+                    className={`mb-4 flex items-center justify-between rounded-xl px-3 py-2 ${accents.code}`}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-400">Enrollment code</p>
-                      <p className="font-mono font-bold text-indigo-800 tracking-widest">{course.code}</p>
+                      <p className={`text-[10px] font-semibold uppercase tracking-wider ${accents.label}`}>Enrollment code</p>
+                      <p className="font-mono font-bold tracking-widest">{course.code}</p>
                     </div>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-indigo-500 hover:text-indigo-700" onClick={() => copyCode(course.code)}>
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 opacity-70 hover:opacity-100" onClick={() => copyCode(course.code)}>
                       <Copy className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -197,7 +204,8 @@ export default function LecturerCourses() {
                   </div>
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
         </>

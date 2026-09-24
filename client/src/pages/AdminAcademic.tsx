@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { trpc } from "@/lib/trpc";
 import { AlertTriangle, BarChart3, Users } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -71,23 +72,22 @@ export default function AdminAcademic() {
   return (
     <DashboardLayout>
       <main className="mx-auto max-w-6xl space-y-6">
-        <header className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Academic Performance Center</h1>
-            <p className="text-sm text-slate-500">
-              Create courses, assign lecturers, and review enrolment and outcomes.
-            </p>
-          </div>
-          <button
-            onClick={exportCsv}
-            disabled={!data}
-            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            Export CSV
-          </button>
-        </header>
+        <AdminPageHeader
+          eyebrow="Catalogue"
+          title="Academic"
+          description="Create courses, assign lecturers, and review enrolment and outcomes."
+          actions={
+            <button
+              onClick={exportCsv}
+              disabled={!data}
+              className="rounded-xl bg-[#033c35] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Export CSV
+            </button>
+          }
+        />
 
-        <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-teal-100/80 bg-gradient-to-b from-teal-50/60 to-white p-5 shadow-sm">
           <h2 className="font-semibold text-slate-900">Give a lecturer a course</h2>
           <p className="mt-1 text-sm text-slate-500">
             Only administrators can add a course to the catalogue. The selected lecturer then sees it under My Courses.
@@ -165,11 +165,11 @@ export default function AdminAcademic() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-3">
-          <Metric icon={<Users />} label="Courses" value={data?.courses.length ?? 0} />
-          <Metric icon={<AlertTriangle />} label="Students at risk" value={data?.atRisk.length ?? 0} />
-          <Metric icon={<BarChart3 />} label="Weak topics" value={data?.topicWeaknesses.length ?? 0} />
+          <Metric icon={<Users />} label="Courses" value={data?.courses.length ?? 0} tone="emerald" />
+          <Metric icon={<AlertTriangle />} label="Students at risk" value={data?.atRisk.length ?? 0} tone="amber" />
+          <Metric icon={<BarChart3 />} label="Weak topics" value={data?.topicWeaknesses.length ?? 0} tone="violet" />
         </section>
-        <Panel title="Course enrolment and lecturer assignment">
+        <Panel title="Course enrolment and lecturer assignment" tone="emerald">
           <Table
             heads={["Course", "Lecturer", "Enrolled", "Average quiz score", "Reassign"]}
             rows={(data?.courses ?? []).map((c) => [
@@ -205,7 +205,7 @@ export default function AdminAcademic() {
             loading={isLoading}
           />
         </Panel>
-        <Panel title="Students requiring follow-up">
+        <Panel title="Students requiring follow-up" tone="amber">
           <Table
             heads={["Student", "Last activity", "Quiz average", "Late submissions"]}
             rows={(data?.atRisk ?? []).map((s) => [
@@ -221,7 +221,7 @@ export default function AdminAcademic() {
             loading={isLoading}
           />
         </Panel>
-        <Panel title="Topic-level quiz weaknesses">
+        <Panel title="Topic-level quiz weaknesses" tone="violet">
           <Table
             heads={["Topic", "Attempts", "Average score"]}
             rows={(data?.topicWeaknesses ?? []).map((t) => [
@@ -236,21 +236,31 @@ export default function AdminAcademic() {
     </DashboardLayout>
   );
 }
-function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
+function Metric({ icon, label, value, tone }: { icon: ReactNode; label: string; value: number; tone: "emerald" | "amber" | "violet" }) {
+  const tones = {
+    emerald: "from-emerald-50 to-white border-emerald-100 text-emerald-700",
+    amber: "from-amber-50 to-white border-amber-100 text-amber-700",
+    violet: "from-violet-50 to-white border-violet-100 text-violet-700",
+  };
   return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm">
-      <div className="flex gap-3 text-emerald-600">
+    <div className={`rounded-2xl border bg-gradient-to-br p-5 shadow-sm ${tones[tone]}`}>
+      <div className="flex gap-3">
         {icon}
         <span className="text-sm text-slate-500">{label}</span>
       </div>
-      <p className="mt-2 text-3xl font-bold">{value}</p>
+      <p className="mt-2 text-3xl font-bold text-slate-900">{value}</p>
     </div>
   );
 }
-function Panel({ title, children }: { title: string; children: ReactNode }) {
+function Panel({ title, children, tone = "emerald" }: { title: string; children: ReactNode; tone?: "emerald" | "amber" | "violet" }) {
+  const tones = {
+    emerald: "border-emerald-100/80 from-emerald-50/50",
+    amber: "border-amber-100/80 from-amber-50/50",
+    violet: "border-violet-100/80 from-violet-50/50",
+  };
   return (
-    <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-      <h2 className="border-b px-5 py-4 font-semibold">{title}</h2>
+    <section className={`overflow-hidden rounded-2xl border bg-gradient-to-b to-white shadow-sm ${tones[tone]}`}>
+      <h2 className="border-b border-slate-100/80 px-5 py-4 font-semibold">{title}</h2>
       {children}
     </section>
   );

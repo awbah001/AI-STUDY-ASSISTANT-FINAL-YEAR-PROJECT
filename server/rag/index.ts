@@ -9,8 +9,8 @@
 import { chunkText } from "./chunkText";
 import { embedText, embedTexts } from "./embeddings";
 import { l2Normalize, loadVectorStore, saveVectorStore, searchFaissFlat, type FaissFlatStore } from "./faissFlat";
+import { getRagSettings } from "../settings";
 
-const DEFAULT_TOP_K = 6;
 const OVER_FETCH_MULTIPLIER = 2;
 const JACCARD_DEDUP_THRESHOLD = 0.6;
 
@@ -26,7 +26,8 @@ function jaccardSimilarity(a: string, b: string): number {
 }
 
 export async function buildDocumentVectorIndex(documentId: number, fullText: string): Promise<void> {
-  const chunks = chunkText(fullText);
+  const rag = await getRagSettings();
+  const chunks = chunkText(fullText, rag.chunkSize, rag.chunkOverlap);
   if (chunks.length === 0) return;
 
   console.log(`[RAG] Indexing doc ${documentId}: ${chunks.length} chunks`);
@@ -51,19 +52,21 @@ export type RetrievedChunkHit = {
 export async function retrieveRelevantChunkHits(
   documentId: number,
   query: string,
-  topK: number = DEFAULT_TOP_K
+  topK?: number
 ): Promise<RetrievedChunkHit[]> {
+  const rag = await getRagSettings();
+  const k = topK ?? rag.topK;
   const store = await loadVectorStore(documentId);
   if (!store || store.chunks.length === 0) return [];
 
   const qVec = await embedText(query);
-  const overFetchK = Math.min(topK * OVER_FETCH_MULTIPLIER, store.chunks.length);
-  const hits = searchFaissFlat(qVec, store, overFetchK);
+  const overFetchK = Math.min(k * OVER_FETCH_MULTIPLIER, store.chunks.length);
+  const hits = searchFaissFlat(qVec, store, overFetchK, rag.similarityThreshold);
   if (hits.length === 0) return [];
 
   const kept: { chunk: string; score: number }[] = [];
   for (const hit of hits) {
-    if (kept.length >= topK) break;
+    if (kept.length >= k) break;
     const isDuplicate = kept.some(
       (k) => jaccardSimilarity(k.chunk, hit.chunk) > JACCARD_DEDUP_THRESHOLD
     );
@@ -76,7 +79,7 @@ export async function retrieveRelevantChunkHits(
 export async function retrieveRelevantChunks(
   documentId: number,
   query: string,
-  topK: number = DEFAULT_TOP_K
+  topK?: number
 ): Promise<string> {
   const hits = await retrieveRelevantChunkHits(documentId, query, topK);
   return hits.map((h) => h.chunk).join("\n\n---\n\n");

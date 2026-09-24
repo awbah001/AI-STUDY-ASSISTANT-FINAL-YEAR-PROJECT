@@ -131,27 +131,49 @@ export function useChatVoice(onTranscript: (text: string) => void) {
   const onTranscriptRef = useRef(onTranscript);
   onTranscriptRef.current = onTranscript;
   const cancelledSpeakRef = useRef(false);
+  const speakGenerationRef = useRef(0);
 
-  const stopSpeaking = useCallback(() => {
+  const haltSpeechEngine = useCallback(async () => {
     cancelledSpeakRef.current = true;
-    Speech.stop();
+    speakGenerationRef.current += 1;
     setSpeaking(false);
+    try {
+      await Speech.stop();
+    } catch {
+      /* Expo Go / Android often throw or no-op here */
+    }
+    for (let i = 0; i < 6; i++) {
+      try {
+        const stillSpeaking = await Speech.isSpeakingAsync();
+        if (!stillSpeaking) break;
+        await Speech.stop();
+      } catch {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    }
   }, []);
 
+  const stopSpeaking = useCallback(() => {
+    void haltSpeechEngine();
+  }, [haltSpeechEngine]);
+
   const speak = useCallback(
-    async (text: string) => {
-      if (muted) return;
+    async (text: string, opts?: { ignoreMute?: boolean }) => {
+      if (muted && !opts?.ignoreMute) return;
       const chunks = speechChunks(text);
       if (!chunks.length) return;
+      await haltSpeechEngine();
       cancelledSpeakRef.current = false;
+      const generation = speakGenerationRef.current;
       try {
         await setPlaybackMode();
         const voices = await Speech.getAvailableVoicesAsync();
         const english = voices.find((voice) => voice.language?.toLowerCase().startsWith("en"));
-        Speech.stop();
+        if (cancelledSpeakRef.current || speakGenerationRef.current !== generation) return;
         setSpeaking(true);
         const play = (index: number) => {
-          if (cancelledSpeakRef.current) {
+          if (cancelledSpeakRef.current || speakGenerationRef.current !== generation) {
             setSpeaking(false);
             return;
           }
@@ -164,11 +186,23 @@ export function useChatVoice(onTranscript: (text: string) => void) {
             voice: english?.identifier,
             pitch: 1,
             rate: Platform.OS === "ios" ? 0.5 : 0.95,
-            onDone: () => play(index + 1),
-            onStopped: () => {
-              if (cancelledSpeakRef.current) setSpeaking(false);
+            onDone: () => {
+              if (cancelledSpeakRef.current || speakGenerationRef.current !== generation) {
+                setSpeaking(false);
+                return;
+              }
+              play(index + 1);
             },
-            onError: () => play(index + 1),
+            onStopped: () => {
+              setSpeaking(false);
+            },
+            onError: () => {
+              if (cancelledSpeakRef.current || speakGenerationRef.current !== generation) {
+                setSpeaking(false);
+                return;
+              }
+              play(index + 1);
+            },
           });
         };
         play(0);
@@ -182,20 +216,24 @@ export function useChatVoice(onTranscript: (text: string) => void) {
         );
       }
     },
-    [muted]
+    [haltSpeechEngine, muted]
   );
 
   const toggleMute = useCallback(() => {
     setMuted((current) => {
       const next = !current;
-      if (next) {
-        cancelledSpeakRef.current = true;
-        Speech.stop();
-        setSpeaking(false);
-      }
+      if (next) void haltSpeechEngine();
       return next;
     });
-  }, []);
+  }, [haltSpeechEngine]);
+
+  const togglePlayback = useCallback(() => {
+    if (speaking) {
+      void haltSpeechEngine();
+      return;
+    }
+    toggleMute();
+  }, [haltSpeechEngine, speaking, toggleMute]);
 
   const finishRecording = useCallback(async () => {
     try {
@@ -233,7 +271,13 @@ export function useChatVoice(onTranscript: (text: string) => void) {
   }, [recorder]);
 
   const toggleListening = useCallback(async () => {
-    if (listening || recorder.isRecording) {
+    let isRecording = false;
+    try {
+      isRecording = !!recorder.isRecording;
+    } catch {
+      isRecording = false;
+    }
+    if (listening || isRecording) {
       await finishRecording();
       return;
     }
@@ -248,20 +292,27 @@ export function useChatVoice(onTranscript: (text: string) => void) {
       await startRecording();
     } catch (error) {
       setListening(false);
-      void setPlaybackMode();
+      void setPlaybackMode().catch(() => undefined);
       Alert.alert(
         "Microphone",
         error instanceof Error ? error.message : "Could not start the microphone in Expo Go."
       );
     }
-  }, [finishRecording, listening, recorder.isRecording, startRecording, stopSpeaking]);
+  }, [finishRecording, listening, recorder, startRecording, stopSpeaking]);
 
   useEffect(
     () => () => {
       cancelledSpeakRef.current = true;
-      Speech.stop();
-      if (recorder.isRecording) void recorder.stop().catch(() => undefined);
-      void setPlaybackMode();
+      speakGenerationRef.current += 1;
+      void Speech.stop();
+      try {
+        if (recorder.isRecording) {
+          void recorder.stop().catch(() => undefined);
+        }
+      } catch {
+        // Native recorder shared object may already be torn down on unmount.
+      }
+      void setPlaybackMode().catch(() => undefined);
     },
     [recorder]
   );
@@ -274,6 +325,7 @@ export function useChatVoice(onTranscript: (text: string) => void) {
     speak,
     stopSpeaking,
     toggleMute,
+    togglePlayback,
     toggleListening,
     stopListening,
     handleWebMessage: (_raw: string) => undefined,

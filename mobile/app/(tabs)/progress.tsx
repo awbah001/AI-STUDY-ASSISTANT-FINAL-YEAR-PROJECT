@@ -24,10 +24,11 @@ export default function ProgressScreen() {
 
   const { data: progress, isLoading, refetch } = trpc.progress.stats.useQuery();
   const { data: analytics, refetch: refetchA } = trpc.progress.analytics.useQuery();
+  const { data: dash, refetch: refetchDash } = trpc.studentLearning.dashboard.useQuery();
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetch(), refetchA()]);
+    await Promise.all([refetch(), refetchA(), refetchDash()]);
     setRefreshing(false);
   };
 
@@ -132,6 +133,27 @@ export default function ProgressScreen() {
                 <Text style={s.statValue}>{scored.length ? `${avgScore}%` : "—"}</Text>
               </View>
             </View>
+            {(dash?.insights?.length ?? 0) > 0 && (
+              <View style={s.streakCard}>
+                <Text style={s.statLabel}>Insights</Text>
+                {dash!.insights.map((line) => (
+                  <Text key={line} style={{ fontSize: 14, color: colors.textSub, marginTop: 8, lineHeight: 20 }}>
+                    • {line}
+                  </Text>
+                ))}
+              </View>
+            )}
+            {(dash?.weakTopics?.length ?? 0) > 0 && (
+              <View style={s.streakCard}>
+                <Text style={s.statLabel}>Needs review</Text>
+                {dash!.weakTopics.map((topic) => (
+                  <Text key={`${topic.courseId}-${topic.topic}`} style={{ fontSize: 14, color: colors.text, marginTop: 8 }}>
+                    {topic.topic}
+                    {topic.lastScore != null ? ` · last score ${Math.round(topic.lastScore)}%` : ""}
+                  </Text>
+                ))}
+              </View>
+            )}
             {/* ── 7 Day Streak card ── */}
             <View style={s.streakCard}>
               {/* top row */}

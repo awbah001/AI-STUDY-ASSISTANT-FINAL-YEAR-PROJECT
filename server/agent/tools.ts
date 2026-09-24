@@ -166,7 +166,7 @@ async function generateQuizDraft(ctx: ToolContext, raw: unknown): Promise<ToolRe
 async function generateFlashcardsTool(ctx: ToolContext, raw: unknown): Promise<ToolResult> {
   const input = flashcardCountInput.parse(raw);
   await assertDocumentToolAccess(ctx.user, input.documentId);
-  const existing = await queries.getDocumentFlashcards(input.documentId);
+  const existing = await queries.getDocumentFlashcards(input.documentId, ctx.user.id);
   const wanted = input.count ?? 10;
   const saved = await documentAi.generateFlashcardsForDocument(input.documentId, ctx.user.id, wanted);
   return ok({

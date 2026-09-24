@@ -8,7 +8,7 @@ import {
   RefreshControl,
   Image,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, usePathname } from "expo-router";
 import { useState, useEffect, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,21 +23,32 @@ const cognifyBot = require("../../assets/cognify-auth-bot.png");
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [refreshing, setRefreshing] = useState(false);
+  const signedIn = !!user?.id;
+
+  const onboard = trpc.studentLearning.onboardingStatus.useQuery(undefined, {
+    enabled: signedIn,
+  });
+  useEffect(() => {
+    if (!onboard.data || onboard.data.completed) return;
+    if (pathname?.includes("onboarding")) return;
+    router.replace("/onboarding");
+  }, [onboard.data, pathname, router]);
 
   const {
     data: documents,
     isLoading: docsLoading,
     refetch: refetchDocs,
-  } = trpc.documents.list.useQuery();
+  } = trpc.documents.list.useQuery(undefined, { enabled: signedIn });
   const { data: progress, refetch: refetchProgress } =
-    trpc.progress.stats.useQuery();
+    trpc.progress.stats.useQuery(undefined, { enabled: signedIn });
   const { data: analytics, refetch: refetchAnalytics } =
-    trpc.progress.analytics.useQuery();
+    trpc.progress.analytics.useQuery(undefined, { enabled: signedIn });
   const { data: unreadNotifs, refetch: refetchNotifs } =
-    trpc.notifications.unreadCount.useQuery();
-  const { data: enrolledCourses } = trpc.studentCourses.list.useQuery();
-  const { data: plan, refetch: refetchPlan } = trpc.planner.today.useQuery();
+    trpc.notifications.unreadCount.useQuery(undefined, { enabled: signedIn });
+  const { data: enrolledCourses, refetch: refetchCourses } = trpc.studentCourses.list.useQuery(undefined, { enabled: signedIn });
+  const { data: plan, refetch: refetchPlan } = trpc.planner.today.useQuery(undefined, { enabled: signedIn });
   const upcomingRange = useMemo(
     () => ({
       from: Date.now(),
@@ -45,7 +56,7 @@ export default function DashboardScreen() {
     }),
     []
   );
-  const { data: cal, refetch: refetchCal } = trpc.planner.calendar.useQuery(upcomingRange);
+  const { data: cal, refetch: refetchCal } = trpc.planner.calendar.useQuery(upcomingRange, { enabled: signedIn });
 
   useEffect(() => {
     if (!cal?.events?.length) return;
@@ -143,6 +154,8 @@ export default function DashboardScreen() {
       refetchNotifs(),
       refetchPlan(),
       refetchCal(),
+      refetchCourses(),
+      onboard.refetch(),
     ]);
     setRefreshing(false);
   };

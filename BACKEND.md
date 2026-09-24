@@ -169,7 +169,7 @@ Dashboard stats; list/update assigned courses (create/delete are admin-only); st
 
 ### `admin`
 
-Users (list, ban, role, password reset, delete), documents (list, delete, public flag, report, retry processing), **create courses and assign lecturers**, academic metrics, operations, communications (announcements), **append-only audit logs**, system performance. Admin actions that change people/content write `adminAuditLogs`.
+Users (list, ban, role, password reset, delete), **create courses and assign lecturers**, academic metrics, operations (including retry failed document processing), communications (announcements), **append-only audit logs**, system performance. Course materials stay with the lecturer. Admin actions that change people or allocations write `adminAuditLogs`.
 
 ### `generalChat`
 

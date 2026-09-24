@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import type { Document } from "../drizzle/schema";
 import * as queries from "./queries";
 import * as llmUtils from "./llmUtils";
+import { getFeatureFlags } from "./settings";
 
 async function ensureDocumentText(documentId: number): Promise<Document> {
   const doc = await queries.getDocumentById(documentId);
@@ -63,6 +64,8 @@ export function assertDocumentHasExtractedText(doc: Document | undefined): asser
 }
 
 export async function generateSummaryForDocument(documentId: number, topic?: string) {
+  const flags = await getFeatureFlags();
+  if (!flags.summarization) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "AI summarization is disabled." });
   const doc = await ensureDocumentText(documentId);
   assertDocumentHasExtractedText(doc);
   const { summary, keyPoints } = await llmUtils.generateDocumentSummary(
@@ -75,6 +78,8 @@ export async function generateSummaryForDocument(documentId: number, topic?: str
 }
 
 export async function generateFlashcardsForDocument(documentId: number, userId: number, count: number) {
+  const flags = await getFeatureFlags();
+  if (!flags.flashcards) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Flashcard generation is disabled." });
   const doc = await ensureDocumentText(documentId);
   assertDocumentHasExtractedText(doc);
   const n = Math.min(30, Math.max(3, count));
@@ -94,7 +99,7 @@ export async function generateFlashcardsForDocument(documentId: number, userId: 
     });
     savedFlashcards.push(saved);
   }
-  const allCards = await queries.getDocumentFlashcards(documentId);
+  const allCards = await queries.getDocumentFlashcards(documentId, userId);
   await queries.updateProgressActivity(documentId, userId, {
     flashcardsCreated: allCards.length,
   });
@@ -102,6 +107,8 @@ export async function generateFlashcardsForDocument(documentId: number, userId: 
 }
 
 export async function generateQuizForDocument(documentId: number, userId: number, questionCount: number) {
+  const flags = await getFeatureFlags();
+  if (!flags.quizGeneration) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Quiz generation is disabled." });
   const doc = await ensureDocumentText(documentId);
   assertDocumentHasExtractedText(doc);
   const n = Math.min(20, Math.max(3, questionCount));
