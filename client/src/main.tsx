@@ -9,6 +9,10 @@ import { getLoginUrl } from "./const";
 import { getAuthToken } from "@/lib/authToken";
 import { apiUrl } from "@/lib/apiBaseUrl";
 import "./index.css";
+import "./admin.css";
+import "./lecturer.css";
+import "./student.css";
+import "./secondary-accents.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

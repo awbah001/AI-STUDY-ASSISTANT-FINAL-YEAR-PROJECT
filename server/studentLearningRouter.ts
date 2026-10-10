@@ -13,7 +13,7 @@ import {
   studentProfiles,
   studySessions,
 } from "../drizzle/schema";
-import { FOCUS_GOALS, LEARN_MODES, ONBOARDING_STEPS, type OnboardingStep } from "../shared/studentLearning";
+import { academicProfileSchema, FOCUS_GOALS, LEARN_MODES, ONBOARDING_STEPS, type OnboardingStep } from "../shared/studentLearning";
 import { studentProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import * as lecturerQueries from "./lecturerQueries";
@@ -33,12 +33,12 @@ import {
 } from "./recommendations";
 
 const academicSchema = z.object({
-  faculty: z.string().max(120).optional().nullable(),
-  department: z.string().max(120).optional().nullable(),
-  programme: z.string().max(120).optional().nullable(),
-  academicLevel: z.string().max(80).optional().nullable(),
-  semester: z.string().max(40).optional().nullable(),
-  academicYear: z.string().max(40).optional().nullable(),
+  faculty: z.string().trim().max(120, "Faculty must be at most 120 characters.").optional().nullable(),
+  department: z.string().trim().max(120, "Department must be at most 120 characters.").optional().nullable(),
+  programme: z.string().trim().max(120, "Programme must be at most 120 characters.").optional().nullable(),
+  academicLevel: z.string().trim().max(80).optional().nullable(),
+  semester: z.string().trim().max(40).optional().nullable(),
+  academicYear: z.string().trim().max(40).optional().nullable(),
 });
 
 function isStep(value: string | null | undefined): OnboardingStep {
@@ -48,7 +48,7 @@ function isStep(value: string | null | undefined): OnboardingStep {
 }
 
 function isOnboardingComplete(row: typeof studentProfiles.$inferSelect) {
-  return !row.onboardingRequired || Boolean(row.onboardingCompletedAt);
+  return Boolean(row.onboardingCompletedAt) && academicProfileSchema.safeParse(row).success;
 }
 
 /** Only call this when a student self-registers (email signup or first Google account). */
@@ -80,13 +80,13 @@ async function getOrCreateProfile(userId: number) {
   const existing = await dbConn.select().from(studentProfiles).where(eq(studentProfiles.userId, userId)).limit(1);
   if (existing[0]) return existing[0];
 
-  // Existing / admin-created students skip onboarding entirely.
+  // All students, including admin-created accounts, complete their academic profile.
   const now = new Date();
   await dbConn.insert(studentProfiles).values({
     userId,
-    onboardingRequired: false,
-    onboardingStep: "done",
-    onboardingCompletedAt: now,
+    onboardingRequired: true,
+    onboardingStep: "academic",
+    onboardingCompletedAt: null,
     updatedAt: now,
   });
   const created = await dbConn.select().from(studentProfiles).where(eq(studentProfiles.userId, userId)).limit(1);
@@ -95,6 +95,7 @@ async function getOrCreateProfile(userId: number) {
 
 function serializeProfile(row: typeof studentProfiles.$inferSelect) {
   return {
+    studentNumber: row.studentNumber,
     faculty: row.faculty,
     department: row.department,
     programme: row.programme,
@@ -128,6 +129,19 @@ async function requirePendingOnboarding(userId: number) {
 }
 
 export const studentLearningRouter = router({
+  completeProfileSetup: studentProcedure.input(academicProfileSchema).mutation(async ({ ctx, input }) => {
+    const dbConn = await getDb();
+    if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    await requirePendingOnboarding(ctx.user.id);
+    await dbConn.update(studentProfiles).set({
+      ...input,
+      onboardingStep: "done",
+      onboardingRequired: false,
+      onboardingCompletedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(studentProfiles.userId, ctx.user.id));
+    return { ok: true };
+  }),
   onboardingStatus: studentProcedure.query(async ({ ctx }) => {
     const profile = await getOrCreateProfile(ctx.user.id);
     const [enrolled, catalog] = await Promise.all([
@@ -211,7 +225,10 @@ export const studentLearningRouter = router({
   completeOnboarding: studentProcedure.mutation(async ({ ctx }) => {
     const dbConn = await getDb();
     if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    await requirePendingOnboarding(ctx.user.id);
+    const profile = await requirePendingOnboarding(ctx.user.id);
+    if (!academicProfileSchema.safeParse(profile).success) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Complete all academic profile fields before continuing." });
+    }
     await dbConn
       .update(studentProfiles)
       .set({

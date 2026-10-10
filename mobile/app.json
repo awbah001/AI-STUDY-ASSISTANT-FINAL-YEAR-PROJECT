@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Cognify",
+    "name": "Course-Specific AI Learning Assistant",
     "slug": "cognify-mobile",
     "version": "1.0.0",
     "sdkVersion": "57.0.0",
@@ -11,8 +11,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.cognify.studyassistant",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Allow Cognify to use the microphone so you can ask questions by voice.",
-        "NSSpeechRecognitionUsageDescription": "Allow Cognify to convert your speech into text for Ask AI."
+        "NSMicrophoneUsageDescription": "Allow the Course-Specific AI Learning Assistant to use the microphone so you can ask questions by voice.",
+        "NSSpeechRecognitionUsageDescription": "Allow the Course-Specific AI Learning Assistant to convert your speech into text for Ask AI."
       }
     },
     "android": {
@@ -41,15 +41,15 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Cognify to access your photos to set a profile picture."
+          "photosPermission": "Allow the Course-Specific AI Learning Assistant to access your photos to set a profile picture."
         }
       ],
       "expo-web-browser",
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Allow Cognify to use the microphone so you can ask questions by voice.",
-          "speechRecognitionPermission": "Allow Cognify to convert your speech into text for Ask AI."
+          "microphonePermission": "Allow the Course-Specific AI Learning Assistant to use the microphone so you can ask questions by voice.",
+          "speechRecognitionPermission": "Allow the Course-Specific AI Learning Assistant to convert your speech into text for Ask AI."
         }
       ],
       "expo-splash-screen"

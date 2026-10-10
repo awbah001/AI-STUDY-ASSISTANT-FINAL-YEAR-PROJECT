@@ -1,3 +1,4 @@
+import { design } from "../theme/design";
 import { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -35,7 +36,8 @@ export function FlippingFlashcard({
   style,
   height,
 }: Props) {
-  const cardHeight = height ?? Math.min(380, Math.max(300, SCREEN_WIDTH * 0.78));
+  const cardHeight =
+    height ?? Math.min(380, Math.max(300, SCREEN_WIDTH * 0.78));
   const anim = useRef(new Animated.Value(flippedProp ? 1 : 0)).current;
   const [internalFlipped, setInternalFlipped] = useState(Boolean(flippedProp));
   const showingAnswer = flippedProp ?? internalFlipped;
@@ -102,9 +104,14 @@ export function FlippingFlashcard({
           },
         ]}
       >
+        <View style={[styles.accent, { backgroundColor: colors.primary }]} />
         <View style={styles.topRow}>
           <View style={styles.badge}>
-            <Ionicons name="help-circle-outline" size={16} color={colors.primary} />
+            <Ionicons
+              name="help-circle-outline"
+              size={16}
+              color={colors.primary}
+            />
             <Text style={styles.badgeText}>Question</Text>
           </View>
         </View>
@@ -146,7 +153,9 @@ export function FlippingFlashcard({
         {allowFlipBack ? (
           <View style={styles.hintRow}>
             <Ionicons name="sync-outline" size={14} color="#64748b" />
-            <Text style={[styles.hint, { color: "#64748b" }]}>Tap to flip back</Text>
+            <Text style={[styles.hint, { color: "#64748b" }]}>
+              Tap to flip back
+            </Text>
           </View>
         ) : (
           <View style={styles.hintRow} />
@@ -165,30 +174,30 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     left: 0,
-    backgroundColor: colors.surface,
-    borderRadius: 22,
     paddingHorizontal: 22,
     paddingTop: 18,
     paddingBottom: 16,
-    borderWidth: 1,
-    shadowColor: "#0f172a",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 6,
+    ...design.card,
   },
   front: {
-    borderColor: colors.border,
-    borderTopWidth: 6,
-    borderTopColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     zIndex: 2,
   },
   back: {
     backgroundColor: "#f8fbff",
+    borderWidth: 1,
     borderColor: "#dbeafe",
-    borderTopWidth: 6,
-    borderTopColor: "#3b82f6",
     zIndex: 1,
+  },
+  accent: {
+    position: "absolute",
+    top: 0,
+    left: 24,
+    width: 48,
+    height: 5,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
   },
   topRow: {
     flexDirection: "row",
@@ -207,13 +216,7 @@ const styles = StyleSheet.create({
   badgeBack: {
     backgroundColor: "#dbeafe",
   },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    color: colors.primary,
-  },
+  badgeText: { ...design.eyebrow },
   bodyWrap: {
     flexGrow: 1,
     flexShrink: 1,
@@ -244,11 +247,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
   },
-  hint: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.textLight,
-  },
+  hint: { fontWeight: "600", ...design.caption },
   footer: {
     textAlign: "center",
     fontSize: 12,

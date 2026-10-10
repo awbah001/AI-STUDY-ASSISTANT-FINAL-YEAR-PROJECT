@@ -462,6 +462,27 @@ export const agentToolRuns = sqliteTable("agentToolRuns", {
   agentToolUserIdx: index("agent_tool_runs_userId_idx").on(table.userId),
 }));
 
+/** One background (unprompted) agent pass for a student, shown in the admin activity log. */
+export const autonomousAgentRuns = sqliteTable("autonomousAgentRuns", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull(),
+  status: text("status", { enum: ["acted", "idle", "failed"] }).notNull(),
+  trigger: text("trigger", { enum: ["schedule", "manual"] }).notNull().default("schedule"),
+  signals: text("signals", { mode: "json" }).$type<Array<{ key: string; kind: string; summary: string }>>(),
+  actions: text("actions", { mode: "json" }).$type<
+    Array<{ type: string; ok: boolean; detail: string; documentId?: number }>
+  >(),
+  summary: text("summary"),
+  error: text("error"),
+  usedLlm: integer("usedLlm", { mode: "boolean" }).default(false).notNull(),
+  durationMs: integer("durationMs").notNull().default(0),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+}, (table) => ({
+  autonomousUserCreatedIdx: index("autonomous_runs_user_created_idx").on(table.userId, table.createdAt),
+}));
+
+export type AutonomousAgentRun = typeof autonomousAgentRuns.$inferSelect;
+
 export const calendarEvents = sqliteTable("calendarEvents", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("userId").notNull(),
@@ -515,6 +536,7 @@ export const systemBackups = sqliteTable("systemBackups", {
 /** Student onboarding + academic profile. One row per student. */
 export const studentProfiles = sqliteTable("studentProfiles", {
   userId: integer("userId").primaryKey(),
+  studentNumber: text("studentNumber"),
   faculty: text("faculty"),
   department: text("department"),
   programme: text("programme"),
@@ -524,7 +546,7 @@ export const studentProfiles = sqliteTable("studentProfiles", {
   learnModes: text("learnModes", { mode: "json" }).$type<string[]>(),
   focusGoals: text("focusGoals", { mode: "json" }).$type<string[]>(),
   onboardingStep: text("onboardingStep").default("welcome").notNull(),
-  /** True only for newly self-registered students until they finish onboarding. */
+  /** True until a new student finishes profile setup. */
   onboardingRequired: integer("onboardingRequired", { mode: "boolean" }).default(false).notNull(),
   onboardingCompletedAt: integer("onboardingCompletedAt", { mode: "timestamp_ms" }),
   lastCourseId: integer("lastCourseId"),
@@ -545,4 +567,3 @@ export const studentActivities = sqliteTable("studentActivities", {
   userCreatedIdx: index("student_activity_user_created_idx").on(table.userId, table.createdAt),
   userCourseIdx: index("student_activity_user_course_idx").on(table.userId, table.courseId),
 }));
-

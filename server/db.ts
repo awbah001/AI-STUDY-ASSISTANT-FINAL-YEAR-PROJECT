@@ -62,6 +62,12 @@ export async function getDb() {
       } catch (migErr) {
         console.warn("[migration] Student learning migration skipped:", migErr);
       }
+      try {
+        const { runAutonomousAgentMigration } = await import("./migrations/addAutonomousAgent");
+        await runAutonomousAgentMigration(client);
+      } catch (migErr) {
+        console.warn("[migration] Autonomous agent migration skipped:", migErr);
+      }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;

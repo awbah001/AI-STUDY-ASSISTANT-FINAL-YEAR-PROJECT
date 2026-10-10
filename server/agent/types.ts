@@ -47,4 +47,4 @@ export type AgentRunResult = {
 export const INSUFFICIENT_COURSE_CONTEXT =
   "I couldn't find enough information in your course materials to answer that accurately. You can open a specific lecture document or ask for a general explanation that is not tied to your course files.";
 
-export const MAX_TOOL_CALLS = 4;
+export const MAX_TOOL_CALLS = 6;

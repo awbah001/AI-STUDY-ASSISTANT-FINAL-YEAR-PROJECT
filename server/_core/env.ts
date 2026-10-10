@@ -5,14 +5,20 @@ export const ENV = {
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   isProduction: process.env.NODE_ENV === "production",
+  /** Used by non-LLM Forge helpers (storage/maps/notifications) when configured. */
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
-  /** When true (default), chat/embeddings use LM Studio OpenAI-compatible API at lmStudioBaseUrl. */
-  useLocalLlm: process.env.USE_LOCAL_LLM !== "false",
-  /** OpenAI-compatible base URL (include /v1), e.g. http://127.0.0.1:1234/v1 */
-  lmStudioBaseUrl: (process.env.LM_STUDIO_BASE_URL ?? "http://127.0.0.1:1234/v1").replace(/\/$/, ""),
-  /** Must match the model name shown in LM Studio (or use a placeholder if the server ignores it). */
-  lmStudioModel: process.env.LM_STUDIO_MODEL ?? "local-model",
+  /** Groq Cloud — sole LLM provider (OpenAI-compatible API). */
+  groqApiKey: process.env.GROQ_API_KEY ?? "",
+  groqBaseUrl: (process.env.GROQ_BASE_URL ?? "https://api.groq.com/openai/v1").replace(/\/$/, ""),
+  /** Default: openai/gpt-oss-20b — override with GROQ_MODEL. */
+  groqModel: process.env.GROQ_MODEL ?? "openai/gpt-oss-20b",
+  /** Speech-to-text model used for voice input. */
+  groqSttModel: process.env.GROQ_STT_MODEL ?? "whisper-large-v3-turbo",
+  groqTimeoutMs: Math.max(
+    5_000,
+    Number(process.env.GROQ_TIMEOUT_MS ?? "60000") || 60_000
+  ),
   googleClientIds: [
     ...(process.env.GOOGLE_CLIENT_IDS ?? "").split(","),
     process.env.GOOGLE_CLIENT_ID,

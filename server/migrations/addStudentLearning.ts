@@ -4,6 +4,7 @@ export async function runStudentLearningMigration(client: Client) {
   const statements = [
     `CREATE TABLE IF NOT EXISTS studentProfiles (
       userId integer PRIMARY KEY NOT NULL,
+      studentNumber text,
       faculty text,
       department text,
       programme text,
@@ -42,13 +43,8 @@ export async function runStudentLearningMigration(client: Client) {
   } catch {
     // Column already exists
   }
-  // Existing accounts must not be sent through onboarding.
-  await client.execute(
-    `UPDATE studentProfiles
-     SET onboardingRequired = 0,
-         onboardingStep = 'done',
-         onboardingCompletedAt = COALESCE(onboardingCompletedAt, updatedAt)
-     WHERE onboardingCompletedAt IS NULL
-       AND (onboardingRequired = 0 OR onboardingRequired IS NULL)`
-  );
+  const columns = await client.execute("PRAGMA table_info(studentProfiles)");
+  if (!columns.rows.some(column => column.name === "studentNumber")) {
+    await client.execute("ALTER TABLE studentProfiles ADD COLUMN studentNumber text");
+  }
 }

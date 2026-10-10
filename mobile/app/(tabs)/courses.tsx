@@ -1,3 +1,4 @@
+import { design, elevation } from "../../src/theme/design";
 import {
   View,
   Text,
@@ -16,27 +17,36 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { trpc } from "../../src/lib/api";
 import { colors } from "../../src/theme/colors";
+import { EmptyCard, IconTile, ProgressBar } from "../../src/components/ui/Kit";
+import { friendlyError } from "../../src/lib/friendlyError";
+import { validateCourseCode } from "../../src/lib/validation";
+import { FieldError, FIELD_ERROR_COLOR } from "../../src/components/FieldError";
 
 const COURSE_COLORS = [
-  { bg: "#e8fdf2", accent: colors.primary },
-  { bg: "#eff6ff", accent: "#3b82f6" },
-  { bg: "#f3f0ff", accent: "#8b5cf6" },
-  { bg: "#fff7ed", accent: "#f59e0b" },
-  { bg: "#fef2f2", accent: "#ef4444" },
-  { bg: "#f0fdfa", accent: "#14b8a6" },
+  { bg: colors.primaryLight, accent: colors.primary },
+  { bg: colors.infoSoft, accent: colors.info },
+  { bg: colors.violetSoft, accent: colors.violet },
+  { bg: colors.warningSoft, accent: "#d97706" },
+  { bg: colors.errorSoft, accent: colors.error },
+  { bg: "#e6f7f5", accent: "#0d9488" },
 ];
 
 export default function CoursesScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [showEnroll, setShowEnroll] = useState(false);
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
   const utils = trpc.useUtils();
 
-  const { data: courses, isLoading, refetch } = trpc.studentCourses.list.useQuery(undefined, {
+  const {
+    data: courses,
+    isLoading,
+    refetch,
+  } = trpc.studentCourses.list.useQuery(undefined, {
     enabled: !!user?.id,
   });
 
@@ -51,10 +61,17 @@ export default function CoursesScreen() {
         Alert.alert("Error", r.message ?? "Could not enroll.");
       }
     },
-    onError: (err) => Alert.alert("Error", err.message),
+    onError: err =>
+      Alert.alert("Error", friendlyError(err.message, "Could not enroll.")),
   });
 
-  const filtered = (courses ?? []).filter((c) =>
+  const joinCourse = () => {
+    const error = validateCourseCode(code);
+    setCodeError(error);
+    if (!error) enroll.mutate({ code: code.trim().toUpperCase() });
+  };
+
+  const filtered = (courses ?? []).filter(c =>
     c.title.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -64,20 +81,30 @@ export default function CoursesScreen() {
     setRefreshing(false);
   };
 
+  const total = courses?.length ?? 0;
+
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       {/* ── Header ── */}
       <View style={s.header}>
-        <Text style={s.title}>My Courses</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.eyebrow}>
+            {total} {total === 1 ? "course" : "courses"} enrolled
+          </Text>
+          <Text style={s.title}>My courses</Text>
+        </View>
         <TouchableOpacity
-          style={[s.addBtn, showEnroll && { backgroundColor: "#fef2f2" }]}
-          onPress={() => setShowEnroll((v) => !v)}
+          style={[s.addBtn, showEnroll && s.addBtnActive]}
+          onPress={() => setShowEnroll(v => !v)}
+          accessibilityLabel={showEnroll ? "Close enrollment" : "Join a course"}
+          activeOpacity={0.85}
         >
           <Ionicons
             name={showEnroll ? "close" : "add"}
-            size={22}
+            size={20}
             color={showEnroll ? colors.error : colors.white}
           />
+          {!showEnroll && <Text style={s.addBtnText}>Join</Text>}
         </TouchableOpacity>
       </View>
 
@@ -85,7 +112,7 @@ export default function CoursesScreen() {
       <View style={s.searchWrap}>
         <Ionicons
           name="search-outline"
-          size={17}
+          size={18}
           color={colors.textLight}
           style={{ marginLeft: 14 }}
         />
@@ -93,38 +120,54 @@ export default function CoursesScreen() {
           style={s.searchInput}
           value={search}
           onChangeText={setSearch}
-          placeholder="Search courses..."
+          placeholder="Search courses"
           placeholderTextColor={colors.textLight}
         />
-        <View style={s.allBadge}>
-          <Text style={s.allBadgeText}>All ▾</Text>
-        </View>
+        {search.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearch("")}
+            hitSlop={10}
+            style={{ paddingHorizontal: 12 }}
+            accessibilityLabel="Clear search"
+          >
+            <Ionicons name="close-circle" size={18} color={colors.textLight} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── Enroll drawer ── */}
       {showEnroll && (
         <View style={s.enrollCard}>
-          <Text style={s.enrollLabel}>Join with enrollment code</Text>
+          <View style={s.enrollHead}>
+            <IconTile icon="key" size={36} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.enrollLabel}>Join with enrollment code</Text>
+              <Text style={s.enrollHint}>Ask your lecturer for the course code.</Text>
+            </View>
+          </View>
           <View style={s.enrollRow}>
-            <View style={s.codeWrap}>
-              <Ionicons name="key-outline" size={18} color={colors.textLight} style={{ marginLeft: 12 }} />
+            <View style={[s.codeWrap, !!codeError && { borderColor: FIELD_ERROR_COLOR }]}>
               <TextInput
                 style={s.codeInput}
                 value={code}
-                onChangeText={(v) => setCode(v.toUpperCase())}
+                onChangeText={v => {
+                  setCode(v.toUpperCase().replace(/\s+/g, ""));
+                  setCodeError(null);
+                }}
                 placeholder="ABC123"
                 placeholderTextColor={colors.textLight}
-                maxLength={6}
+                maxLength={10}
                 autoCapitalize="characters"
+                autoCorrect={false}
+                accessibilityLabel="Course code"
+                returnKeyType="go"
+                onSubmitEditing={joinCourse}
               />
             </View>
             <TouchableOpacity
-              style={[
-                s.enrollBtn,
-                (code.length < 4 || enroll.isPending) && s.enrollBtnOff,
-              ]}
-              disabled={code.length < 4 || enroll.isPending}
-              onPress={() => enroll.mutate({ code })}
+              style={[s.enrollBtn, enroll.isPending && s.enrollBtnOff]}
+              disabled={enroll.isPending}
+              onPress={joinCourse}
             >
               {enroll.isPending ? (
                 <ActivityIndicator color={colors.white} size="small" />
@@ -133,6 +176,7 @@ export default function CoursesScreen() {
               )}
             </TouchableOpacity>
           </View>
+          <FieldError message={codeError} />
         </View>
       )}
 
@@ -140,21 +184,31 @@ export default function CoursesScreen() {
         contentContainerStyle={s.list}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
         }
       >
         {isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
         ) : filtered.length === 0 ? (
-          <View style={s.empty}>
-            <View style={s.emptyIconWrap}>
-              <Ionicons name="school-outline" size={36} color={colors.primary} />
-            </View>
-            <Text style={s.emptyTitle}>No courses yet</Text>
-            <Text style={s.emptyText}>
-              Tap + above and enter your lecturer's enrollment code.
-            </Text>
-          </View>
+          search ? (
+            <EmptyCard
+              icon="search-outline"
+              title="No matches"
+              body={`No course titles match "${search}".`}
+            />
+          ) : (
+            <EmptyCard
+              icon="school-outline"
+              title="No courses yet"
+              body="Enter your lecturer's enrollment code to join your first course."
+              action="Join a course"
+              onAction={() => setShowEnroll(true)}
+            />
+          )
         ) : (
           filtered.map((course, idx) => {
             const { bg, accent } = COURSE_COLORS[idx % COURSE_COLORS.length];
@@ -162,70 +216,73 @@ export default function CoursesScreen() {
             return (
               <TouchableOpacity
                 key={course.id}
-                style={s.card}
+                style={[s.card, menuOpen === course.id && { zIndex: 10 }]}
                 onPress={() => {
                   setMenuOpen(null);
-                  router.push({ pathname: "/course/[id]", params: { id: course.id } });
+                  router.push({
+                    pathname: "/course/[id]",
+                    params: { id: course.id },
+                  });
                 }}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
-                {/* left badge */}
-                <View style={[s.badge, { backgroundColor: bg }]}>
-                  <Ionicons name="book" size={22} color={accent} />
-                </View>
+                <View style={[s.cardStripe, { backgroundColor: accent }]} />
+                <IconTile icon="book" color={accent} bg={bg} size={50} />
 
-                {/* info */}
                 <View style={s.info}>
                   <Text style={s.cardTitle} numberOfLines={1}>
                     {course.title}
                   </Text>
-                  <Text style={s.cardSub} numberOfLines={1}>
-                    {(course as any).subject
-                      ? `${(course as any).subject} · `
-                      : ""}
-                    {(course as any).lecturerName ?? "Prof."}
-                  </Text>
+                  <View style={s.metaRow}>
+                    <Ionicons name="person-circle-outline" size={14} color={colors.textMuted} />
+                    <Text style={s.cardSub} numberOfLines={1}>
+                      {(course as any).subject
+                        ? `${(course as any).subject} · `
+                        : ""}
+                      {(course as any).lecturerName ?? "Prof."}
+                    </Text>
+                  </View>
 
-                  {/* progress */}
                   <View style={s.progRow}>
-                    <View style={s.progBg}>
-                      <View
-                        style={[
-                          s.progFill,
-                          { width: `${pct}%` as any, backgroundColor: accent },
-                        ]}
-                      />
+                    <View style={{ flex: 1 }}>
+                      <ProgressBar value={pct} color={accent} track={colors.surfaceAlt} height={5} />
                     </View>
                     <Text style={[s.progPct, { color: accent }]}>{pct}%</Text>
                   </View>
                 </View>
 
-                {/* 3-dot menu */}
                 <TouchableOpacity
                   style={s.dotBtn}
                   onPress={() =>
                     setMenuOpen(menuOpen === course.id ? null : course.id)
                   }
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel="Course options"
                 >
                   <Ionicons
-                    name="ellipsis-vertical"
+                    name="ellipsis-horizontal"
                     size={18}
-                    color={colors.textLight}
+                    color={colors.textMuted}
                   />
                 </TouchableOpacity>
 
-                {/* context menu */}
                 {menuOpen === course.id && (
                   <View style={s.ctxMenu}>
                     <TouchableOpacity
                       style={s.ctxItem}
                       onPress={() => {
                         setMenuOpen(null);
-                        router.push({ pathname: "/course/[id]", params: { id: course.id } });
+                        router.push({
+                          pathname: "/course/[id]",
+                          params: { id: course.id },
+                        });
                       }}
                     >
-                      <Ionicons name="open-outline" size={15} color={colors.textSub} />
+                      <Ionicons
+                        name="open-outline"
+                        size={15}
+                        color={colors.textSub}
+                      />
                       <Text style={s.ctxText}>Open</Text>
                     </TouchableOpacity>
                     <View style={s.ctxDivider} />
@@ -233,7 +290,11 @@ export default function CoursesScreen() {
                       style={s.ctxItem}
                       onPress={() => setMenuOpen(null)}
                     >
-                      <Ionicons name="share-outline" size={15} color={colors.textSub} />
+                      <Ionicons
+                        name="share-outline"
+                        size={15}
+                        color={colors.textSub}
+                      />
                       <Text style={s.ctxText}>Share</Text>
                     </TouchableOpacity>
                   </View>
@@ -249,167 +310,141 @@ export default function CoursesScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f5f6fa" },
+  safe: { flex: 1, ...design.page },
 
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-end",
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 14,
+    paddingBottom: 16,
+    gap: 12,
   },
-  title: { fontSize: 22, fontWeight: "800", color: colors.text, letterSpacing: -0.3 },
+  eyebrow: { ...design.eyebrow, color: colors.primary, marginBottom: 4 },
+  title: { ...design.screenTitle },
   addBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    gap: 4,
+    height: 42,
+    paddingHorizontal: 14,
+    borderRadius: 21,
+    backgroundColor: colors.primary,
+    ...elevation.brand,
   },
+  addBtnActive: {
+    backgroundColor: colors.errorSoft,
+    paddingHorizontal: 11,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  addBtnText: { color: colors.white, fontWeight: "700", fontSize: 14 },
 
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: 20,
-    marginBottom: 12,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginBottom: 16,
+    ...design.search,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 11,
+    height: 50,
     paddingHorizontal: 10,
-    fontSize: 14,
+    fontSize: 14.5,
     color: colors.text,
   },
-  allBadge: {
-    marginRight: 12,
-    backgroundColor: "#f1f5f9",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  allBadgeText: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
 
-  // Enroll
   enrollCard: {
     marginHorizontal: 20,
-    marginBottom: 14,
-    backgroundColor: colors.surface,
-    borderRadius: 18,
+    marginBottom: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    ...design.card,
+    borderColor: colors.accentSoft,
   },
-  enrollLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.textSub,
-    marginBottom: 10,
-  },
+  enrollHead: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
+  enrollLabel: { ...design.cardTitle, fontSize: 14.5 },
+  enrollHint: { ...design.caption, marginTop: 1 },
   enrollRow: { flexDirection: "row", gap: 10 },
   codeWrap: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1.5,
+    borderWidth: 1.2,
     borderColor: colors.border,
     borderRadius: 14,
-    backgroundColor: "#f8fafc",
+    backgroundColor: colors.bg,
   },
   codeInput: {
     flex: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-    fontSize: 17,
+    height: 50,
+    paddingHorizontal: 14,
+    fontSize: 18,
+    fontWeight: "700",
     color: colors.text,
-    letterSpacing: 5,
+    letterSpacing: 6,
     fontFamily: "monospace",
   },
   enrollBtn: {
     backgroundColor: colors.primary,
     borderRadius: 14,
-    paddingHorizontal: 22,
+    paddingHorizontal: 24,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    ...elevation.brand,
   },
   enrollBtnOff: { opacity: 0.45 },
   enrollBtnText: { color: colors.white, fontWeight: "800", fontSize: 15 },
 
-  // Course list
   list: { paddingHorizontal: 20 },
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 18,
     padding: 16,
+    paddingLeft: 18,
     marginBottom: 12,
     gap: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    overflow: "visible",
+    ...design.card,
   },
-  badge: {
-    width: 50,
-    height: 50,
-    borderRadius: 15,
+  cardStripe: {
+    position: "absolute",
+    left: 0,
+    top: 18,
+    bottom: 18,
+    width: 3,
+    borderTopRightRadius: 3,
+    borderBottomRightRadius: 3,
+  },
+  info: { flex: 1, gap: 4 },
+  cardTitle: { ...design.cardTitle },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  cardSub: { ...design.caption, flex: 1 },
+  progRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
+  progPct: { fontSize: 12, fontWeight: "700", minWidth: 32, textAlign: "right" },
+  dotBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.surfaceAlt,
   },
-  info: { flex: 1, gap: 3 },
-  cardTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
-  cardSub: { fontSize: 12, color: colors.textMuted },
-  progRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  progBg: {
-    flex: 1,
-    height: 5,
-    backgroundColor: "#f1f5f9",
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  progFill: { height: "100%", borderRadius: 3 },
-  progPct: { fontSize: 12, fontWeight: "700", minWidth: 32 },
-  dotBtn: { padding: 4 },
 
-  // Context menu
   ctxMenu: {
     position: "absolute",
     right: 14,
-    top: 44,
+    top: 56,
     backgroundColor: colors.surface,
     borderRadius: 14,
     paddingVertical: 4,
     zIndex: 99,
-    minWidth: 130,
+    minWidth: 140,
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 10,
+    borderColor: colors.borderLight,
+    shadowColor: "#0b2a20",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    elevation: 12,
   },
   ctxItem: {
     flexDirection: "row",
@@ -419,23 +454,9 @@ const s = StyleSheet.create({
     paddingVertical: 11,
   },
   ctxText: { fontSize: 14, color: colors.text, fontWeight: "500" },
-  ctxDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 10 },
-
-  // Empty
-  empty: { alignItems: "center", paddingTop: 60, gap: 12 },
-  emptyIconWrap: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    backgroundColor: "#e8fdf2",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-  emptyText: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: "center",
-    maxWidth: 240,
+  ctxDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginHorizontal: 10,
   },
 });

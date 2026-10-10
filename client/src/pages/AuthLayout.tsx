@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
-import { BrainCircuit } from "lucide-react";
+import { Link } from "wouter";
+import { ArrowLeft, BrainCircuit } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function AuthLayout(props: { title: string; subtitle?: string; children: ReactNode; className?: string; noScroll?: boolean }) {
@@ -10,7 +11,7 @@ export default function AuthLayout(props: { title: string; subtitle?: string; ch
       <section className="relative z-10 grid w-full max-w-[1040px] overflow-hidden rounded-[30px] border border-white/70 bg-white shadow-[0_24px_80px_rgba(3,60,53,0.2)] lg:grid-cols-[.96fr_1fr]">
         <aside className="auth-panel relative hidden min-h-[620px] overflow-hidden p-11 text-white lg:flex lg:flex-col">
           <div className="auth-hero-orb auth-hero-orb-one" /><div className="auth-hero-orb auth-hero-orb-two" />
-          <div className="relative z-10 flex items-center gap-3"><img src="/logo.png" alt="Cognify" className="h-12 w-12 rounded-2xl object-cover" /><div><p className="text-2xl font-bold tracking-tight">Cognify</p><p className="text-sm text-emerald-100/90">AI Learning Assistant</p></div></div>
+          <div className="relative z-10 flex items-center gap-3"><img src="/logo.png" alt="Course-Specific AI Learning Assistant" className="h-12 w-12 rounded-2xl object-cover" /><div><p className="text-xl font-bold leading-tight tracking-tight">Course-Specific</p><p className="text-sm text-emerald-100/90">AI Learning Assistant</p></div></div>
           <div className="relative z-10 my-auto">
             <div className="auth-mascot mx-auto mb-6" aria-hidden="true">
               <img src="/cognify-auth-bot.png?v=2" alt="" />
@@ -25,10 +26,17 @@ export default function AuthLayout(props: { title: string; subtitle?: string; ch
           props.noScroll ? "overflow-hidden" : "overflow-y-auto",
           className
         )}>
-          <div className="w-full max-w-[390px]">
+          <Link
+            href="/"
+            className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-neutral-gray-border bg-white px-3 py-1.5 text-xs font-semibold text-neutral-gray transition hover:bg-neutral-gray-soft hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 sm:left-6 sm:top-6"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to home
+          </Link>
+          <div className="w-full max-w-[390px] pt-8 lg:pt-0">
             <div className="mb-4 text-center lg:hidden">
-              <img src="/logo.png" alt="Cognify" className="mx-auto h-11 w-11 rounded-2xl" />
-              <p className="mt-2 text-xl font-bold text-[#063d35]">Cognify</p>
+              <img src="/logo.png" alt="Course-Specific AI Learning Assistant" className="mx-auto h-11 w-11 rounded-2xl" />
+              <p className="mt-2 text-lg font-bold leading-tight text-[#063d35]">Course-Specific AI Learning Assistant</p>
             </div>
             <div className="mb-5">
               <div className="mb-3 hidden h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 lg:flex">

@@ -1,13 +1,13 @@
-# Cognify (AI Learning Assistant)
+# Course-Specific AI Learning Assistant
 
-Final-year project: an AI study platform with a **staff web portal** and a **student mobile app**.
+Final-year project: an AI study platform with a **web portal** and a **mobile app**, both for students, lecturers and admins.
 
 | Who | Where | What they do |
 |-----|--------|----------------|
-| **Lecturers & admins** | Web app in `client/` (`http://localhost:3000`) | Courses, students, assessments, moderation |
-| **Students** | Expo app in `mobile/` | Documents, RAG chat, flashcards, quizzes, planner |
+| **Lecturers & admins** | Web app in `client/` (`http://localhost:3000`) or Expo app in `mobile/` | Courses, students, assessments, moderation (the mobile app covers the day-to-day subset) |
+| **Students** | Web app in `client/` or Expo app in `mobile/` | Documents, RAG chat, flashcards, quizzes, planner |
 
-Do **not** treat Capacitor (`android/`, `ios/`, `pnpm cap:*`) as the student product. Those shells wrap the **staff web UI**. Students use Expo.
+Do **not** treat Capacitor (`android/`, `ios/`, `pnpm cap:*`) as the student product. Those shells wrap the shared web UI. The dedicated student mobile product remains Expo.
 
 ## Features
 
@@ -15,7 +15,7 @@ Do **not** treat Capacitor (`android/`, `ios/`, `pnpm cap:*`) as the student pro
 - AI chat, summaries, flashcards (SM-2), quizzes
 - Lecturer courses, enrollments, assignments, announcements
 - Admin users, content, operations, communications, audit
-- Local email/password auth with **Bearer JWT**, plus **Google Sign-In** (staff on web, students on mobile)
+- Local email/password auth with **Bearer JWT**, plus **Google Sign-In** (all roles on web, students on mobile)
 
 ## Tech stack
 
@@ -25,7 +25,7 @@ Do **not** treat Capacitor (`android/`, `ios/`, `pnpm cap:*`) as the student pro
 | Student app | Expo / React Native (`mobile/`) |
 | API | Node.js, Express, tRPC |
 | Database | SQLite via Drizzle ORM |
-| LLM | LM Studio (default). Optional Forge/Gemini path exists but is not required |
+| LLM | Groq (cloud). Required: `GROQ_API_KEY` |
 | Embeddings | `@xenova/transformers` (local) |
 | Vector store | Flat index JSON under `data/vectorstores/` |
 
@@ -34,13 +34,13 @@ Do **not** treat Capacitor (`android/`, `ios/`, `pnpm cap:*`) as the student pro
 ## Project structure
 
 ```
-├── client/          # Staff web portal (lecturers + admins)
+├── client/          # Web portal (students + lecturers + admins)
 ├── mobile/          # Student Expo app
 ├── server/          # Express + tRPC API (see BACKEND.md)
 ├── shared/          # Types and constants
 ├── drizzle/         # Schema and SQL migrations
 ├── data/            # SQLite DB, uploads, vector stores
-├── android/, ios/   # Optional Capacitor wrap of the staff web UI
+├── android/, ios/   # Optional Capacitor wrap of the shared web UI
 ├── BACKEND.md       # Full backend architecture
 ```
 
@@ -65,8 +65,7 @@ See `.env.example`. Important variables:
 
 - `JWT_SECRET` — signs session tokens (`Authorization: Bearer …`)
 - `PORT` — API + web, default **3000**
-- `GEMINI_API_KEY` — used when local LLM is off or unavailable
-- `USE_LOCAL_LLM` / `LM_STUDIO_*` — local model via LM Studio
+- `GROQ_API_KEY` / `GROQ_MODEL` — required for AI chat, flashcards, quizzes, summaries
 - `APP_URL` + `RESEND_API_KEY` — optional password-reset email
 - `VITE_GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_ID` — Google Sign-In (same Web client ID)
 
@@ -95,20 +94,24 @@ cd mobile
 npx expo start
 ```
 
-Staff sign in at `/login`. Students sign up only in the Expo app. Lecturer self-signup remains at `/lecturer/signup` for the project (prefer creating lecturers from Admin → Users in production).
+Everyone signs in at `/login` (or in the mobile app). There is no self-registration: an admin creates student and lecturer accounts from Admin → Users (web or mobile) and shares the sign-in details. Google sign-in only works for emails that already have an account.
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | API + staff web (Vite) |
+| `pnpm dev` | API + web (Vite) |
 | `pnpm build` / `pnpm start` | Production |
 | `pnpm test` | Server unit tests |
 | `pnpm check` | TypeScript |
 | `pnpm db:generate` | Generate Drizzle SQL |
 | `pnpm db:migrate` | Apply migrations |
-| `pnpm cap:*` | Capacitor sync of the **staff** web UI (not the student app) |
+| `pnpm cap:*` | Capacitor sync of the shared web UI (not the student app) |
 
 ## License
 
 MIT
+
+### Student web workspace
+
+Students sign in at `/login` with the same account used in Expo; the account is created by an admin. The student landing page is `/student/dashboard`. New accounts complete academic, course and learning-preference onboarding. The responsive navigation includes courses, library, AI tutor, flashcards, quizzes, study planner, progress and notifications. Course and document deep links use `/course/:id` and `/document/:id`. Student screens use the same tRPC procedures and database as mobile; staff APIs retain their role checks.

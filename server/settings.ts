@@ -1,9 +1,11 @@
 import { eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { systemSettings, userPreferences, users, type User } from "../drizzle/schema";
 import { getDb } from "./db";
 import {
   DEFAULT_ROLE_PERMISSIONS,
   DEFAULT_SYSTEM_SETTINGS,
+  findSystemSettingsError,
   type SystemSettings,
 } from "../shared/adminSettings";
 
@@ -36,7 +38,12 @@ export async function getSystemSettings(): Promise<SystemSettings> {
   for (const row of rows) {
     stored[row.key] = row.value;
   }
-  cache = deepMerge(DEFAULT_SYSTEM_SETTINGS as unknown as Record<string, unknown>, stored) as SystemSettings;
+  const merged = deepMerge(DEFAULT_SYSTEM_SETTINGS as unknown as Record<string, unknown>, stored) as SystemSettings;
+  // "Cognify" was the previous default brand; stored copies of it follow the renamed default.
+  if (merged.general.systemName === "Cognify") {
+    merged.general = { ...merged.general, systemName: DEFAULT_SYSTEM_SETTINGS.general.systemName };
+  }
+  cache = merged;
   return cache;
 }
 
@@ -46,6 +53,8 @@ export async function saveSystemSettings(
 ): Promise<SystemSettings> {
   const current = await getSystemSettings();
   const next = deepMerge(current as unknown as Record<string, unknown>, patch) as SystemSettings;
+  const problem = findSystemSettingsError(next);
+  if (problem) throw new TRPCError({ code: "BAD_REQUEST", message: problem });
   const dbConn = await getDb();
   if (!dbConn) throw new Error("Database not available");
   const now = new Date();

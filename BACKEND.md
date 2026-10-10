@@ -1,4 +1,4 @@
-# Cognify backend
+# Course-Specific AI Learning Assistant backend
 
 This document describes the **Node.js API** in `server/`: how it starts, who can call what, how data is stored, and how the learning agent, RAG, planner, and voice features work.
 
@@ -19,7 +19,7 @@ Students do not talk to a separate backend. Both clients call this server.
 | `client/` (React) | Lecturers and admins | tRPC over HTTP, `Authorization: Bearer <JWT>` |
 | `mobile/` (Expo) | Students (`role = user`) | Same tRPC URL (`EXPO_PUBLIC_API_URL` + `/api/trpc`) |
 
-Cognify is designed to run **locally**: SQLite on disk, LM Studio for chat, `@xenova/transformers` for embeddings. Cloud Gemini is optional and **not required**.
+The Course-Specific AI Learning Assistant is designed to run with **SQLite** on disk, **Groq** for chat generation, and `@xenova/transformers` for local embeddings. LM Studio is not required.
 
 ---
 
@@ -33,7 +33,7 @@ pnpm dev
 
 That runs `tsx watch server/_core/index.ts` with `NODE_ENV=development`. Default port is **3000**. If 3000 is busy, the server walks up to the next free port and logs it.
 
-Also start **LM Studio** with a model loaded and the local server on `http://127.0.0.1:1234` (OpenAI-compatible `/v1`).
+Set `GROQ_API_KEY` (and optionally `GROQ_MODEL`) in `.env`. Internet access is required for AI generation.
 
 Useful scripts:
 
@@ -101,11 +101,11 @@ Student study APIs (planner, submissions, general Ask AI history, notifications)
 
 | Method | Router | Role |
 |--------|--------|------|
-| Email + password | `auth.signup` | student (`user`) |
-| Email + password | `lecturer.signup` | lecturer |
-| Admin creates lecturer | `admin.createLecturer` | lecturer |
-| Google ID token | `auth.google` | existing or new student (web/mobile client id checked) |
+| Admin creates account | `admin.createUser` (`role: "user" \| "lecturer"`, needs `users.create`) | student or lecturer |
+| Google ID token | `auth.google` | sign-in only for an existing account; unknown emails are refused (web/mobile client id checked) |
 | Password reset | `auth.forgotPassword` / `auth.resetPassword` | token in DB; email via Resend if configured, else a **server console** URL |
+
+There is no public self-registration: only an admin can create student and lecturer accounts (web Admin → Users or the mobile admin Users tab).
 
 Passwords are stored as scrypt hashes (`server/_core/localAuth.ts`). Google verification is in `server/_core/googleAuth.ts`.
 
@@ -153,7 +153,7 @@ Per-document and aggregate stats, streaks, study time. Sessions: start / end / r
 | `generatePlan` | Builds a structured revision timetable from a natural-language request |
 | `updateGoal` | Daily minutes / flashcards / quizzes targets |
 
-Planner **and** the agent calendar intent both use [`server/calendar.ts`](server/calendar.ts): parse exam date, build day-by-day phases, optional LM Studio refine, save `calendarEvents`, format a Day 1…n reply.
+Planner **and** the agent calendar intent both use [`server/calendar.ts`](server/calendar.ts): parse exam date, build day-by-day phases, optional Groq refine, save `calendarEvents`, format a Day 1…n reply.
 
 ### `assignments` (students)
 
@@ -189,21 +189,20 @@ Internal / platform helpers (`server/_core/systemRouter.ts`).
 
 Folder: [`server/agent/`](server/agent/).
 
-This is a **controlled** agent: it does **not** let the model invent arbitrary tool JSON. Intent is classified in code, then a **fixed list of tools** (max **4**) is executed, then a reply is written.
+The assistant uses a **bounded Groq tool-calling agent**. Groq chooses tools; TypeScript still **executes** them and enforces course/document authorization.
 
 ```
 chat.send
     ▼
-classifyLearningIntent(message)     server/agent/intents.ts
+classifyLearningIntent(message)     (logging / session label)
     ▼
-planTools(intent, …)                max 4 steps
+runAgenticToolLoop                 server/agent/agentLoop.ts
+    │  Groq + tools (max 4 rounds / 4 tool calls)
     ▼
-executeAgentTool                    server/agent/tools.ts
-    │   (access checks + RAG + DB)
+executeAgentTool                   server/agent/tools.ts
+    │  (JWT access checks + RAG + DB)
     ▼
-calendar?  proposeCalendarDrafts → saveCalendarPlan
-    ▼
-canned reply  or  generateAgentText (LM Studio)
+canned UI message  or  Groq final answer
     ▼
 log agentSessions + agentToolRuns
 ```
@@ -212,11 +211,11 @@ log agentSessions + agentToolRuns
 
 `qa`, `study_session`, `quiz`, `flashcards`, `summary`, `progress`, `assignment`, `calendar`, `general`.
 
-Examples: “create a 5-day plan for my GIS exam…” → `calendar`. “generate 10 flashcards” with a document → `flashcards`.
+Intent is still classified for session logging and canned replies (quiz/flashcards/summary/timetable). Tool selection is done by Groq.
 
 Quiz / flashcards / summary **require a document id**. Ask AI (`documentId = 0`) will tell the student to open a document for those actions.
 
-### Tools (whitelist)
+### Tools (whitelist exposed to Groq)
 
 | Tool | Purpose |
 |------|---------|
@@ -230,7 +229,7 @@ Quiz / flashcards / summary **require a document id**. Ask AI (`documentId = 0`)
 | `recordStudyActivity` | Progress write |
 | `getAssignmentContext` | Upcoming work / rubric |
 | `listCalendarEvents` | Existing timetable |
-| `saveCalendarPlan` | Insert calendar rows (used after the skeleton plan) |
+| `createStudyTimetable` | Build + save exam/study plan from natural language |
 
 Each tool checks document/course access (`server/agent/access.ts`). Students only see enrolled course materials.
 
@@ -249,10 +248,21 @@ Tests: `server/agent/*.test.ts`, `server/chat.agent.test.ts`, `server/calendar.t
 
 ## 7. LLM layer
 
-[`server/_core/llm.ts`](server/_core/llm.ts) `invokeLLM`:
+[`server/_core/llm.ts`](server/_core/llm.ts) `invokeLLM` routes through the **Groq-only AI service** ([`server/ai/service.ts`](server/ai/service.ts)):
 
-- Default: **LM Studio** (`USE_LOCAL_LLM` not `"false"`) at `LM_STUDIO_BASE_URL` (default `http://127.0.0.1:1234/v1`) with `LM_STUDIO_MODEL`.
-- If local is off, it can use the older Forge/Gemini-style path (`BUILT_IN_FORGE_*`). This project is documented and tested with **LM Studio only**.
+- Sole provider: **Groq** (OpenAI-compatible API).
+- Required env: `GROQ_API_KEY`, `GROQ_MODEL` (default `openai/gpt-oss-20b`).
+- Shared RAG context is built in [`server/llmUtils.ts`](server/llmUtils.ts) / [`server/rag/`](server/rag/) **before** Groq is called.
+- Optional: `GROQ_TIMEOUT_MS`, `AI_RATE_LIMIT_PER_MINUTE`.
+- LM Studio is **not** required and is not used for chat generation.
+
+```
+Chat / RAG
+    ↓
+AiService (Groq)
+    ↓
+AI Response
+```
 
 The agent calls `generateAgentText` in [`server/agent/llmProvider.ts`](server/agent/llmProvider.ts). Quiz/flashcard JSON generation for documents goes through [`server/llmUtils.ts`](server/llmUtils.ts) and [`server/documentAiService.ts`](server/documentAiService.ts).
 
@@ -315,8 +325,7 @@ Query helpers: [`server/queries.ts`](server/queries.ts), [`server/lecturerQuerie
 
 `POST /api/voice/transcribe` ([`server/voice.ts`](server/voice.ts)):
 
-1. Try LM Studio `POST /v1/audio/transcriptions` (Whisper model if loaded).
-2. Else, if the payload is WAV, run **Xenova/whisper-tiny.en** locally.
+1. If the payload is WAV, run **Xenova/whisper-tiny.en** locally (first use downloads the model).
 
 Used by the Expo app when on-device speech recognition is not available.
 
@@ -333,7 +342,7 @@ Text-to-speech is **on the phone** (`expo-speech`), not this server.
 ```
 server/
 ├── _core/           Express entry, env, JWT SDK, tRPC init, LLM, Google auth, uploads
-├── agent/           Learning agent (intents, tools, orchestrator, tests)
+├── agent/           Learning agent (agentic Groq loop, tools, tests)
 ├── rag/             Chunk, embed, flat vector index
 ├── migrations/      Runtime SQLite ALTER/CREATE for older DBs
 ├── routers.ts       Main tRPC router
@@ -386,24 +395,25 @@ See [`.env.example`](.env.example).
 | `JWT_SECRET` | Required. Signs Bearer tokens |
 | `DATABASE_URL` | SQLite URL, default `file:./data/app.db` |
 | `PORT` | Default 3000 |
-| `USE_LOCAL_LLM` | Default on; set `false` only if using the Forge path |
-| `LM_STUDIO_BASE_URL` | Include `/v1` |
-| `LM_STUDIO_MODEL` | Name shown in LM Studio |
-| `LM_STUDIO_WHISPER_MODEL` | Optional name for `/audio/transcriptions` |
+| `GROQ_API_KEY` | Required for AI. Server-only Groq API key |
+| `GROQ_MODEL` | Default `openai/gpt-oss-20b` |
+| `GROQ_BASE_URL` | Default `https://api.groq.com/openai/v1` |
+| `GROQ_TIMEOUT_MS` | Default `60000` |
+| `AI_RATE_LIMIT_PER_MINUTE` | Default `30` per authenticated user |
 | `APP_URL` | Password-reset links |
 | `RESEND_API_KEY` / `PASSWORD_RESET_FROM` | Optional email |
 | `VITE_GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_IDS` | Google Sign-In |
-| `BUILT_IN_FORGE_*` | Legacy cloud LLM; unused when LM Studio is on |
+| `BUILT_IN_FORGE_*` | Optional legacy Forge helpers (storage/maps); not used for chat |
 
 ---
 
 ## 14. Design limits (honest)
 
 - One Node process: not scaled out; SQLite is local-file.
-- The agent is **not** an open-ended tool-calling LLM loop; tools are chosen in TypeScript.
+- The agent uses a **bounded Groq tool-calling loop** (max 4 rounds / 4 tool calls). Tool executors still enforce course/document authorization in TypeScript.
 - RAG is a **flat JSON index**, not a hosted vector DB.
 - Slash commands on documents bypass the new agent and use `documentAiService`.
-- Speech-to-text quality depends on LM Studio Whisper **or** a first-time download of `whisper-tiny.en`.
+- Speech-to-text quality depends on a first-time download of `whisper-tiny.en` for WAV uploads.
 - Do not commit `data/app.db`, `data/uploads/`, or `.env`.
 
 This backend is the whole server-side of the final-year system: **auth, courses, RAG study tools, a bounded learning agent, and a student planner**.

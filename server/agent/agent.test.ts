@@ -4,9 +4,9 @@ import { planTools } from "./orchestrator";
 import { MAX_TOOL_CALLS } from "./types";
 import type { User } from "../../drizzle/schema";
 import { validateFlashcards, validateQuizQuestions } from "./structured";
-import { executeAgentTool } from "./tools";
+import { executeAgentTool, getAgentTool, getOpenAiToolDefinitions } from "./tools";
 import { currentLlmProviderName } from "./llmProvider";
-import { ENV } from "../_core/env";
+import { formatSnapshotForPrompt, type StudentSystemSnapshot } from "./systemContext";
 
 const student = {
   id: 7,
@@ -163,7 +163,49 @@ describe("executeAgentTool", () => {
 });
 
 describe("LLM provider selection", () => {
-  it("follows USE_LOCAL_LLM / ENV.useLocalLlm", () => {
-    expect(currentLlmProviderName()).toBe(ENV.useLocalLlm ? "lm-studio" : "gemini");
+  it("defaults to groq", () => {
+    expect(currentLlmProviderName()).toBe("groq");
+  });
+});
+
+describe("system context", () => {
+  it("formats an authorized snapshot for the agent prompt", () => {
+    const snapshot: StudentSystemSnapshot = {
+      generatedAt: "2026-09-24T12:00:00.000Z",
+      active: { courseId: 2, documentId: 9, documentTitle: "Week 1" },
+      enrolledCourses: [
+        {
+          id: 2,
+          code: "GIS101",
+          title: "Intro GIS",
+          subject: "Geography",
+          documentCount: 1,
+          documents: [{ id: 9, title: "Week 1" }],
+          upcomingAssignments: [{ id: 1, title: "Lab 1", dueDate: "2026-09-30T00:00:00.000Z" }],
+        },
+      ],
+      progress: {
+        weakerAreas: [
+          { documentId: 9, title: "Week 1", averageQuizScore: 55, quizzesAttempted: 2 },
+        ],
+        recentDocuments: [],
+      },
+      upcomingCalendar: [
+        { id: 3, title: "GIS exam", type: "exam", startsAt: "2026-10-01T09:00:00.000Z" },
+      ],
+    };
+    const text = formatSnapshotForPrompt(snapshot);
+    expect(text).toContain("courseId=2");
+    expect(text).toContain("doc 9");
+    expect(text).toContain("Lab 1");
+    expect(text).toContain("Weaker areas");
+    expect(text).toContain("GIS exam");
+  });
+
+  it("registers getStudentSystemContext as a callable tool", () => {
+    expect(getAgentTool("getStudentSystemContext")?.name).toBe("getStudentSystemContext");
+    expect(getOpenAiToolDefinitions().some((t) => t.function.name === "getStudentSystemContext")).toBe(
+      true
+    );
   });
 });

@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import { LecturerHero, LecturerStats } from "@/components/lecturer/LecturerUi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,16 +13,24 @@ import {
 } from "@/components/ui/select";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { trpc } from "@/lib/trpc";
-import { Megaphone, Plus, Trash2, BookMarked } from "lucide-react";
+import { Megaphone, Plus, Trash2, BookMarked, Search, Calendar } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { FieldError } from "@/components/FieldError";
+import { useFieldErrors } from "@/lib/formValidation";
+import { LIMITS, validateText } from "@shared/validation";
+
+const TITLE_MAX = 200;
 
 export default function LecturerAnnouncements() {
   const { isAllowed } = useRoleGuard("lecturer");
+  const [search, setSearch] = useState("");
+  const [filterCourse, setFilterCourse] = useState("all");
   const [open, setOpen] = useState(false);
   const [courseId, setCourseId] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const { errors, check, clear, reset } = useFieldErrors<"courseId" | "title" | "content">();
 
   const utils = trpc.useUtils();
 
@@ -35,7 +44,7 @@ export default function LecturerAnnouncements() {
       toast.success("Announcement posted");
       utils.lecturer.announcements.list.invalidate();
       setOpen(false);
-      setCourseId(""); setTitle(""); setContent("");
+      setCourseId(""); setTitle(""); setContent(""); reset();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -51,19 +60,17 @@ export default function LecturerAnnouncements() {
 
   if (!isAllowed) return null;
 
+  const visibleAnnouncements = (announcements ?? []).filter(a => (filterCourse === "all" || a.courseId === Number(filterCourse)) && `${a.title} ${a.content}`.toLowerCase().includes(search.toLowerCase()));
+
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="lecturer-content lecturer-announcements mx-auto space-y-6">
 
-        {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Announcements</h1>
-            <p className="mt-1 text-sm text-slate-500">Post academic updates to your students.</p>
-          </div>
+          <LecturerHero eyebrow="Class updates" title="Announcements" description="Post academic updates to your students." icon={Megaphone} />
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button className="rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 gap-2">
+              <Button variant="accent" className="lecturer-new-announcement rounded-xl gap-2">
                 <Plus className="h-4 w-4" /> New announcement
               </Button>
             </DialogTrigger>
@@ -72,8 +79,8 @@ export default function LecturerAnnouncements() {
               <div className="space-y-4 pt-2">
                 <div className="space-y-1.5">
                   <Label>Course</Label>
-                  <Select value={courseId} onValueChange={setCourseId}>
-                    <SelectTrigger className="rounded-xl border-slate-200">
+                  <Select value={courseId} onValueChange={v => { setCourseId(v); clear("courseId"); }}>
+                    <SelectTrigger aria-invalid={Boolean(errors.courseId)} className="rounded-xl border-slate-200">
                       <SelectValue placeholder="Select a course..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -82,19 +89,32 @@ export default function LecturerAnnouncements() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FieldError message={errors.courseId} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Title</Label>
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Exam postponed to next week" className="rounded-xl" />
+                  <Input value={title} maxLength={TITLE_MAX} aria-invalid={Boolean(errors.title)} onChange={(e) => { setTitle(e.target.value); clear("title"); }} placeholder="Exam postponed to next week" className="rounded-xl" />
+                  <FieldError message={errors.title} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Message</Label>
-                  <Textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="Write your announcement..." className="rounded-xl" />
+                  <Textarea value={content} maxLength={LIMITS.longText} aria-invalid={Boolean(errors.content)} onChange={(e) => { setContent(e.target.value); clear("content"); }} rows={5} placeholder="Write your announcement..." className="rounded-xl" />
+                  <div className="flex items-start justify-between gap-3">
+                    <FieldError message={errors.content} />
+                    <span className="ml-auto text-xs text-slate-400">{content.length}/{LIMITS.longText}</span>
+                  </div>
                 </div>
                 <Button
                   className="w-full rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800"
-                  disabled={!courseId || !title.trim() || !content.trim() || createAnnouncement.isPending}
-                  onClick={() => createAnnouncement.mutate({ courseId: Number(courseId), title, content })}
+                  disabled={createAnnouncement.isPending}
+                  onClick={() => {
+                    const ok = check({
+                      courseId: courseId ? null : "Choose a course.",
+                      title: validateText(title, { label: "Title", min: 2, max: TITLE_MAX }),
+                      content: validateText(content, { label: "Message", min: 5, max: LIMITS.longText }),
+                    });
+                    if (ok) createAnnouncement.mutate({ courseId: Number(courseId), title: title.trim(), content: content.trim() });
+                  }}
                 >
                   {createAnnouncement.isPending ? "Posting..." : "Publish announcement"}
                 </Button>
@@ -103,6 +123,12 @@ export default function LecturerAnnouncements() {
           </Dialog>
         </div>
 
+        <LecturerStats items={[
+          { label:"Announcements", value:announcements?.length ?? "\u2014", hint:"Published course updates", icon:Megaphone },
+          { label:"Courses Reached", value:announcements ? new Set(announcements.map(a=>a.courseId)).size : "\u2014", hint:"Courses with announcements", icon:BookMarked },
+          { label:"This Month", value:announcements ? announcements.filter(a=>{ const date=new Date(a.createdAt); const now=new Date(); return date.getMonth()===now.getMonth() && date.getFullYear()===now.getFullYear(); }).length : "\u2014", hint:"Published this calendar month", icon:Calendar },
+        ]}/>
+        <div className="lecturer-filterbar"><label className="lecturer-search"><Search/><Input aria-label="Search announcements" placeholder="Search announcements..." value={search} onChange={e=>setSearch(e.target.value)}/></label><select aria-label="Filter announcements by course" value={filterCourse} onChange={e=>setFilterCourse(e.target.value)}><option value="all">All courses</option>{courses?.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></div>
         {/* List */}
         {isLoading ? (
           <div className="space-y-3">
@@ -115,8 +141,9 @@ export default function LecturerAnnouncements() {
             <p className="text-xs text-slate-400 mt-1">Click "New announcement" to post your first update.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {announcements.map((a) => (
+          <div className="lecturer-announcement-list">
+            {!visibleAnnouncements.length && <p className="lecturer-empty">No announcements match these filters.</p>}
+            {visibleAnnouncements.map((a) => (
               <div key={a.id} className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
                 <div className="flex items-start justify-between gap-4 px-6 py-4">
                   <div className="flex items-start gap-3 min-w-0">
@@ -135,6 +162,7 @@ export default function LecturerAnnouncements() {
                     </div>
                   </div>
                   <Button
+                    aria-label={`Delete ${a.title}`}
                     size="sm"
                     variant="ghost"
                     className="shrink-0 h-8 w-8 p-0 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50"

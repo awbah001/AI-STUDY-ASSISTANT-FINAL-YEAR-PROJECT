@@ -97,7 +97,7 @@ export function pickRecommendation(input: {
   if (input.enrolledCount === 0) {
     return {
       title: "Join your first course",
-      reason: "You need at least one enrolled course before Cognify can recommend materials.",
+      reason: "You need at least one enrolled course before the assistant can recommend materials.",
       href: "/(tabs)/courses",
       action: "Browse courses",
       courseId: null,
@@ -106,7 +106,7 @@ export function pickRecommendation(input: {
   }
   return {
     title: "Start a learning session",
-    reason: "Open a course material and ask Cognify to explain the first topic.",
+    reason: "Open a course material and ask the AI assistant to explain the first topic.",
     action: "Open courses",
     href: "/(tabs)/courses",
     courseId: null,

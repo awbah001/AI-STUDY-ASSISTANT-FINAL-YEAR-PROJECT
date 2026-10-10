@@ -1,11 +1,18 @@
 import { NOT_ADMIN_ERR_MSG, NOT_LECTURER_ERR_MSG, NOT_STUDENT_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
+import { ZodError } from "zod";
 import type { TrpcContext } from "./context";
 import { isMaintenanceMode } from "../settings";
+import { describeZodError } from "./validationErrors";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
+  errorFormatter({ shape, error }) {
+    if (!(error.cause instanceof ZodError)) return shape;
+    const { message, fieldErrors } = describeZodError(error.cause);
+    return { ...shape, message, data: { ...shape.data, fieldErrors } };
+  },
 });
 
 export const router = t.router;
@@ -56,7 +63,7 @@ export const lecturerProcedure = t.procedure.use(
     if (await isMaintenanceMode()) {
       throw new TRPCError({
         code: "PRECONDITION_FAILED",
-        message: "Cognify is in maintenance mode. Please try again shortly.",
+        message: "The Course-Specific AI Learning Assistant is in maintenance mode. Please try again shortly.",
       });
     }
 
@@ -90,7 +97,7 @@ export const studentProcedure = t.procedure.use(
     if (await isMaintenanceMode()) {
       throw new TRPCError({
         code: "PRECONDITION_FAILED",
-        message: "Cognify is in maintenance mode. Please try again shortly.",
+        message: "The Course-Specific AI Learning Assistant is in maintenance mode. Please try again shortly.",
       });
     }
 

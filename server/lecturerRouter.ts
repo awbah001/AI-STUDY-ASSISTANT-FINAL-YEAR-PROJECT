@@ -1,69 +1,23 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { lecturerProcedure, protectedProcedure, publicProcedure, router, studentProcedure } from "./_core/trpc";
+import { lecturerProcedure, router, studentProcedure } from "./_core/trpc";
 import * as lecturerQueries from "./lecturerQueries";
 import * as queries from "./queries";
 import * as llmUtils from "./llmUtils";
 import * as documentAi from "./documentAiService";
 import * as db from "./db";
-import { hashPassword, localOpenIdForEmail, normalizeEmail } from "./_core/localAuth";
-import { sdk } from "./_core/sdk";
-import { ONE_YEAR_MS } from "../shared/const";
 import { isAllowedStudyDocument, STUDY_DOC_ERROR } from "../shared/studyDocuments";
-import { stripSensitiveUser } from "./userSafe";
+import { COURSE_CODE_MESSAGE, COURSE_CODE_PATTERN, LIMITS, zEmail, zOptionalText, zText } from "../shared/validation";
 import { assessmentTemplates, assignmentSubmissions, assignments, courseEnrollments, notifications, progressTracking, users } from "../drizzle/schema";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 const materialTypeSchema = z.enum(["pdf", "docx", "pptx"]);
+const rubricCriterionSchema = z.object({
+  criterion: zText("Criterion", { max: LIMITS.shortText }),
+  maxPoints: z.number().positive("Points must be more than 0.").max(1000, "Points must be at most 1000."),
+});
 
 export const lecturerRouter = router({
-  signup: publicProcedure
-    .input(
-      z.object({
-        name: z.string().min(1).max(100),
-        email: z.string().email(),
-        password: z.string().min(8).max(200),
-        department: z.string().max(120).optional(),
-      })
-    )
-    .mutation(async ({ input }) => {
-      const email = normalizeEmail(input.email);
-      const existing = await db.getUserByEmail(email);
-      if (existing) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "An account with this email already exists.",
-        });
-      }
-
-      const passwordHash = await hashPassword(input.password);
-      const openId = localOpenIdForEmail(email);
-
-      const user = await db.createUser({
-        openId,
-        name: input.name,
-        email,
-        loginMethod: "local",
-        passwordHash,
-        role: "lecturer",
-        lastSignedIn: new Date(),
-      });
-
-      if (!user) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create lecturer account.",
-        });
-      }
-
-      const token = await sdk.createSessionToken(openId, {
-        name: user.name || "",
-        expiresInMs: ONE_YEAR_MS,
-        tokenVersion: user.tokenVersion ?? 0,
-      });
-      return { token, user: stripSensitiveUser(user) } as const;
-    }),
-
   dashboardStats: lecturerProcedure.query(({ ctx }) =>
     lecturerQueries.getLecturerDashboardStats(ctx.user.id)
   ),
@@ -89,9 +43,9 @@ export const lecturerRouter = router({
       .input(
         z.object({
           courseId: z.number(),
-          title: z.string().min(1).max(200).optional(),
-          subject: z.string().max(100).optional(),
-          description: z.string().max(2000).optional(),
+          title: zText("Course title", LIMITS.title).optional(),
+          subject: zOptionalText("Subject", 100).optional(),
+          description: zOptionalText("Description", LIMITS.description).optional(),
           isActive: z.boolean().optional(),
         })
       )
@@ -119,7 +73,7 @@ export const lecturerRouter = router({
         lecturerQueries.getCourseStudents(input.courseId, ctx.user.id)
       ),
     enroll: lecturerProcedure
-      .input(z.object({ courseId: z.number(), email: z.string().email() }))
+      .input(z.object({ courseId: z.number(), email: zEmail }))
       .mutation(({ ctx, input }) =>
         lecturerQueries.enrollStudentByEmail(input.courseId, ctx.user.id, input.email)
       ),
@@ -155,14 +109,14 @@ export const lecturerRouter = router({
       .input(
         z.object({
           courseId: z.number(),
-          title: z.string(),
-          description: z.string().optional(),
-          fileName: z.string(),
-          fileSize: z.number(),
-          fileUrl: z.string(),
-          fileKey: z.string(),
-          mimeType: z.string().optional(),
-          extractedText: z.string().optional(),
+          title: zText("Title", LIMITS.title),
+          description: zOptionalText("Description", LIMITS.description).optional(),
+          fileName: zText("File name", { max: 300 }),
+          fileSize: z.number().int().positive("The file is empty."),
+          fileUrl: zText("File URL", { max: 2048 }),
+          fileKey: zText("File key", { max: 500 }),
+          mimeType: z.string().trim().max(200).optional(),
+          extractedText: z.string().max(2_000_000).optional(),
           materialType: materialTypeSchema.optional(),
         })
       )
@@ -244,7 +198,7 @@ export const lecturerRouter = router({
         z.object({
           documentId: z.number(),
           courseId: z.number(),
-          topic: z.string().max(120).optional(),
+          topic: zOptionalText("Topic", LIMITS.shortText).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -268,16 +222,16 @@ export const lecturerRouter = router({
       .input(
         z.object({
           courseId: z.number(),
-          title: z.string().min(1).max(200),
-          description: z.string().max(2000).optional(),
-          dueDate: z.date().optional(),
+          title: zText("Title", LIMITS.title),
+          description: zOptionalText("Description", LIMITS.description).optional(),
+          dueDate: z.date().refine(date => date.getTime() > Date.now(), "The due date must be in the future.").optional(),
           documentId: z.number().optional(),
-          fileUrl: z.string().optional(),
-          fileKey: z.string().optional(),
-          fileName: z.string().optional(),
-          fileSize: z.number().optional(),
-          mimeType: z.string().optional(),
-          rubric: z.array(z.object({ criterion: z.string().min(1).max(120), maxPoints: z.number().positive().max(1000) })).max(12).optional(),
+          fileUrl: z.string().trim().max(2048).optional(),
+          fileKey: z.string().trim().max(500).optional(),
+          fileName: z.string().trim().max(300).optional(),
+          fileSize: z.number().int().nonnegative().optional(),
+          mimeType: z.string().trim().max(200).optional(),
+          rubric: z.array(rubricCriterionSchema).max(12, "A rubric can have at most 12 criteria.").optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -309,7 +263,7 @@ export const lecturerRouter = router({
         return dbConn.select({ id: assignmentSubmissions.id, status: assignmentSubmissions.status, submittedAt: assignmentSubmissions.submittedAt, grade: assignmentSubmissions.grade, feedback: assignmentSubmissions.feedback, rubricScores: assignmentSubmissions.rubricScores, fileUrl: assignmentSubmissions.fileUrl, fileName: assignmentSubmissions.fileName, note: assignmentSubmissions.note, assignmentId: assignments.id, assignmentTitle: assignments.title, rubric: assignments.rubric, dueDate: assignments.dueDate, courseId: assignments.courseId, studentId: users.id, studentName: users.name, studentEmail: users.email }).from(assignmentSubmissions).innerJoin(assignments, eq(assignmentSubmissions.assignmentId, assignments.id)).innerJoin(users, eq(assignmentSubmissions.studentId, users.id)).where(inArray(assignments.courseId, courseIds)).orderBy(desc(assignmentSubmissions.submittedAt));
       }),
     gradeSubmission: lecturerProcedure
-      .input(z.object({ submissionId: z.number(), grade: z.number().min(0).max(1000), feedback: z.string().max(3000).optional(), rubricScores: z.array(z.object({ criterion: z.string(), score: z.number().min(0) })).optional() }))
+      .input(z.object({ submissionId: z.number(), grade: z.number().min(0, "Grade cannot be negative.").max(1000, "Grade must be at most 1000."), feedback: zOptionalText("Feedback", 3000).optional(), rubricScores: z.array(z.object({ criterion: z.string().trim().max(LIMITS.shortText), score: z.number().min(0, "Scores cannot be negative.") })).max(12).optional() }))
       .mutation(async ({ ctx, input }) => {
         const dbConn = await db.getDb(); if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         const [submission] = await dbConn.select({ id: assignmentSubmissions.id, studentId: assignmentSubmissions.studentId, courseId: assignmentSubmissions.courseId, assignmentTitle: assignments.title }).from(assignmentSubmissions).innerJoin(assignments, eq(assignmentSubmissions.assignmentId, assignments.id)).where(eq(assignmentSubmissions.id, input.submissionId));
@@ -336,15 +290,15 @@ export const lecturerRouter = router({
     }),
     templates: router({
       list: lecturerProcedure.query(async ({ ctx }) => { const dbConn = await db.getDb(); return dbConn ? dbConn.select().from(assessmentTemplates).where(eq(assessmentTemplates.lecturerId, ctx.user.id)).orderBy(desc(assessmentTemplates.createdAt)) : []; }),
-      create: lecturerProcedure.input(z.object({ name: z.string().min(1).max(100), title: z.string().min(1).max(200), description: z.string().max(2000).optional(), rubric: z.array(z.object({ criterion: z.string().min(1), maxPoints: z.number().positive() })).max(12).optional() })).mutation(async ({ ctx, input }) => { const dbConn = await db.getDb(); if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" }); const [template] = await dbConn.insert(assessmentTemplates).values({ ...input, lecturerId: ctx.user.id }).returning(); return template; }),
+      create: lecturerProcedure.input(z.object({ name: zText("Template name", { min: 2, max: 100 }), title: zText("Title", LIMITS.title), description: zOptionalText("Description", LIMITS.description).optional(), rubric: z.array(rubricCriterionSchema).max(12, "A rubric can have at most 12 criteria.").optional() })).mutation(async ({ ctx, input }) => { const dbConn = await db.getDb(); if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" }); const [template] = await dbConn.insert(assessmentTemplates).values({ ...input, lecturerId: ctx.user.id }).returning(); return template; }),
       delete: lecturerProcedure.input(z.object({ id: z.number() })).mutation(async ({ ctx, input }) => { const dbConn = await db.getDb(); if (!dbConn) return { success: false }; await dbConn.delete(assessmentTemplates).where(and(eq(assessmentTemplates.id, input.id), eq(assessmentTemplates.lecturerId, ctx.user.id))); return { success: true }; }),
     }),
     update: lecturerProcedure
       .input(
         z.object({
           assignmentId: z.number(),
-          title: z.string().min(1).max(200).optional(),
-          description: z.string().max(2000).optional(),
+          title: zText("Title", LIMITS.title).optional(),
+          description: zOptionalText("Description", LIMITS.description).optional(),
           dueDate: z.date().nullable().optional(),
           documentId: z.number().nullable().optional(),
         })
@@ -381,8 +335,8 @@ export const lecturerRouter = router({
       .input(
         z.object({
           courseId: z.number(),
-          title: z.string().min(1).max(200),
-          content: z.string().min(1).max(5000),
+          title: zText("Title", { min: 2, max: 200 }),
+          content: zText("Message", { min: 5, max: LIMITS.longText }),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -476,9 +430,9 @@ export const lecturerRouter = router({
         z.object({
           courseId: z.number(),
           documentId: z.number(),
-          questionCount: z.number().min(3).max(20).default(5),
-          title: z.string().max(200).optional(),
-          dueDate: z.date().optional(),
+          questionCount: z.number().int().min(3, "A quiz needs at least 3 questions.").max(20, "A quiz can have at most 20 questions.").default(5),
+          title: zOptionalText("Title", LIMITS.title.max).optional(),
+          dueDate: z.date().refine(date => date.getTime() > Date.now(), "The due date must be in the future.").optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -534,7 +488,7 @@ export const studentCoursesRouter = router({
       return lecturerQueries.enrollStudentInCourses(ctx.user.id, input.courseIds);
     }),
   enroll: studentProcedure
-    .input(z.object({ code: z.string().min(4).max(10) }))
+    .input(z.object({ code: z.string().trim().toUpperCase().regex(COURSE_CODE_PATTERN, COURSE_CODE_MESSAGE) }))
     .mutation(({ ctx, input }) =>
       lecturerQueries.enrollStudentByCode(ctx.user.id, input.code)
     ),

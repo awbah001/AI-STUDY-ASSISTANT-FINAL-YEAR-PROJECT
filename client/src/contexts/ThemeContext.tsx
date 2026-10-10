@@ -1,9 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
+type ThemePreference = Theme | "system";
 
 interface ThemeContextType {
   theme: Theme;
+  preference: ThemePreference;
+  setPreference: (value: ThemePreference) => void;
   toggleTheme?: () => void;
   switchable: boolean;
 }
@@ -21,13 +24,25 @@ export function ThemeProvider({
   defaultTheme = "light",
   switchable = false,
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(() => {
+  const [preference, setPreference] = useState<ThemePreference>(() => {
     if (switchable) {
       const stored = localStorage.getItem("theme");
-      return (stored as Theme) || defaultTheme;
+      return stored === "light" || stored === "dark" || stored === "system"
+        ? stored
+        : defaultTheme;
     }
     return defaultTheme;
   });
+  const [systemTheme, setSystemTheme] = useState<Theme>(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+  );
+  const theme = preference === "system" ? systemTheme : preference;
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => setSystemTheme(media.matches ? "dark" : "light");
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -38,18 +53,28 @@ export function ThemeProvider({
     }
 
     if (switchable) {
-      localStorage.setItem("theme", theme);
+      localStorage.setItem("theme", preference);
     }
-  }, [theme, switchable]);
+  }, [theme, preference, switchable]);
 
   const toggleTheme = switchable
     ? () => {
-        setTheme(prev => (prev === "light" ? "dark" : "light"));
+        setPreference(theme === "light" ? "dark" : "light");
       }
     : undefined;
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, switchable }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        preference,
+        setPreference: value => {
+          if (switchable) setPreference(value);
+        },
+        toggleTheme,
+        switchable,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.cognify.studyassistant",
-  appName: "Cognify",
+  appName: "Course-Specific AI Learning Assistant",
   webDir: "dist/public",
   server: {
     androidScheme: "https",

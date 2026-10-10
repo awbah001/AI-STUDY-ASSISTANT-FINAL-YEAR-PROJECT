@@ -1,12 +1,11 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
 import {
   ArrowRight,
   BarChart3,
-  Bell,
   BookOpen,
   Bot,
+  CalendarDays,
   CheckCircle2,
   Clock,
   FileText,
@@ -16,36 +15,118 @@ import {
   Layers,
   Menu,
   MessageSquare,
+  Mic,
+  Monitor,
   Search,
+  Send,
   ShieldCheck,
+  Smartphone,
   Sparkles,
+  Upload,
   Users,
   X,
+  XCircle,
+  Zap,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { Link } from "wouter";
+import "../landing.css";
+
+type Icon = ComponentType<{ size?: number; className?: string }>;
 
 const NAV = [
-  { href: "#home", label: "Home" },
   { href: "#features", label: "Features" },
-  { href: "#how", label: "How it Works" },
-  { href: "#students", label: "For Students" },
-  { href: "#lecturers", label: "For Lecturers" },
-  { href: "#about", label: "About" },
+  { href: "#how", label: "How it works" },
+  { href: "#roles", label: "Who it's for" },
+  { href: "#faq", label: "FAQ" },
 ] as const;
 
-const heroPills = [
-  ["Documents", "Chat with your course materials", FileText],
-  ["Flashcards", "Study smarter with spaced repetition", Layers],
-  ["Progress", "Track your learning journey", BarChart3],
-  ["AI Tutor", "Get instant help & explanations", Bot],
+const SECTION_IDS = ["home", "why", "features", "how", "roles", "faq"];
+
+const trustPoints = [
+  "Answers from your lecture notes",
+  "Web portal + mobile app",
+  "Role-based, secure access",
 ] as const;
 
-const heroBenefits = [
-  ["Course-Specific AI", "Get accurate, relevant answers from your course material, not the internet.", BookOpen],
-  ["Personalized Study", "Learning paths and recommendations adapted to your needs.", Sparkles],
-  ["Lecturer-Controlled Content", "Your institution controls the content, access and learning experience.", ShieldCheck],
-] as const;
+const highlights: Array<[string, string, Icon, string]> = [
+  ["Grounded answers", "Every reply comes from notes your lecturers uploaded", FileText, "green"],
+  ["8 study tools", "Chat, flashcards, quizzes, summaries, planner and more", Layers, "violet"],
+  ["Always on", "An AI study coach that checks in between classes", Zap, "amber"],
+  ["Anywhere", "Same account on the web, Android and iOS", Smartphone, "sky"],
+];
+
+const generic = [
+  "Answers from the open internet",
+  "May contradict what your lecturer taught",
+  "Knows nothing about your deadlines",
+  "Can invent sources that don't exist",
+];
+
+const ours = [
+  "Answers from your own course notes",
+  "Names the exact lecture it used",
+  "Knows your assignments, quizzes and progress",
+  "Says clearly when the notes don't cover a topic",
+];
+
+const features: Array<{ title: string; body: string; icon: Icon; tone: string; wide?: boolean }> = [
+  {
+    title: "Ask AI about your notes",
+    body: "Ask anything about a lecture and get a clear explanation drawn from the document itself — with the source named so you can check it.",
+    icon: MessageSquare,
+    tone: "green",
+    wide: true,
+  },
+  {
+    title: "AI study coach",
+    body: "Works in the background: reminds you before deadlines and prepares flashcards when new notes arrive.",
+    icon: Bot,
+    tone: "violet",
+  },
+  {
+    title: "Smart flashcards",
+    body: "Generated from your notes and scheduled with spaced repetition so you review at the right time.",
+    icon: Layers,
+    tone: "pink",
+  },
+  {
+    title: "Practice quizzes",
+    body: "Course-specific questions with instant marking to show what you really know.",
+    icon: CheckCircle2,
+    tone: "amber",
+  },
+  {
+    title: "Instant summaries",
+    body: "Turn a long lecture into key points in seconds.",
+    icon: FileText,
+    tone: "sky",
+  },
+  {
+    title: "Study planner",
+    body: "Build a revision timetable around your exams and assignments.",
+    icon: CalendarDays,
+    tone: "orange",
+  },
+  {
+    title: "Voice questions",
+    body: "Tap the mic and speak — your words are typed for you.",
+    icon: Mic,
+    tone: "teal",
+  },
+  {
+    title: "Progress tracking",
+    body: "See quiz scores, streaks and weak topics at a glance.",
+    icon: BarChart3,
+    tone: "indigo",
+  },
+];
+
+const steps: Array<[string, string, Icon, string]> = [
+  ["Lecturers upload notes", "PDFs, slides and documents are added to each course by the lecturer.", Upload, "burgundy"],
+  ["The AI learns the course", "Materials are read and indexed so answers can be traced back to them.", Sparkles, "violet"],
+  ["Students learn and practise", "Ask questions, review flashcards, take quizzes and follow their progress.", GraduationCap, "green"],
+];
 
 const roles = [
   {
@@ -53,66 +134,89 @@ const roles = [
     title: "Students",
     tone: "green",
     icon: GraduationCap,
-    points: ["Chat with course documents", "Get personalized learning paths", "Create flashcards and take quizzes", "Track your progress"],
-    cta: "Student Access",
-    href: "#students",
+    blurb: "Your personal tutor for every course you take.",
+    points: ["Chat with course documents", "Flashcards, quizzes and summaries", "Study planner and AI coach", "Track progress and streaks"],
+    cta: "Student sign in",
   },
   {
     id: "lecturers",
     title: "Lecturers",
-    tone: "violet",
+    tone: "burgundy",
     icon: BookOpen,
-    points: ["Upload and manage course materials", "Create quizzes and assignments", "Monitor student progress", "Use AI for lesson planning"],
-    cta: "Lecturer Portal",
-    href: "/lecturer/signup",
+    blurb: "Put your material to work between lectures.",
+    points: ["Upload and manage course materials", "Create quizzes and assignments", "Grade submissions", "See how each student is doing"],
+    cta: "Lecturer portal",
   },
   {
     id: "admin",
     title: "Administrators",
-    tone: "amber",
+    tone: "slate",
     icon: ShieldCheck,
-    points: ["Manage users and courses", "Monitor system activity", "Generate reports and analytics", "Control portal access"],
-    cta: "Admin Portal",
-    href: getLoginUrl(),
+    blurb: "Run the platform with full visibility.",
+    points: ["Create and manage accounts", "Manage courses and enrolments", "Configure the AI and study coach", "Audit logs and reports"],
+    cta: "Admin portal",
   },
-] as const;
-
-const steps = [
-  ["Join a course", "Enter your course code and get access to relevant materials and tools."],
-  ["Learn with AI", "Chat with your documents, get personalized guidance, and complete quizzes and flashcards."],
-  ["Track progress", "See your learning journey, identify areas to improve, and achieve your goals."],
-] as const;
-
-const featureTiles = [
-  ["Document Q&A & RAG", "Get instant, accurate answers from your course materials.", MessageSquare],
-  ["AI-Generated Quizzes", "Practice with smart, course-specific questions.", CheckCircle2],
-  ["Spaced Repetition Flashcards", "Build long-term memory with proven review science.", Layers],
-  ["Course Analytics", "Track your progress and identify knowledge gaps.", BarChart3],
-  ["Announcements", "Stay updated with the latest course information.", Bell],
-  ["Materials Management", "Organize and access all your learning resources.", FileText],
 ] as const;
 
 const faqs = [
   {
-    q: "Is Cognify free to use?",
-    a: "This Cognify deployment is for your institution. Students study in the mobile app. Lecturers and administrators sign in on the web at no extra consumer billing step.",
+    q: "Where does the AI get its answers?",
+    a: "From the lecture notes and documents in the courses you are enrolled in. It searches those materials first and names the document it used, instead of answering from the open internet.",
   },
   {
-    q: "Can I use Cognify on my mobile device?",
-    a: "Yes. Students use the Cognify Expo app for Ask AI, flashcards, quizzes, documents, and the study calendar. Staff use this website.",
+    q: "What happens if my notes don't cover a question?",
+    a: "The assistant tells you the uploaded notes don't cover it, then gives a clearly labelled general explanation — so you always know what came from your course and what didn't.",
   },
   {
-    q: "How does the AI get its answers?",
-    a: "Cognify retrieves relevant passages from the lecture notes and documents you are allowed to access, then answers from that material instead of the open internet.",
+    q: "What is the AI study coach?",
+    a: "A background assistant that checks in every few hours. It can remind you about upcoming deadlines and quizzes, and prepare flashcards when new notes are uploaded. You can switch it off in your settings.",
+  },
+  {
+    q: "Can I use it on my phone?",
+    a: "Yes. Students can use the mobile app for Ask AI, flashcards, quizzes, documents and the study planner — including asking questions by voice.",
+  },
+  {
+    q: "How do I get an account?",
+    a: "Students sign in with their institution email. Lecturer and administrator accounts are created by your administrator.",
   },
   {
     q: "Is my data secure?",
-    a: "Access is role-based. Students only see enrolled courses, lecturers see their own classes, and administrators manage the platform. Sessions use authenticated API access.",
+    a: "Access is role-based. Students only see courses they are enrolled in, lecturers see their own classes, and administrators manage the platform. All requests are authenticated.",
   },
 ] as const;
 
 function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function HeroChat() {
+  return (
+    <div className="lp-chat" aria-hidden="true">
+      <div className="lp-chat-head">
+        <span className="lp-chat-avatar"><Sparkles size={15} /></span>
+        <div>
+          <b>Ask AI</b>
+          <small><i /> CSC 201 · Intro to Databases</small>
+        </div>
+      </div>
+      <div className="lp-chat-body">
+        <p className="lp-bubble lp-bubble-user">What is third normal form, in simple terms?</p>
+        <div className="lp-bubble lp-bubble-ai">
+          <p>
+            A table is in <strong>third normal form (3NF)</strong> when every column depends only on the key — not on
+            another non-key column. In your lecture's example, <em>city</em> depends on <em>postcode</em>, so it moves
+            to its own table.
+          </p>
+          <span className="lp-source"><FileText size={12} /> Week 3 · Normalisation.pdf</span>
+        </div>
+      </div>
+      <div className="lp-chat-input">
+        <Mic size={15} />
+        <span>Ask about your course…</span>
+        <b><Send size={13} /></b>
+      </div>
+    </div>
+  );
 }
 
 function DummyMobileHome() {
@@ -125,7 +229,7 @@ function DummyMobileHome() {
         </div>
         <span className="lp-phone-avatar">M</span>
       </header>
-      <p className="lp-phone-sub">Let’s continue your learning journey</p>
+      <p className="lp-phone-sub">Let's continue your learning journey</p>
       <div className="lp-phone-goal">
         <div>
           <small>DAILY GOAL</small>
@@ -140,13 +244,13 @@ function DummyMobileHome() {
         <em>This week</em>
       </div>
       <div className="lp-phone-stats">
-        <div><Clock size={14} /><b>8h 20m</b><small>Study Time</small></div>
-        <div><HelpCircle size={14} /><b>12</b><small>Quizzes</small></div>
-        <div><Layers size={14} /><b>24</b><small>Flashcards</small></div>
-        <div><Flame size={14} /><b>5 days</b><small>Streak</small></div>
+        <div className="tone-sky"><Clock size={14} /><b>8h 20m</b><small>Study time</small></div>
+        <div className="tone-amber"><HelpCircle size={14} /><b>12</b><small>Quizzes</small></div>
+        <div className="tone-pink"><Layers size={14} /><b>24</b><small>Flashcards</small></div>
+        <div className="tone-orange"><Flame size={14} /><b>5 days</b><small>Streak</small></div>
       </div>
       <div className="lp-phone-over">
-        <span>Continue Learning</span>
+        <span>Continue learning</span>
       </div>
       <div className="lp-phone-course">
         <span><BookOpen size={16} /></span>
@@ -163,33 +267,31 @@ function DummyWebDashboard() {
   return (
     <div className="lp-web-ui" aria-hidden="true">
       <aside>
-        <b>Cognify</b>
-        <small>ADMIN PORTAL</small>
-        <em className="on">Admin Panel</em>
-        <em>User Management</em>
-        <em>Content</em>
-        <em>Operations</em>
+        <b>Course-Specific AI</b>
+        <small>STUDENT PORTAL</small>
+        <em className="on">Dashboard</em>
+        <em>My courses</em>
+        <em>Ask AI</em>
+        <em>Flashcards</em>
+        <em>Quizzes</em>
+        <em>Study planner</em>
       </aside>
       <div className="lp-web-main">
         <div className="lp-web-top">
-          <div className="lp-web-search"><Search size={12} /> Search courses or topics…</div>
-          <strong>SAMPLE ADMIN</strong>
+          <div className="lp-web-search"><Search size={12} /> Search courses, materials, quizzes…</div>
+          <span className="lp-web-me">M</span>
         </div>
-        <h4>Admin Dashboard</h4>
-        <p>Platform overview with sample data for demonstration.</p>
-        <div className="lp-web-user">
-          <span>S</span>
-          <div>
-            <b>Sample Admin</b>
-            <small>admin@cognify.demo</small>
-          </div>
-          <em>Administrator</em>
-        </div>
+        <h4>Welcome back, Maya</h4>
+        <p>You have 2 tasks due this week.</p>
         <div className="lp-web-kpis">
-          <div><small>TOTAL USERS</small><b>128</b><Users size={16} /></div>
-          <div><small>ACTIVE LEARNERS</small><b>86</b><BarChart3 size={16} /></div>
-          <div><small>QUIZ COMPLETION</small><b>92%</b><HelpCircle size={16} /></div>
-          <div><small>FAILED JOBS</small><b>0</b><Layers size={16} /></div>
+          <div className="tone-green"><small>COURSES</small><b>4</b><BookOpen size={15} /></div>
+          <div className="tone-pink"><small>CARDS DUE</small><b>18</b><Layers size={15} /></div>
+          <div className="tone-amber"><small>AVG QUIZ</small><b>86%</b><CheckCircle2 size={15} /></div>
+          <div className="tone-orange"><small>STREAK</small><b>5d</b><Flame size={15} /></div>
+        </div>
+        <div className="lp-web-tasks">
+          <div><span className="tone-orange"><CalendarDays size={13} /></span><b>ER diagram assignment</b><em>Due tomorrow</em></div>
+          <div><span className="tone-violet"><Bot size={13} /></span><b>10 new flashcards from Week 3</b><em>Study coach</em></div>
         </div>
       </div>
     </div>
@@ -199,9 +301,9 @@ function DummyWebDashboard() {
 export default function Home() {
   const [active, setActive] = useState("home");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const ids = ["home", "features", "how", "students", "lecturers", "about"];
     const observer = new IntersectionObserver(
       (entries) => {
         const visible = entries
@@ -211,29 +313,51 @@ export default function Home() {
       },
       { rootMargin: "-18% 0px -62% 0px", threshold: [0.12, 0.35] }
     );
-    ids.forEach((id) => {
+    SECTION_IDS.forEach((id) => {
       const el = document.getElementById(id);
       if (el) observer.observe(el);
     });
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const root = document.querySelector(".landing-page");
+    const items = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+    if (!root || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    root.classList.add("lp-animate");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        });
+      },
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.08 }
+    );
+    items.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   const go = (href: string) => {
     setMenuOpen(false);
-    if (href.startsWith("#")) {
-      scrollToId(href.slice(1));
-      return;
-    }
-    window.location.href = href;
+    scrollToId(href.slice(1));
   };
 
   return (
     <main className="landing-page">
-      <header className="lp-nav">
+      <header className={`lp-nav${scrolled ? " is-scrolled" : ""}`}>
         <a className="lp-brand" href="#home" onClick={(e) => { e.preventDefault(); go("#home"); }}>
           <span className="lp-mark"><Sparkles size={18} /></span>
           <span>
-            <strong>Cognify</strong>
+            <strong>Course-Specific</strong>
             <small>AI Learning Assistant</small>
           </span>
         </a>
@@ -250,13 +374,9 @@ export default function Home() {
           ))}
         </nav>
         <div className="lp-nav-actions">
-          <Button asChild variant="outline" className="lp-btn-ghost">
-            <Link href={getLoginUrl()}>Sign In</Link>
-          </Button>
-          <Button asChild className="lp-btn-green">
-            <Link href={getLoginUrl()}>Get Started</Link>
-          </Button>
-          <button type="button" className="lp-menu" onClick={() => setMenuOpen((v) => !v)} aria-label="Menu">
+          <Link href={getLoginUrl()} className="lp-btn lp-btn-quiet">Sign in</Link>
+          <Link href={getLoginUrl()} className="lp-btn lp-btn-primary">Get started</Link>
+          <button type="button" className="lp-menu" onClick={() => setMenuOpen((v) => !v)} aria-label="Menu" aria-expanded={menuOpen}>
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
@@ -266,156 +386,203 @@ export default function Home() {
           {NAV.map((item) => (
             <a key={item.href} href={item.href} onClick={(e) => { e.preventDefault(); go(item.href); }}>{item.label}</a>
           ))}
+          <Link href={getLoginUrl()} className="lp-btn lp-btn-primary">Sign in</Link>
         </div>
       )}
 
       <section className="lp-hero" id="home">
+        <div className="lp-hero-bg" aria-hidden="true" />
         <div className="lp-copy">
-          <span className="lp-eyebrow"><Sparkles size={14} /> Smarter Learning, Brighter Future</span>
+          <span className="lp-eyebrow"><Sparkles size={14} /> Built on your lecturers' own notes</span>
           <h1>
-            Your <em>AI-Powered</em>
-            <br /> Learning Companion
+            Study smarter with an AI that knows <span className="lp-highlight">your course</span>
           </h1>
           <p>
-            Get course-specific document chat, personalized learning paths, flashcards, quizzes, and track your progress — all in one powerful AI learning assistant.
+            Ask questions about your lecture notes, turn them into flashcards and quizzes, and get reminders before
+            deadlines — all grounded in the material your lecturers actually teach.
           </p>
           <div className="lp-hero-actions">
-            <Button asChild size="lg" className="lp-btn-green lp-btn-lg">
-              <Link href={getLoginUrl()}>Get Started <ArrowRight /></Link>
-            </Button>
-            <button type="button" className="lp-btn-outline" onClick={() => scrollToId("features")}>
-              Explore Features
+            <Link href={getLoginUrl()} className="lp-btn lp-btn-primary lp-btn-lg">
+              Get started <ArrowRight size={18} />
+            </Link>
+            <button type="button" className="lp-btn lp-btn-outline lp-btn-lg" onClick={() => scrollToId("how")}>
+              See how it works
             </button>
           </div>
+          <ul className="lp-trust">
+            {trustPoints.map((point) => (
+              <li key={point}><CheckCircle2 size={16} /> {point}</li>
+            ))}
+          </ul>
         </div>
-        <div className="lp-visual" aria-hidden="false">
-          <div className="lp-orbit" />
-          {heroPills.map(([title, blurb, Icon], i) => (
-            <article key={title} className={`lp-float lp-float-${i}`}>
-              <span><Icon size={18} /></span>
-              <div>
-                <b>{title}</b>
-                <small>{blurb}</small>
-              </div>
-            </article>
-          ))}
-          <img className="lp-bot" src="/cognify-auth-bot.png" alt="Cognify learning assistant" />
+
+        <div className="lp-stage">
+          <div className="lp-stage-glow" aria-hidden="true" />
+          <img className="lp-stage-bot" src="/cognify-auth-bot.png" alt="Course-Specific AI Learning Assistant mascot" />
+          <HeroChat />
+          <div className="lp-chip lp-chip-1 tone-pink" aria-hidden="true">
+            <span><Layers size={16} /></span>
+            <div><b>10 flashcards ready</b><small>From Week 3 notes</small></div>
+          </div>
+          <div className="lp-chip lp-chip-2 tone-amber" aria-hidden="true">
+            <span><CheckCircle2 size={16} /></span>
+            <div><b>Quiz score 86%</b><small>Up 12% this week</small></div>
+          </div>
+          <div className="lp-chip lp-chip-3 tone-violet" aria-hidden="true">
+            <span><Bot size={16} /></span>
+            <div><b>Study coach</b><small>Assignment due tomorrow</small></div>
+          </div>
         </div>
       </section>
 
-      <section className="lp-benefit-row" aria-label="Why Cognify">
-        {heroBenefits.map(([title, body, Icon]) => (
-          <article key={title}>
-            <span><Icon size={20} /></span>
-            <h3>{title}</h3>
-            <p>{body}</p>
+      <section className="lp-highlights" aria-label="Highlights" data-reveal>
+        {highlights.map(([title, body, IconCmp, tone]) => (
+          <article key={title} className={`tone-${tone}`}>
+            <span><IconCmp size={20} /></span>
+            <div>
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </div>
           </article>
         ))}
       </section>
 
-      <section className="lp-section" id="students">
-        <span className="lp-kicker">BUILT FOR EVERY ROLE</span>
-        <h2>Built for every role</h2>
-        <p className="lp-lead">Cognify adapts to the needs of students, lecturers and administrators, giving everyone the tools they need to teach, learn and manage effectively.</p>
-        <div className="lp-role-grid">
-          {roles.map((role) => (
-            <article key={role.title} className={`lp-role lp-role-${role.tone}`} id={role.id === "lecturers" ? "lecturers" : undefined}>
-              <div className="lp-role-art"><role.icon size={36} /></div>
-              <h3>{role.title}</h3>
-              <ul>
-                {role.points.map((point) => (
-                  <li key={point}><CheckCircle2 size={15} /> {point}</li>
-                ))}
-              </ul>
-              <Button asChild className="lp-role-cta">
-                {role.href.startsWith("#") ? (
-                  <a href={role.href} onClick={(e) => { e.preventDefault(); scrollToId(role.href.slice(1)); }}>{role.cta}</a>
-                ) : (
-                  <Link href={role.href}>{role.cta}</Link>
-                )}
-              </Button>
+      <section className="lp-section" id="why" data-reveal>
+        <span className="lp-kicker">WHY COURSE-SPECIFIC</span>
+        <h2>Not just another chatbot</h2>
+        <p className="lp-lead">
+          General AI tools guess. This assistant reads your course first, so what you learn matches what you'll be
+          assessed on.
+        </p>
+        <div className="lp-compare">
+          <article className="lp-compare-card lp-compare-generic">
+            <header>
+              <span><Bot size={20} /></span>
+              <h3>Generic AI chatbot</h3>
+            </header>
+            <ul>
+              {generic.map((item) => (
+                <li key={item}><XCircle size={17} /> {item}</li>
+              ))}
+            </ul>
+          </article>
+          <article className="lp-compare-card lp-compare-ours">
+            <header>
+              <span><Sparkles size={20} /></span>
+              <h3>Course-Specific AI Learning Assistant</h3>
+            </header>
+            <ul>
+              {ours.map((item) => (
+                <li key={item}><CheckCircle2 size={17} /> {item}</li>
+              ))}
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section className="lp-section" id="features">
+        <span className="lp-kicker" data-reveal>EVERYTHING IN ONE PLACE</span>
+        <h2 data-reveal>Every tool you need to master a course</h2>
+        <p className="lp-lead" data-reveal>From the first lecture to the final exam — all powered by the same course notes.</p>
+        <div className="lp-bento">
+          {features.map(({ title, body, icon: IconCmp, tone, wide }) => (
+            <article key={title} className={`lp-feature tone-${tone}${wide ? " lp-feature-wide" : ""}`} data-reveal>
+              <span className="lp-feature-icon"><IconCmp size={20} /></span>
+              <h3>{title}</h3>
+              <p>{body}</p>
+              {wide && (
+                <div className="lp-feature-demo" aria-hidden="true">
+                  <p className="lp-bubble lp-bubble-user">Summarise the key formulas from Week 1</p>
+                  <div className="lp-bubble lp-bubble-ai">
+                    <p>Linear regression models <strong>y = β₀ + β₁x</strong>, fitted by minimising the squared error…</p>
+                    <span className="lp-source"><FileText size={12} /> Week 1 · Linear Regression.pdf</span>
+                  </div>
+                </div>
+              )}
             </article>
           ))}
         </div>
       </section>
 
       <section className="lp-section" id="how">
-        <span className="lp-kicker">SIMPLE PROCESS</span>
-        <h2>How Cognify works</h2>
-        <p className="lp-lead">Get started in these three simple steps and unlock a smarter way to learn.</p>
-        <div className="lp-steps">
-          {steps.map(([title, body], i) => (
-            <article key={title}>
-              <span>{i + 1}</span>
+        <span className="lp-kicker" data-reveal>HOW IT WORKS</span>
+        <h2 data-reveal>From lecture notes to learning, in three steps</h2>
+        <p className="lp-lead" data-reveal>No setup for students — sign in and your courses are ready.</p>
+        <ol className="lp-steps">
+          {steps.map(([title, body, IconCmp, tone], i) => (
+            <li key={title} className={`tone-${tone}`} data-reveal>
+              <div className="lp-step-top">
+                <span className="lp-step-icon"><IconCmp size={22} /></span>
+                <span className="lp-step-num">0{i + 1}</span>
+              </div>
               <h3>{title}</h3>
               <p>{body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="lp-showcase" data-reveal>
+        <div className="lp-showcase-copy">
+          <span className="lp-kicker">WEB AND MOBILE</span>
+          <h2>Learn at your desk or on the go</h2>
+          <p>
+            The web portal serves students, lecturers and administrators. Students also get the mobile app, with the same
+            account, courses and progress everywhere.
+          </p>
+          <ul>
+            <li className="tone-green"><span><Monitor size={16} /></span> Full web portal for every role</li>
+            <li className="tone-sky"><span><Smartphone size={16} /></span> Android and iOS app for students</li>
+            <li className="tone-violet"><span><Mic size={16} /></span> Ask by voice, listen to answers</li>
+          </ul>
+        </div>
+        <div className="lp-product">
+          <figure className="lp-web-frame">
+            <div className="lp-web-chrome">
+              <span /><span /><span />
+              <em>Student portal · sample data</em>
+            </div>
+            <DummyWebDashboard />
+          </figure>
+          <figure className="lp-phone-frame">
+            <DummyMobileHome />
+          </figure>
+        </div>
+      </section>
+
+      <section className="lp-section" id="roles">
+        <span className="lp-kicker" data-reveal>WHO IT'S FOR</span>
+        <h2 data-reveal>One platform, three portals</h2>
+        <p className="lp-lead" data-reveal>Each role gets a workspace designed around what they need to do.</p>
+        <div className="lp-role-grid">
+          {roles.map((role) => (
+            <article key={role.id} id={role.id} className={`lp-role tone-${role.tone}`} data-reveal>
+              <span className="lp-role-icon"><role.icon size={26} /></span>
+              <h3>{role.title}</h3>
+              <p>{role.blurb}</p>
+              <ul>
+                {role.points.map((point) => (
+                  <li key={point}><CheckCircle2 size={15} /> {point}</li>
+                ))}
+              </ul>
+              <Link href={getLoginUrl()} className="lp-role-cta">
+                {role.cta} <ArrowRight size={15} />
+              </Link>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="lp-preview-wrap" id="features">
-        <div className="lp-preview">
-          <div className="lp-product">
-            <figure className="lp-web-frame">
-              <div className="lp-web-chrome">
-                <span /><span /><span />
-                <em>app.cognify · sample dashboard</em>
-              </div>
-              <DummyWebDashboard />
-            </figure>
-            <figure className="lp-phone-frame">
-              <DummyMobileHome />
-            </figure>
-          </div>
-          <div>
-            <span className="lp-kicker">POWERFUL FEATURES</span>
-            <h2>Everything you need to succeed</h2>
-            <p className="lp-lead" style={{ margin: "0 0 16px", textAlign: "left" }}>
-              Students learn in the mobile app. Lecturers and admins run courses from the web portal you see here.
-            </p>
-            <div className="lp-tiles">
-              {featureTiles.map(([title, body, Icon]) => (
-                <article key={title}>
-                  <span><Icon size={18} /></span>
-                  <h3>{title}</h3>
-                  <p>{body}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="lp-split">
-        <article className="lp-workflow">
-          <div className="lp-workflow-shot">
-            <DummyMobileHome />
-          </div>
-          <h3>Student Workflow</h3>
-          <p>Access course materials and chat with AI. Create flashcards and take quizzes. Track progress and get recommendations.</p>
-          <Button asChild className="lp-btn-green">
-            <a href="#students">Explore Student Features</a>
-          </Button>
-        </article>
-        <article className="lp-workflow lp-workflow-violet">
-          <div className="lp-workflow-shot lp-workflow-shot-wide">
-            <DummyWebDashboard />
-          </div>
-          <h3>Lecturer &amp; Admin Workflow</h3>
-          <p>Upload materials, manage users, and monitor the platform from the same web dashboard used by staff.</p>
-          <Button asChild className="lp-btn-violet">
-            <Link href="/lecturer/signup">Explore Lecturer Features</Link>
-          </Button>
-        </article>
-      </section>
-
-      <section className="lp-section" id="about">
+      <section className="lp-section" id="faq" data-reveal>
         <div className="lp-faq-grid">
           <div>
             <span className="lp-kicker">FAQ</span>
-            <h2>Frequently Asked Questions</h2>
-            <p className="lp-lead" style={{ margin: 0 }}>Find answers to common questions about Cognify and how it works.</p>
+            <h2>Questions, answered</h2>
+            <p className="lp-lead">Everything you need to know before you sign in.</p>
+            <div className="lp-faq-help tone-violet">
+              <span><Users size={18} /></span>
+              <p>Need an account or help signing in? <b>Contact your administrator.</b></p>
+            </div>
           </div>
           <Accordion type="single" collapsible className="lp-faq">
             {faqs.map((item) => (
@@ -428,53 +595,50 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="lp-cta">
-        <img src="/cognify-auth-bot.png" alt="" />
-        <div>
+      <section className="lp-cta" data-reveal>
+        <div className="lp-cta-glow" aria-hidden="true" />
+        <div className="lp-cta-copy">
           <h2>Make every study session count</h2>
-          <p>Join Cognify today and experience a smarter, more personalized way to learn.</p>
+          <p>Sign in to open your courses, ask your first question and let the study coach keep you on track.</p>
           <div className="lp-cta-actions">
-            <Button asChild variant="secondary" className="lp-btn-light">
-              <a href="#students">Student Access</a>
-            </Button>
-            <Button asChild className="lp-btn-green">
-              <Link href={getLoginUrl()}>Staff Portal</Link>
-            </Button>
+            <Link href={getLoginUrl()} className="lp-btn lp-btn-light lp-btn-lg">
+              Get started <ArrowRight size={18} />
+            </Link>
+            <button type="button" className="lp-btn lp-btn-ghost-light lp-btn-lg" onClick={() => scrollToId("features")}>
+              Explore features
+            </button>
           </div>
         </div>
+        <img src="/cognify-auth-bot.png" alt="" />
       </section>
 
       <footer className="lp-footer">
         <div className="lp-foot-brand">
           <span className="lp-mark"><Sparkles size={16} /></span>
           <div>
-            <strong>Cognify</strong>
-            <p>Smarter learning. Brighter futures.</p>
+            <strong>Course-Specific AI Learning Assistant</strong>
+            <p>Smarter learning, grounded in your course.</p>
           </div>
         </div>
         <div>
           <b>Product</b>
-          <a href="#features">Features</a>
-          <a href="#how">How it Works</a>
-          <a href="#about">Pricing</a>
+          <a href="#features" onClick={(e) => { e.preventDefault(); go("#features"); }}>Features</a>
+          <a href="#how" onClick={(e) => { e.preventDefault(); go("#how"); }}>How it works</a>
+          <a href="#faq" onClick={(e) => { e.preventDefault(); go("#faq"); }}>FAQ</a>
         </div>
         <div>
-          <b>For Students</b>
-          <a href="#students">Learning</a>
-          <a href="#students">Support</a>
-        </div>
-        <div>
-          <b>For Lecturers</b>
-          <Link href="/lecturer/signup">Lesson tools</Link>
-          <Link href="/login">Staff portal</Link>
+          <b>Portals</b>
+          <Link href={getLoginUrl()}>Students</Link>
+          <Link href={getLoginUrl()}>Lecturers</Link>
+          <Link href={getLoginUrl()}>Administrators</Link>
         </div>
         <div>
           <b>Get in touch</b>
           <Link href={getLoginUrl()}>Sign in</Link>
-          <Link href="/lecturer/signup">Staff signup</Link>
+          <a href="#faq" onClick={(e) => { e.preventDefault(); go("#faq"); }}>Ask your administrator for an account</a>
         </div>
       </footer>
-      <p className="lp-copywrite">© {new Date().getFullYear()} Cognify. All rights reserved.</p>
+      <p className="lp-copywrite">© {new Date().getFullYear()} Course-Specific AI Learning Assistant. All rights reserved.</p>
     </main>
   );
 }

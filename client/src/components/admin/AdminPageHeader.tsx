@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function AdminPageHeader({
@@ -6,21 +7,26 @@ export function AdminPageHeader({
   title,
   description,
   actions,
+  icon: Icon,
 }: {
   eyebrow?: string;
   title: string;
   description?: string;
   actions?: ReactNode;
+  icon?: LucideIcon;
 }) {
   return (
     <header className="portal-header px-5 py-5 sm:px-6 sm:py-6">
-      <div className="relative z-[1] flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0 space-y-1 pl-2 sm:pl-3">
+      <div className="relative z-[1] flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          {Icon ? <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"><Icon className="h-6 w-6" strokeWidth={1.8} /></div> : null}
+          <div className="min-w-0 space-y-1">
           {eyebrow ? (
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700/90">{eyebrow}</p>
           ) : null}
-          <h1 className="text-[1.65rem] font-bold tracking-tight text-slate-900 sm:text-[1.85rem]">{title}</h1>
+          <h1 className="text-[1.4rem] font-bold tracking-tight text-slate-900 sm:text-[1.6rem]">{title}</h1>
           {description ? <p className="max-w-2xl text-sm leading-relaxed text-slate-600">{description}</p> : null}
+          </div>
         </div>
         {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
       </div>

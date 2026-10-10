@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import { LecturerHero, LecturerStats } from "@/components/lecturer/LecturerUi";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
@@ -41,14 +42,21 @@ export default function LecturerAnalytics() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="lecturer-content lecturer-analytics mx-auto space-y-6">
 
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Student Analytics</h1>
-          <p className="mt-1 text-sm text-slate-500">Track participation, quiz performance, and engagement.</p>
-        </div>
+        <LecturerHero
+          eyebrow="Learning insights"
+          title="Student Analytics"
+          description="Track participation, quiz performance, and engagement."
+          icon={BarChart3}
+        />
 
+        <LecturerStats items={[
+          { label:"Students in Course", value:performance?.length ?? "\u2014", hint:selectedCourse?.title ?? "Select a course", icon:Users },
+          { label:"Average Quiz Score", value:performance?.length ? `${Math.round(performance.reduce((sum,p)=>sum+p.avgQuizScore,0)/performance.length)}%` : "\u2014", hint:"Selected course", icon:Brain },
+          { label:"Quiz Attempts", value:performance ? performance.reduce((sum,p)=>sum+p.quizzesAttempted,0) : "\u2014", hint:"Selected course", icon:HelpCircle },
+          { label:"Average Engagement", value:performance?.length ? Math.round(performance.reduce((sum,p)=>sum+p.engagementScore,0)/performance.length) : "\u2014", hint:"Selected course", icon:TrendingUp },
+        ]}/>
         {/* Course selector — shared across all sections */}
         <div className="flex items-center gap-3">
           <p className="text-sm font-medium text-slate-600 shrink-0">Viewing course:</p>
@@ -65,6 +73,7 @@ export default function LecturerAnalytics() {
         </div>
 
         {/* ── Engagement by course ── */}
+        <div className="lecturer-analytics-grid">
         <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
           <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
@@ -85,7 +94,7 @@ export default function LecturerAnalytics() {
                   <XAxis dataKey="courseTitle" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0" }} />
-                  <Bar dataKey="avgEngagement" fill="#6366f1" radius={[6, 6, 0, 0]} name="Avg Engagement" />
+                  <Bar dataKey="avgEngagement" fill="#0aa480" radius={[6, 6, 0, 0]} name="Avg Engagement" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -120,7 +129,7 @@ export default function LecturerAnalytics() {
                   <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0" }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="Engagement" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Engagement" fill="#800020" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Quizzes" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Avg Score %" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -152,7 +161,7 @@ export default function LecturerAnalytics() {
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-2.5">
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
-                            {p.name?.charAt(0).toUpperCase() ?? "?"}
+                            {p.name?.charAt(0).toUpperCase() ?? "\u2014"}
                           </div>
                           <div>
                             <p className="font-medium text-slate-900">{p.name}</p>
@@ -256,7 +265,7 @@ export default function LecturerAnalytics() {
                                 <td className="px-8 py-3">
                                   <div className="flex items-center gap-2.5">
                                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
-                                      {a.studentName?.charAt(0).toUpperCase() ?? "?"}
+                                      {a.studentName?.charAt(0).toUpperCase() ?? "\u2014"}
                                     </div>
                                     <div>
                                       <p className="font-medium text-slate-900">{a.studentName}</p>
@@ -293,6 +302,7 @@ export default function LecturerAnalytics() {
               ))}
             </div>
           )}
+        </div>
         </div>
       </div>
     </DashboardLayout>

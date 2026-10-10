@@ -7,47 +7,77 @@ vi.mock("./persist", () => ({
   logAgentToolRun: vi.fn(async () => undefined),
 }));
 
-vi.mock("./llmProvider", () => ({
-  currentLlmProviderName: () => "lm-studio",
-  generateAgentText: vi.fn(async () => ({ text: "Normalization organizes attributes to reduce redundancy." })),
-}));
-
 vi.mock("./access", () => ({
   resolveCourseFromMessage: vi.fn(async () => 2),
   assertCourseAccess: vi.fn(),
   assertDocumentToolAccess: vi.fn(),
 }));
 
-vi.mock("./tools", () => ({
-  executeAgentTool: vi.fn(),
+vi.mock("./agentLoop", () => ({
+  runAgenticToolLoop: vi.fn(),
+  shouldReportInsufficient: vi.fn(
+    (
+      _courseId: number | undefined,
+      _documentId: number | undefined,
+      chunks: Array<{ score: number }>,
+      toolsUsed: string[]
+    ) => {
+      const searched = toolsUsed.some(
+        (t) => t === "searchCourseMaterial" || t === "getMaterialContext"
+      );
+      return searched && chunks.filter((c) => c.score === 0 || c.score >= 0.22).length === 0;
+    }
+  ),
+}));
+
+const generateMock = vi.fn();
+vi.mock("../ai", () => ({ getAiService: () => ({ generate: generateMock }) }));
+
+vi.mock("../lecturerQueries", () => ({
+  getStudentCourseDocuments: vi.fn(async () => [{ id: 9, title: "Week 1" }]),
 }));
 
 import { runLearningAgent } from "./orchestrator";
-import { executeAgentTool } from "./tools";
-import { generateAgentText } from "./llmProvider";
+import { runAgenticToolLoop } from "./agentLoop";
 
 const student = { id: 7, role: "user" } as User;
 
-describe("runLearningAgent", () => {
+describe("runLearningAgent (agentic)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("grounds a course-specific question in retrieved chunks", async () => {
-    vi.mocked(executeAgentTool).mockResolvedValue({
-      ok: true,
-      retrievalCount: 1,
-      data: {
-        chunks: [
-          {
-            documentId: 9,
-            chunk: "Third normal form removes transitive dependencies.",
-            score: 0.91,
-            documentTitle: "CSC 302 Week 3",
-            courseId: 2,
+  it("grounds a course-specific question using agentic tool results", async () => {
+    vi.mocked(runAgenticToolLoop).mockResolvedValue({
+      response: "Normalization organizes attributes to reduce redundancy.",
+      toolsUsed: ["searchCourseMaterial"],
+      toolResults: [
+        {
+          tool: "searchCourseMaterial",
+          ok: true,
+          data: {
+            chunks: [
+              {
+                documentId: 9,
+                chunk: "Third normal form removes transitive dependencies.",
+                score: 0.91,
+                documentTitle: "CSC 302 Week 3",
+                courseId: 2,
+              },
+            ],
           },
-        ],
-      },
+        },
+      ],
+      retrievedChunks: [
+        {
+          documentId: 9,
+          chunk: "Third normal form removes transitive dependencies.",
+          score: 0.91,
+          documentTitle: "CSC 302 Week 3",
+          courseId: 2,
+        },
+      ],
+      usedAgentic: true,
     });
 
     const result = await runLearningAgent({
@@ -55,23 +85,40 @@ describe("runLearningAgent", () => {
       message: "Explain database normalization using my CSC 302 materials.",
     });
 
-    expect(executeAgentTool).toHaveBeenCalledWith(
-      "searchCourseMaterial",
-      expect.objectContaining({ user: student, courseId: 2 }),
-      expect.objectContaining({ courseId: 2 })
-    );
-    expect(generateAgentText).toHaveBeenCalled();
+    expect(runAgenticToolLoop).toHaveBeenCalled();
     expect(result.response).toContain("Normalization");
     expect(result.intent).toBe("qa");
     expect(result.toolsUsed).toEqual(["searchCourseMaterial"]);
   });
 
-  it("explains when retrieval is insufficient", async () => {
-    vi.mocked(executeAgentTool).mockResolvedValue({
-      ok: true,
-      retrievalCount: 0,
-      data: { insufficient: true, chunks: [] },
+  it("gives a labelled general answer when the notes do not cover the question", async () => {
+    vi.mocked(runAgenticToolLoop).mockResolvedValue({
+      response: "I could invent an answer but should not.",
+      toolsUsed: ["searchCourseMaterial"],
+      toolResults: [{ tool: "searchCourseMaterial", ok: true, data: { insufficient: true, chunks: [] } }],
+      retrievedChunks: [],
+      usedAgentic: true,
     });
+    generateMock.mockResolvedValueOnce({ content: "Artificial intelligence is the study of machines that learn." });
+
+    const result = await runLearningAgent({
+      user: student,
+      message: "What is artificial intelligence?",
+    });
+
+    expect(result.response).toMatch(/notes \(Week 1\) don't cover this directly/);
+    expect(result.response).toContain("Artificial intelligence is the study");
+  });
+
+  it("falls back to the insufficient-context message if the general answer fails", async () => {
+    vi.mocked(runAgenticToolLoop).mockResolvedValue({
+      response: "",
+      toolsUsed: ["searchCourseMaterial"],
+      toolResults: [{ tool: "searchCourseMaterial", ok: true, data: { insufficient: true, chunks: [] } }],
+      retrievedChunks: [],
+      usedAgentic: true,
+    });
+    generateMock.mockRejectedValueOnce(new Error("provider down"));
 
     const result = await runLearningAgent({
       user: student,
@@ -79,13 +126,17 @@ describe("runLearningAgent", () => {
     });
 
     expect(result.response).toBe(INSUFFICIENT_COURSE_CONTEXT);
-    expect(generateAgentText).not.toHaveBeenCalled();
   });
 
-  it("returns the existing quiz save message after generateQuizDraft", async () => {
-    vi.mocked(executeAgentTool).mockResolvedValue({
-      ok: true,
-      data: { quizId: 44, totalQuestions: 10, documentId: 5 },
+  it("returns the quiz save message after generateQuizDraft", async () => {
+    vi.mocked(runAgenticToolLoop).mockResolvedValue({
+      response: "Quiz ready.",
+      toolsUsed: ["generateQuizDraft"],
+      toolResults: [
+        { tool: "generateQuizDraft", ok: true, data: { quizId: 44, totalQuestions: 10, documentId: 5 } },
+      ],
+      retrievedChunks: [],
+      usedAgentic: true,
     });
 
     const result = await runLearningAgent({
@@ -94,19 +145,19 @@ describe("runLearningAgent", () => {
       documentId: 5,
     });
 
-    expect(executeAgentTool).toHaveBeenCalledWith(
-      "generateQuizDraft",
-      expect.anything(),
-      expect.objectContaining({ documentId: 5, count: 10 })
-    );
     expect(result.response).toContain("AI quiz");
     expect(result.response).toContain("10");
   });
 
   it("returns the flashcard save message", async () => {
-    vi.mocked(executeAgentTool).mockResolvedValue({
-      ok: true,
-      data: { created: 8, existingBefore: 2, documentId: 5 },
+    vi.mocked(runAgenticToolLoop).mockResolvedValue({
+      response: "Cards ready.",
+      toolsUsed: ["generateFlashcards"],
+      toolResults: [
+        { tool: "generateFlashcards", ok: true, data: { created: 8, existingBefore: 2, documentId: 5 } },
+      ],
+      retrievedChunks: [],
+      usedAgentic: true,
     });
 
     const result = await runLearningAgent({
@@ -118,10 +169,20 @@ describe("runLearningAgent", () => {
     expect(result.response).toContain("8 AI flashcards");
   });
 
-  it("uses progress tools for revision advice", async () => {
-    vi.mocked(executeAgentTool).mockResolvedValue({
-      ok: true,
-      data: { weakerAreas: [{ documentId: 5, title: "ER diagrams", averageQuizScore: 40 }] },
+  it("uses agentic progress tools for revision advice", async () => {
+    vi.mocked(runAgenticToolLoop).mockResolvedValue({
+      response: "Focus on ER diagrams next.",
+      toolsUsed: ["getLearningProgress", "createStudyPlan"],
+      toolResults: [
+        {
+          tool: "getLearningProgress",
+          ok: true,
+          data: { weakerAreas: [{ documentId: 5, title: "ER diagrams", averageQuizScore: 40 }] },
+        },
+        { tool: "createStudyPlan", ok: true, data: {} },
+      ],
+      retrievedChunks: [],
+      usedAgentic: true,
     });
 
     const result = await runLearningAgent({
@@ -131,15 +192,18 @@ describe("runLearningAgent", () => {
 
     expect(result.toolsUsed).toContain("getLearningProgress");
     expect(result.toolsUsed).toContain("createStudyPlan");
-    expect(result.toolsUsed.length).toBeLessThanOrEqual(4);
-    expect(generateAgentText).toHaveBeenCalled();
-    expect(result.response.length).toBeGreaterThan(0);
+    expect(result.response).toContain("ER diagrams");
   });
 
   it("surfaces unauthorized material errors from tools", async () => {
-    vi.mocked(executeAgentTool).mockResolvedValue({
-      ok: false,
-      error: "You do not have access to this material.",
+    vi.mocked(runAgenticToolLoop).mockResolvedValue({
+      response: "",
+      toolsUsed: ["generateQuizDraft"],
+      toolResults: [
+        { tool: "generateQuizDraft", ok: false, error: "You do not have access to this material." },
+      ],
+      retrievedChunks: [],
+      usedAgentic: true,
     });
 
     const result = await runLearningAgent({
@@ -151,15 +215,14 @@ describe("runLearningAgent", () => {
     expect(result.response).toBe("You do not have access to this material.");
   });
 
-  it("falls back when the LLM provider fails", async () => {
-    vi.mocked(executeAgentTool).mockResolvedValue({ ok: true, data: {} });
-    vi.mocked(generateAgentText).mockRejectedValueOnce(new Error("provider down"));
+  it("falls back when the agentic loop fails", async () => {
+    vi.mocked(runAgenticToolLoop).mockRejectedValueOnce(new Error("provider down"));
 
     const result = await runLearningAgent({
       user: student,
       message: "Hello there",
     });
 
-    expect(result.response).toMatch(/LM Studio/i);
+    expect(result.response).toMatch(/temporarily unavailable|try again/i);
   });
 });

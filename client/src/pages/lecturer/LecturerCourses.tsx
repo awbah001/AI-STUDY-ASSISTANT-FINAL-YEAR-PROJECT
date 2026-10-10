@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import { LecturerHero, LecturerStats } from "@/components/lecturer/LecturerUi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,17 +12,26 @@ import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  BookMarked, Copy, Pencil, Archive, ArchiveRestore,
+  BookMarked, Copy, Pencil, Archive, ArchiveRestore, Users, Search, BookOpen, FileText,
 } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { FieldError } from "@/components/FieldError";
+import { useFieldErrors } from "@/lib/formValidation";
+import { LIMITS, validateText } from "@shared/validation";
+
+const SUBJECT_MAX = 100;
 
 export default function LecturerCourses() {
   const { isAllowed } = useRoleGuard("lecturer");
   const [, setLocation] = useLocation();
   const [editCourse, setEditCourse] = useState<any>(null);
   const [listTab, setListTab] = useState<"active" | "archived">("active");
+
+  const [search, setSearch] = useState("");
+  const { data: students } = trpc.lecturer.students.listAll.useQuery(undefined, { enabled: isAllowed });
+  const { data: stats } = trpc.lecturer.dashboardStats.useQuery(undefined, { enabled: isAllowed });
 
   // Edit form
   const [editTitle, setEditTitle] = useState("");
@@ -53,25 +63,29 @@ export default function LecturerCourses() {
     setEditDescription(course.description ?? "");
   };
 
-  const copyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    toast.success("Enrollment code copied");
+  const copyCode = async (code: string) => {
+    try { await navigator.clipboard.writeText(code); toast.success("Enrollment code copied"); }
+    catch { toast.error("Could not copy the code. Please select and copy it manually."); }
   };
 
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="lecturer-content lecturer-courses mx-auto space-y-6">
 
-        {/* Header */}
-        <div className="portal-header px-5 py-5 sm:px-6">
-          <div className="relative z-[1] pl-2 sm:pl-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">My Courses</h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Courses assigned to you by an administrator. Archive a course to stop new enrollments; enrolled students keep access.
-            </p>
-          </div>
-        </div>
+        <LecturerHero
+          eyebrow="Teaching workspace"
+          title="My Courses"
+          description="Courses assigned to you by an administrator. Archive a course to stop new enrollments; enrolled students keep access."
+          icon={BookMarked}
+        />
 
+        <LecturerStats items={[
+          { label: "Total Courses", value: courses?.length ?? "\u2014", hint: "Assigned to you", icon: BookMarked },
+          { label: "Active Courses", value: courses ? courses.filter(c => c.isActive).length : "\u2014", hint: "Open for enrollment", icon: BookOpen },
+          { label: "Enrolled Students", value: stats?.studentCount ?? "\u2014", hint: "Across your courses", icon: Users },
+          { label: "Course Materials", value: stats?.documentCount ?? "\u2014", hint: "Uploaded documents", icon: FileText },
+        ]}/>
+        <div className="lecturer-filterbar"><label className="lecturer-search"><Search/><Input aria-label="Search courses" placeholder="Search your courses..." value={search} onChange={e => setSearch(e.target.value)}/></label></div>
         {/* Edit dialog */}
         <Dialog open={!!editCourse} onOpenChange={(o) => { if (!o) setEditCourse(null); }}>
           <DialogContent className="rounded-2xl sm:max-w-md">
@@ -82,9 +96,9 @@ export default function LecturerCourses() {
               description={editDescription} setDescription={setEditDescription}
               onSubmit={() => updateCourse.mutate({
                 courseId: editCourse.id,
-                title: editTitle,
-                subject: editSubject || undefined,
-                description: editDescription || undefined,
+                title: editTitle.trim(),
+                subject: editSubject.trim() || undefined,
+                description: editDescription.trim() || undefined,
               })}
               pending={updateCourse.isPending}
               label="Save changes"
@@ -93,7 +107,7 @@ export default function LecturerCourses() {
         </Dialog>
 
         {(() => {
-          const visible = (courses ?? []).filter((c) => listTab === "active" ? c.isActive : !c.isActive);
+          const visible = (courses ?? []).filter((c) => (listTab === "active" ? c.isActive : !c.isActive) && [c.title, c.subject, c.code].some(value => value?.toLowerCase().includes(search.toLowerCase())));
           const activeCount = (courses ?? []).filter((c) => c.isActive).length;
           const archivedCount = (courses ?? []).length - activeCount;
           return (
@@ -109,7 +123,7 @@ export default function LecturerCourses() {
 
         {/* Course list */}
         {isLoading ? (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="lecturer-course-grid">
             {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}
           </div>
         ) : !courses || courses.length === 0 ? (
@@ -131,7 +145,7 @@ export default function LecturerCourses() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="lecturer-course-grid">
             {visible.map((course, idx) => {
               const accents = [
                 { top: "border-t-emerald-500", wash: "from-emerald-50/70", code: "bg-emerald-50 text-emerald-800", label: "text-emerald-500", subject: "text-emerald-700" },
@@ -142,9 +156,12 @@ export default function LecturerCourses() {
               return (
               <div
                 key={course.id}
-                className={`group cursor-pointer overflow-hidden rounded-2xl border border-slate-100 bg-gradient-to-b ${accents.wash} to-white shadow-sm transition-all hover:shadow-md border-t-4 ${accents.top}`}
+                className={`lecturer-course-card group cursor-pointer overflow-hidden rounded-2xl border border-slate-100 bg-gradient-to-b ${accents.wash} to-white shadow-sm transition-all hover:shadow-md border-t-4 ${accents.top}`}
+                tabIndex={0}
+                onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setLocation(`/lecturer/courses/${course.id}`); } }}
                 onClick={() => setLocation(`/lecturer/courses/${course.id}`)}
               >
+                <div className="lecturer-course-cover" aria-hidden="true"><BookOpen/></div>
                 <div className="p-5">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -161,6 +178,7 @@ export default function LecturerCourses() {
                     <p className="mb-3 line-clamp-2 text-sm text-slate-500">{course.description}</p>
                   )}
 
+                  <p className="lecturer-course-meta"><Users/>{students ? students.filter(s => s.courseId === course.id).length : "\u2014"} enrolled students</p>
                   {/* Enrollment code */}
                   <div
                     className={`mb-4 flex items-center justify-between rounded-xl px-3 py-2 ${accents.code}`}
@@ -217,24 +235,36 @@ export default function LecturerCourses() {
 }
 
 function CourseForm({ title, setTitle, subject, setSubject, description, setDescription, onSubmit, pending, label }: any) {
+  const { errors, check, clear } = useFieldErrors<"title" | "subject" | "description">();
+  const submit = () => {
+    const ok = check({
+      title: validateText(title, { label: "Course title", ...LIMITS.title }),
+      subject: validateText(subject, { label: "Subject", required: false, max: SUBJECT_MAX }),
+      description: validateText(description, { label: "Description", required: false, max: LIMITS.description }),
+    });
+    if (ok) onSubmit();
+  };
   return (
     <div className="space-y-4 pt-2">
       <div className="space-y-1.5">
         <Label>Course title</Label>
-        <Input value={title} onChange={(e: any) => setTitle(e.target.value)} placeholder="Introduction to AI" className="rounded-xl" />
+        <Input value={title} maxLength={LIMITS.title.max} aria-invalid={Boolean(errors.title)} onChange={(e: any) => { setTitle(e.target.value); clear("title"); }} placeholder="Introduction to AI" className="rounded-xl" />
+        <FieldError message={errors.title} />
       </div>
       <div className="space-y-1.5">
         <Label>Subject <span className="text-slate-400 text-xs">(optional)</span></Label>
-        <Input value={subject} onChange={(e: any) => setSubject(e.target.value)} placeholder="Computer Science" className="rounded-xl" />
+        <Input value={subject} maxLength={SUBJECT_MAX} aria-invalid={Boolean(errors.subject)} onChange={(e: any) => { setSubject(e.target.value); clear("subject"); }} placeholder="Computer Science" className="rounded-xl" />
+        <FieldError message={errors.subject} />
       </div>
       <div className="space-y-1.5">
         <Label>Description <span className="text-slate-400 text-xs">(optional)</span></Label>
-        <Textarea value={description} onChange={(e: any) => setDescription(e.target.value)} rows={3} className="rounded-xl" />
+        <Textarea value={description} maxLength={LIMITS.description} aria-invalid={Boolean(errors.description)} onChange={(e: any) => { setDescription(e.target.value); clear("description"); }} rows={3} className="rounded-xl" />
+        <FieldError message={errors.description} />
       </div>
       <Button
         className="w-full rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800"
-        disabled={!title.trim() || pending}
-        onClick={onSubmit}
+        disabled={pending}
+        onClick={submit}
       >
         {pending ? "Saving..." : label}
       </Button>

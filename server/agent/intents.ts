@@ -23,11 +23,13 @@ export function classifyLearningIntent(message: string): LearningIntent {
     return "assignment";
   }
   if (
-    /\b(timetable|calendar|exam (prep|plan|schedule)|study timetable|revision timetable)\b/.test(lower) ||
-    /\b(create|make|build|generate|set up|add)\b.{0,50}\b(plan|timetable|schedule)\b.{0,40}\b(exam|test|quiz)\b/.test(lower) ||
-    /\b(exam|test|quiz)\b.{0,40}\b(timetable|schedule|calendar|remind)\b/.test(lower) ||
+    /\b(timetable|calendar|exam (prep|plan|schedule)|study timetable|revision timetable|study plan|revision plan)\b/.test(
+      lower
+    ) ||
+    /\b(create|make|build|generate|set up|add|plan)\b.{0,60}\b(plan|timetable|schedule)\b/.test(lower) ||
+    /\b(exam|test|quiz)\b.{0,40}\b(timetable|schedule|calendar|remind|plan)\b/.test(lower) ||
     /\bremind me\b/.test(lower) ||
-    /\bplan (for|my) (upcoming )?(exam|test|quiz)\b/.test(lower)
+    /\bplan (for|my) (upcoming )?(exam|test|quiz|course)\b/.test(lower)
   ) {
     return "calendar";
   }

@@ -7,7 +7,7 @@ import { Alert, Platform } from "react-native";
 WebBrowser.maybeCompleteAuthSession();
 
 const EXPO_GO_GOOGLE_MESSAGE =
-  "Google blocks sign-in inside Expo Go because the return link starts with exp://, which Google no longer allows.\n\nCreate an account with email and password instead. Google Sign-In works after you install a development or production build of Cognify.";
+  "Google doesn't allow sign-in from inside Expo Go.\n\nFor now, sign in with your email and password. Google Sign-In works in the installed version of the app.";
 
 export const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
@@ -48,7 +48,7 @@ export function useGoogleSignIn(onIdToken: (idToken: string) => void): GoogleSig
     blockedInExpoGo: isExpoGo,
     prompt: async () => {
       if (isExpoGo) {
-        Alert.alert("Google Sign-In unavailable in Expo Go", EXPO_GO_GOOGLE_MESSAGE);
+        Alert.alert("Google Sign-In not available here", EXPO_GO_GOOGLE_MESSAGE);
         return;
       }
       if (!configured) {

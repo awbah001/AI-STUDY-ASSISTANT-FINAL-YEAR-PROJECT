@@ -1,184 +1,60 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LecturerHero, LecturerStats, downloadCsv } from "@/components/lecturer/LecturerUi";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { trpc } from "@/lib/trpc";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Search, GraduationCap, Mail, Calendar } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Users, Search, BookOpen, Mail, Download, Plus, Eye, GraduationCap } from "lucide-react";
+import { useState } from "react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
+import { FieldError } from "@/components/FieldError";
+import { useFieldErrors } from "@/lib/formValidation";
+import { validateEmail } from "@shared/validation";
 
 export default function LecturerStudents() {
   const { isAllowed } = useRoleGuard("lecturer");
-  const [, setLocation] = useLocation();
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [courseTab, setCourseTab] = useState("all");
-
-  const { data: courses } = trpc.lecturer.courses.list.useQuery(undefined, {
-    enabled: isAllowed,
-  });
-  const { data: students, isLoading } = trpc.lecturer.students.listAll.useQuery(undefined, {
-    enabled: isAllowed,
-  });
-
-  const scoped = useMemo(() => {
-    const rows = students ?? [];
-    if (courseTab === "all") return rows;
-    const courseId = Number(courseTab);
-    return rows.filter((s) => s.courseId === courseId);
-  }, [students, courseTab]);
-
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [enrollCourse, setEnrollCourse] = useState("");
+  const { errors, check, clear } = useFieldErrors<"course" | "email">();
+  const utils = trpc.useUtils();
+  const courses = trpc.lecturer.courses.list.useQuery(undefined, { enabled: isAllowed });
+  const students = trpc.lecturer.students.listAll.useQuery(undefined, { enabled: isAllowed });
+  const enroll = trpc.lecturer.students.enroll.useMutation({ onSuccess: result => {
+    if (!result.success) return toast.error(result.message);
+    toast.success(result.message); setOpen(false); setEmail(""); utils.lecturer.students.listAll.invalidate(); utils.lecturer.dashboardStats.invalidate();
+  }, onError: e => toast.error(e.message) });
   if (!isAllowed) return null;
-
-  const filtered = scoped.filter(
-    (s) =>
-      s.name?.toLowerCase().includes(search.toLowerCase()) ||
-      s.email?.toLowerCase().includes(search.toLowerCase()) ||
-      s.courseTitle?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  // Group by student so we can show all enrolled courses per student
-  const grouped = filtered.reduce<Record<number, { name: string | null; email: string | null; avatarUrl: string | null; courses: { courseId: number; courseTitle: string | null; enrolledAt: Date | string }[] }>>(
-    (acc, s) => {
-      if (!acc[s.studentId]) {
-        acc[s.studentId] = { name: s.name, email: s.email, avatarUrl: s.avatarUrl ?? null, courses: [] };
-      }
-      acc[s.studentId].courses.push({ courseId: s.courseId, courseTitle: s.courseTitle, enrolledAt: s.enrolledAt });
-      return acc;
-    },
-    {}
-  );
-
-  const groupedList = Object.entries(grouped);
-
-  return (
-    <DashboardLayout>
-      <div className="mx-auto max-w-6xl space-y-6">
-
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Students</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Only students enrolled in your courses appear here. Use a course tab to narrow the list.
-          </p>
-        </div>
-
-        {(courses?.length ?? 0) > 0 ? (
-          <Tabs value={courseTab} onValueChange={setCourseTab}>
-            <TabsList className="rounded-xl flex flex-wrap h-auto gap-1">
-              <TabsTrigger value="all" className="rounded-lg">All courses</TabsTrigger>
-              {(courses ?? []).map((course) => (
-                <TabsTrigger key={course.id} value={String(course.id)} className="rounded-lg">
-                  {course.title}{course.isActive ? "" : " (archived)"}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        ) : null}
-
-        {/* Search + count */}
-        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm px-6 py-4">
-          <div className="flex items-center gap-3 mb-1">
-            <Search className="h-4 w-4 text-emerald-600" />
-            <span className="text-sm font-semibold text-slate-800">Find Students</span>
-          </div>
-          <p className="text-xs text-slate-500 mb-4">Search by name, email or course.</p>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Search students..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 rounded-xl border-slate-200"
-            />
-          </div>
-        </div>
-
-        {/* Student cards */}
-        {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
-          </div>
-        ) : groupedList.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-slate-200 py-16 text-center">
-            <Users className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-            <p className="text-sm font-medium text-slate-500">
-              {search ? "No students match your search" : "No students enrolled yet"}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">
-              Students join by entering an enrollment code from a course.
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-            <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
-                <Users className="h-4 w-4 text-indigo-600" />
-              </div>
-              <p className="text-sm font-semibold text-slate-800">
-                All Students ({groupedList.length})
-              </p>
-            </div>
-            <div className="divide-y divide-slate-50">
-              {groupedList.map(([studentIdStr, student]) => (
-                <div key={studentIdStr} className="flex items-start gap-4 px-6 py-4 hover:bg-slate-50 transition-colors">
-                  {/* Avatar */}
-                  {student.avatarUrl ? (
-                    <img
-                      src={student.avatarUrl}
-                      alt={student.name ?? ""}
-                      className="h-10 w-10 shrink-0 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
-                      {student.name?.charAt(0).toUpperCase() ?? "?"}
-                    </div>
-                  )}
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-900">{student.name}</p>
-                    <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
-                      <Mail className="h-3 w-3" />
-                      {student.email}
-                    </div>
-                    {/* Enrolled courses */}
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {student.courses.map((c) => (
-                        <button
-                          key={c.courseId}
-                          type="button"
-                          onClick={() => setLocation(`/lecturer/courses/${c.courseId}`)}
-                          className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
-                        >
-                          <GraduationCap className="h-3 w-3" />
-                          {c.courseTitle}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {/* Enrolled date */}
-                  <div className="shrink-0 text-right hidden sm:block">
-                    <div className="flex items-center gap-1 text-xs text-slate-400">
-                      <Calendar className="h-3 w-3" />
-                      {new Date(student.courses[0].enrolledAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
-                    </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {student.courses.length} {student.courses.length === 1 ? "course" : "courses"}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {/* Footer */}
-            <div className="border-t border-slate-100 px-6 py-3">
-              <p className="text-xs text-slate-500">
-                Showing {groupedList.length} student{groupedList.length !== 1 ? "s" : ""}
-                {search ? ` matching "${search}"` : ""}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    </DashboardLayout>
-  );
+  const all = students.data ?? [];
+  const scoped = all.filter(s => courseTab === "all" || s.courseId === Number(courseTab));
+  const matchedIds = new Set(scoped.filter(s => [s.name,s.email,s.courseTitle].some(v => v?.toLowerCase().includes(search.toLowerCase()))).map(s => s.studentId));
+  const grouped = new Map<number, { student: (typeof all)[number]; courses: (typeof all) }>();
+  for (const s of scoped) if (matchedIds.has(s.studentId)) {
+    if (!grouped.has(s.studentId)) grouped.set(s.studentId, { student:s, courses:[] });
+    grouped.get(s.studentId)!.courses.push(s);
+  }
+  const rows = [...grouped.values()];
+  const exportStudents = () => downloadCsv("students.csv", [["Name","Email","Courses","Enrolled"], ...rows.map(({student:s,courses:c}) => [s.name,s.email,c.map(v=>v.courseTitle).join("; "),new Date(s.enrolledAt).toLocaleDateString()])]);
+  return <DashboardLayout><main className="lecturer-content lecturer-students">
+    <LecturerHero eyebrow="Learners" title="Students" description="View and manage students enrolled in your courses. Use course tabs to filter the list." icon={Users}/>
+    <LecturerStats items={[
+      {label:"Enrolled Students",value:students.data ? new Set(all.map(s=>s.studentId)).size : "\u2014",hint:"Across your courses",icon:Users},
+      {label:"Courses in View",value:courses.data ? (courseTab === "all" ? courses.data.length : 1) : "\u2014",hint:"Active and archived courses",icon:BookOpen},
+      {label:"Search Results",value:students.data ? rows.length : "\u2014",hint:"Matching students",icon:Search},
+      {label:"Course Enrollments",value:students.data ? all.length : "\u2014",hint:"Across your courses",icon:GraduationCap},
+    ]}/>
+    <div className="lecturer-tabs"><button className={courseTab === "all" ? "selected" : ""} onClick={()=>setCourseTab("all")}>All courses ({new Set(all.map(s=>s.studentId)).size})</button>{courses.data?.map(c=><button key={c.id} className={courseTab===String(c.id)?"selected":""} onClick={()=>setCourseTab(String(c.id))}>{c.title} ({all.filter(s=>s.courseId===c.id).length})</button>)}</div>
+    <div className="lecturer-filterbar"><label className="lecturer-search"><Search/><Input aria-label="Search students" placeholder="Search by name, email, or course..." value={search} onChange={e=>setSearch(e.target.value)}/></label><select aria-label="Filter by course" value={courseTab} onChange={e=>setCourseTab(e.target.value)}><option value="all">All Courses</option>{courses.data?.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></div>
+    <section className="lecturer-panel"><div className="lecturer-panel-heading"><span><Users/><h2>Students ({rows.length})</h2></span><div><Button variant="accent-outline" onClick={exportStudents} disabled={!rows.length}><Download/>Export</Button><Button onClick={()=>setOpen(true)}><Plus/>Add Student</Button></div></div>
+    <div className="lecturer-table-scroll"><table className="lecturer-table"><thead><tr><th>#</th><th>Name</th><th>Email</th><th>Courses Enrolled</th><th>Enrolled</th><th>Actions</th></tr></thead><tbody>
+      {rows.map(({student:s,courses:c},i)=><tr key={s.studentId}><td>{i+1}</td><td><span className="lecturer-person">{s.avatarUrl ? <img src={s.avatarUrl} alt=""/> : <span className={`lecturer-initial lecturer-tone-${i%3}`}>{s.name?.split(" ").map(v=>v[0]).join("").slice(0,2)}</span>}{s.name}</span></td><td>{s.email}</td><td><div className="lecturer-course-badges">{c.map(v=><button key={v.courseId} onClick={()=>navigate(`/lecturer/courses/${v.courseId}`)}>{v.courseTitle}</button>)}</div></td><td>{new Date(s.enrolledAt).toLocaleDateString(undefined,{dateStyle:"medium"})}</td><td><div className="lecturer-row-actions"><button aria-label={`View ${s.name}'s course`} onClick={()=>navigate(`/lecturer/courses/${s.courseId}`)}><Eye/></button>{s.email && <a aria-label={`Email ${s.name}`} href={`mailto:${s.email}`}><Mail/></a>}</div></td></tr>)}
+      {!rows.length && <tr><td colSpan={6} className="lecturer-empty">{students.isLoading ? "Loading students..." : students.isError ? "Unable to load students. Please try again." : "No students match this view."}</td></tr>}
+    </tbody></table></div><footer className="lecturer-table-footer">Showing {rows.length ? 1 : 0} to {rows.length} of {rows.length} students</footer></section>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Add Student</DialogTitle></DialogHeader><form noValidate className="space-y-4" onSubmit={e=>{e.preventDefault();const ok=check({course:enrollCourse?null:"Choose a course.",email:validateEmail(email)});if(ok)enroll.mutate({courseId:Number(enrollCourse),email:email.trim()});}}><label className="block space-y-2"><span>Course</span><select aria-invalid={Boolean(errors.course)} className="h-10 w-full rounded-xl border px-3" value={enrollCourse} onChange={e=>{setEnrollCourse(e.target.value);clear("course");}}><option value="">Select course</option>{courses.data?.filter(c=>c.isActive).map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select><FieldError message={errors.course}/></label><label className="block space-y-2"><span>Student email</span><Input type="email" maxLength={254} placeholder="student@central.edu.sl" aria-invalid={Boolean(errors.email)} value={email} onChange={e=>{setEmail(e.target.value);clear("email");}}/><FieldError message={errors.email}/></label><Button disabled={enroll.isPending} type="submit">{enroll.isPending?"Enrolling...":"Enroll student"}</Button></form></DialogContent></Dialog>
+  </main></DashboardLayout>;
 }

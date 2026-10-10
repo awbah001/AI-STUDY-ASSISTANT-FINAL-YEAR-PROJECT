@@ -1,3 +1,4 @@
+import { getLecturerQuizLength } from "@/lib/lecturerPreferences";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,7 @@ import { trpc } from "@/lib/trpc";
 import { storagePut } from "@/lib/storage";
 import { apiUrl } from "@/lib/apiBaseUrl";
 import { useRoute, useLocation } from "wouter";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   getStudyFileExtension,
@@ -20,6 +21,9 @@ import {
   STUDY_DOC_ERROR,
   STUDY_DOC_HELP,
 } from "@shared/studyDocuments";
+import { LIMITS, parseRubricText, validateEmail, validateFutureDate, validateText } from "@shared/validation";
+import { FieldError } from "@/components/FieldError";
+import { useFieldErrors } from "@/lib/formValidation";
 import {
   Upload, Users, FileText, Megaphone, ClipboardList,
   Brain, Layers, Trash2, ArrowLeft, HelpCircle,
@@ -29,7 +33,7 @@ import {
 type StudyFormat = "pdf" | "docx" | "pptx";
 
 export default function LecturerCourseDetail() {
-  const { isAllowed } = useRoleGuard("lecturer");
+  const { isAllowed, user } = useRoleGuard("lecturer");
   const [, params] = useRoute("/lecturer/courses/:id");
   const [, setLocation] = useLocation();
   const courseId = Number(params?.id);
@@ -52,9 +56,13 @@ export default function LecturerCourseDetail() {
 
   const [quizDocId, setQuizDocId] = useState<number | null>(null);
   const [quizTitle, setQuizTitle] = useState("");
-  const [quizCount, setQuizCount] = useState(5);
+  const [quizCount, setQuizCount] = useState(() => getLecturerQuizLength(user?.id));
+  useEffect(() => { if (user?.id) setQuizCount(getLecturerQuizLength(user.id)); }, [user?.id]);
   const [quizDue, setQuizDue] = useState("");
   const [previewQuizId, setPreviewQuizId] = useState<number | null>(null);
+  const { errors, check, clear } = useFieldErrors<
+    "material" | "enroll" | "quizTitle" | "quizDue" | "assignTitle" | "assignDesc" | "assignRubric" | "assignDue" | "annTitle" | "annContent"
+  >();
 
   const utils = trpc.useUtils();
 
@@ -165,9 +173,12 @@ export default function LecturerCourseDetail() {
     onSuccess: () => toast.success("Summary generated"),
   });
 
+  const materialTitleError = () => validateText(materialTitle, { label: "Title", ...LIMITS.title });
+
   const handleUpload = async (file: File) => {
-    if (!materialTitle.trim()) {
-      toast.error("Enter a title for the material");
+    const titleError = materialTitleError();
+    if (titleError) {
+      check({ material: titleError });
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
@@ -197,7 +208,7 @@ export default function LecturerCourseDetail() {
       }
       await uploadMaterial.mutateAsync({
         courseId,
-        title: materialTitle,
+        title: materialTitle.trim(),
         fileName: file.name,
         fileSize: file.size,
         fileUrl: url,
@@ -215,17 +226,14 @@ export default function LecturerCourseDetail() {
   };
 
   const handleCreateAssignment = async () => {
-    if (!assignTitle.trim()) return;
-    const rubric = assignRubric.trim()
-      ? assignRubric.split(",").map((part) => {
-          const [criterion, points] = part.split(":");
-          return { criterion: criterion?.trim(), maxPoints: Number(points?.trim()) };
-        }).filter((item): item is { criterion: string; maxPoints: number } => !!item.criterion && Number.isFinite(item.maxPoints) && item.maxPoints > 0)
-      : undefined;
-    if (assignRubric.trim() && (!rubric || rubric.length === 0)) {
-      toast.error("Use rubric format such as Research: 30, Analysis: 40");
-      return;
-    }
+    const { rubric, error: rubricError } = parseRubricText(assignRubric);
+    const ok = check({
+      assignTitle: validateText(assignTitle, { label: "Title", ...LIMITS.title }),
+      assignDesc: validateText(assignDesc, { label: "Description", required: false, max: LIMITS.description }),
+      assignRubric: rubricError,
+      assignDue: validateFutureDate(assignDue, { label: "Due date" }),
+    });
+    if (!ok) return;
     setCreatingAssignment(true);
     try {
     let fileUrl: string | undefined;
@@ -258,8 +266,8 @@ export default function LecturerCourseDetail() {
     }
     await createAssignment.mutateAsync({
       courseId,
-      title: assignTitle,
-      description: assignDesc || undefined,
+      title: assignTitle.trim(),
+      description: assignDesc.trim() || undefined,
       dueDate: assignDue ? new Date(assignDue) : undefined,
       rubric,
       fileUrl,
@@ -336,7 +344,8 @@ export default function LecturerCourseDetail() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label>Title</Label>
-                    <Input value={materialTitle} onChange={(e) => setMaterialTitle(e.target.value)} placeholder="Lecture 3 - Neural Networks" className="rounded-xl border-slate-200" />
+                    <Input value={materialTitle} maxLength={LIMITS.title.max} aria-invalid={Boolean(errors.material)} onChange={(e) => { setMaterialTitle(e.target.value); clear("material"); }} placeholder="Lecture 3 - Neural Networks" className="rounded-xl border-slate-200" />
+                    <FieldError message={errors.material} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Format</Label>
@@ -354,7 +363,7 @@ export default function LecturerCourseDetail() {
                   accept={STUDY_DOC_ACCEPT}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleUpload(f); }}
                 />
-                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={uploading} onClick={() => fileRef.current?.click()}>
+                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={uploading} onClick={() => { if (check({ material: materialTitleError() })) fileRef.current?.click(); }}>
                   <Upload className="h-4 w-4" />
                   {uploading ? "Uploading..." : "Select file to upload"}
                 </Button>
@@ -383,10 +392,10 @@ export default function LecturerCourseDetail() {
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Button size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs" disabled={genSummary.isPending} onClick={() => genSummary.mutate({ documentId: doc.id, courseId })}>
+                        <Button size="sm" variant="accent" className="rounded-xl gap-1.5 text-xs" disabled={genSummary.isPending} onClick={() => genSummary.mutate({ documentId: doc.id, courseId })}>
                           <Brain className="h-3.5 w-3.5" /> Summary
                         </Button>
-                        <Button size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs" disabled={genFlashcards.isPending} onClick={() => genFlashcards.mutate({ documentId: doc.id, courseId, count: 10 })}>
+                        <Button size="sm" variant="accent-outline" className="rounded-xl gap-1.5 text-xs" disabled={genFlashcards.isPending} onClick={() => genFlashcards.mutate({ documentId: doc.id, courseId, count: 10 })}>
                           <Layers className="h-3.5 w-3.5" /> Flashcards
                         </Button>
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteMaterial.mutate({ documentId: doc.id, courseId })}>
@@ -465,26 +474,34 @@ export default function LecturerCourseDetail() {
                       <Label>Quiz title <span className="text-slate-400 text-xs">(optional)</span></Label>
                       <Input
                         value={quizTitle}
-                        onChange={(e) => setQuizTitle(e.target.value)}
+                        onChange={(e) => { setQuizTitle(e.target.value); clear("quizTitle"); }}
                         placeholder="e.g. Week 3 Assessment"
                         className="rounded-xl border-slate-200"
-                        maxLength={200}
+                        maxLength={LIMITS.title.max}
+                        aria-invalid={Boolean(errors.quizTitle)}
                       />
+                      <FieldError message={errors.quizTitle} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Quiz deadline <span className="text-slate-400 text-xs">(optional)</span></Label>
-                      <Input type="datetime-local" value={quizDue} onChange={(e) => setQuizDue(e.target.value)} className="rounded-xl border-slate-200" />
+                      <Input type="datetime-local" aria-invalid={Boolean(errors.quizDue)} value={quizDue} onChange={(e) => { setQuizDue(e.target.value); clear("quizDue"); }} className="rounded-xl border-slate-200" />
+                      <FieldError message={errors.quizDue} />
                     </div>
                     <Button
                       className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
                       disabled={!quizDocId || genQuiz.isPending}
                       onClick={() => {
                         if (!quizDocId) return;
+                        const ok = check({
+                          quizTitle: validateText(quizTitle, { label: "Quiz title", required: false, max: LIMITS.title.max }),
+                          quizDue: validateFutureDate(quizDue, { label: "Quiz deadline" }),
+                        });
+                        if (!ok) return;
                         genQuiz.mutate({
                           courseId,
                           documentId: quizDocId,
                           questionCount: quizCount,
-                          title: quizTitle || undefined,
+                          title: quizTitle.trim() || undefined,
                           dueDate: quizDue ? new Date(quizDue) : undefined,
                         });
                       }}
@@ -519,7 +536,7 @@ export default function LecturerCourseDetail() {
                   <HelpCircle className="mx-auto h-10 w-10 text-slate-200 mb-3" />
                   <p className="text-sm font-medium text-slate-500">No quizzes yet</p>
                   <p className="text-xs text-slate-400 mt-1">
-                    Generate a quiz above — students will see it in their course on the mobile app.
+                    Generate a quiz above — students will see it in their course on the web and mobile app.
                   </p>
                 </div>
               ) : (
@@ -555,9 +572,18 @@ export default function LecturerCourseDetail() {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2 p-6">
-                <Input placeholder="student@university.edu" value={enrollEmail} onChange={(e) => setEnrollEmail(e.target.value)} className="rounded-xl border-slate-200" disabled={!course.isActive} />
-                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0" disabled={!course.isActive} onClick={() => enrollStudent.mutate({ courseId, email: enrollEmail })}>Add</Button>
+              <div className="p-6">
+                <div className="flex gap-2">
+                  <Input type="email" maxLength={254} placeholder="student@central.edu.sl" aria-invalid={Boolean(errors.enroll)} value={enrollEmail} onChange={(e) => { setEnrollEmail(e.target.value); clear("enroll"); }} className="rounded-xl border-slate-200" disabled={!course.isActive} />
+                  <Button
+                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                    disabled={!course.isActive || enrollStudent.isPending}
+                    onClick={() => { if (check({ enroll: validateEmail(enrollEmail) })) enrollStudent.mutate({ courseId, email: enrollEmail.trim() }); }}
+                  >
+                    Add
+                  </Button>
+                </div>
+                <FieldError message={errors.enroll} className="mt-1.5" />
               </div>
             </div>
 
@@ -623,15 +649,23 @@ export default function LecturerCourseDetail() {
                     </Select>
                   </div>
                 )}
-                <Input placeholder="Title" value={assignTitle} onChange={(e) => setAssignTitle(e.target.value)} className="rounded-xl border-slate-200" />
-                <Textarea placeholder="Description (optional)" value={assignDesc} onChange={(e) => setAssignDesc(e.target.value)} className="rounded-xl border-slate-200" />
+                <div className="space-y-1.5">
+                  <Input placeholder="Title" maxLength={LIMITS.title.max} aria-invalid={Boolean(errors.assignTitle)} value={assignTitle} onChange={(e) => { setAssignTitle(e.target.value); clear("assignTitle"); }} className="rounded-xl border-slate-200" />
+                  <FieldError message={errors.assignTitle} />
+                </div>
+                <div className="space-y-1.5">
+                  <Textarea placeholder="Description (optional)" maxLength={LIMITS.description} aria-invalid={Boolean(errors.assignDesc)} value={assignDesc} onChange={(e) => { setAssignDesc(e.target.value); clear("assignDesc"); }} className="rounded-xl border-slate-200" />
+                  <FieldError message={errors.assignDesc} />
+                </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-slate-500">Rubric <span className="font-normal">(optional, Criterion: points, separated by commas)</span></Label>
-                  <Input placeholder="Research: 30, Analysis: 40, Presentation: 30" value={assignRubric} onChange={(e) => setAssignRubric(e.target.value)} className="rounded-xl border-slate-200" />
+                  <Input placeholder="Research: 30, Analysis: 40, Presentation: 30" aria-invalid={Boolean(errors.assignRubric)} value={assignRubric} onChange={(e) => { setAssignRubric(e.target.value); clear("assignRubric"); }} className="rounded-xl border-slate-200" />
+                  <FieldError message={errors.assignRubric} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-slate-500">Due date (optional)</Label>
-                  <Input type="datetime-local" value={assignDue} onChange={(e) => setAssignDue(e.target.value)} className="rounded-xl border-slate-200" />
+                  <Input type="datetime-local" aria-invalid={Boolean(errors.assignDue)} value={assignDue} onChange={(e) => { setAssignDue(e.target.value); clear("assignDue"); }} className="rounded-xl border-slate-200" />
+                  <FieldError message={errors.assignDue} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-slate-500">Assignment document (optional)</Label>
@@ -676,7 +710,7 @@ export default function LecturerCourseDetail() {
                     )}
                   </div>
                 </div>
-                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={!assignTitle.trim() || creatingAssignment || createAssignment.isPending} onClick={() => void handleCreateAssignment()}>
+                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={creatingAssignment || createAssignment.isPending} onClick={() => void handleCreateAssignment()}>
                   <ClipboardList className="h-4 w-4" />
                   {creatingAssignment || createAssignment.isPending ? "Creating..." : "Create assignment"}
                 </Button>
@@ -751,9 +785,26 @@ export default function LecturerCourseDetail() {
                 </div>
               </div>
               <div className="p-6 space-y-3">
-                <Input placeholder="Title" value={annTitle} onChange={(e) => setAnnTitle(e.target.value)} className="rounded-xl border-slate-200" />
-                <Textarea placeholder="Message to students..." value={annContent} onChange={(e) => setAnnContent(e.target.value)} rows={4} className="rounded-xl border-slate-200" />
-                <Button className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={!annTitle.trim() || !annContent.trim() || createAnnouncement.isPending} onClick={() => createAnnouncement.mutate({ courseId, title: annTitle, content: annContent })}>
+                <div className="space-y-1.5">
+                  <Input placeholder="Title" maxLength={LIMITS.title.max} aria-invalid={Boolean(errors.annTitle)} value={annTitle} onChange={(e) => { setAnnTitle(e.target.value); clear("annTitle"); }} className="rounded-xl border-slate-200" />
+                  <FieldError message={errors.annTitle} />
+                </div>
+                <div className="space-y-1.5">
+                  <Textarea placeholder="Message to students..." maxLength={LIMITS.longText} aria-invalid={Boolean(errors.annContent)} value={annContent} onChange={(e) => { setAnnContent(e.target.value); clear("annContent"); }} rows={4} className="rounded-xl border-slate-200" />
+                  <FieldError message={errors.annContent} />
+                </div>
+                <Button
+                  variant="accent"
+                  className="rounded-xl gap-2"
+                  disabled={createAnnouncement.isPending}
+                  onClick={() => {
+                    const ok = check({
+                      annTitle: validateText(annTitle, { label: "Title", ...LIMITS.title }),
+                      annContent: validateText(annContent, { label: "Message", min: 5, max: LIMITS.longText }),
+                    });
+                    if (ok) createAnnouncement.mutate({ courseId, title: annTitle.trim(), content: annContent.trim() });
+                  }}
+                >
                   <Megaphone className="h-4 w-4" />
                   {createAnnouncement.isPending ? "Publishing..." : "Publish announcement"}
                 </Button>

@@ -1,3 +1,4 @@
+import { design, elevation } from "../../src/theme/design";
 import {
   View,
   Text,
@@ -14,12 +15,17 @@ import {
 import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useState } from "react";
-import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { trpc } from "../../src/lib/api";
-import { API_URL } from "../../src/lib/api";
-import { colors } from "../../src/theme/colors";
+import {
+  pickAndUploadAvatar,
+  resolveAvatarUri,
+} from "../../src/lib/uploadAvatar";
+import { colors, gradients } from "../../src/theme/colors";
+import { LIMITS, passwordChangeErrors, useFieldErrors, validatePersonName } from "../../src/lib/validation";
+import { FieldError, FIELD_ERROR_COLOR } from "../../src/components/FieldError";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -31,10 +37,21 @@ export default function ProfileScreen() {
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
+  const { errors: pwErrors, check: checkPw, clear: clearPw, reset: resetPw } = useFieldErrors<"current" | "next" | "confirm">();
   const [avatarUploading, setAvatarUploading] = useState(false);
   const utils = trpc.useUtils();
-  const { data: progress, isLoading: progressLoading, refetch: refetchProgress } =
-    trpc.progress.stats.useQuery();
+  const prefs = trpc.admin.settings.preferences.useQuery();
+  const savePrefs = trpc.admin.settings.savePreferences.useMutation({
+    onSuccess: () => utils.admin.settings.preferences.invalidate(),
+    onError: err => Alert.alert("Could not save", err.message),
+  });
+  const aiCoachOn = prefs.data?.notifications?.["student.aiCoach"] !== false;
+  const {
+    data: progress,
+    isLoading: progressLoading,
+    refetch: refetchProgress,
+  } = trpc.progress.stats.useQuery();
   const { data: analytics, refetch: refetchAnalytics } =
     trpc.progress.analytics.useQuery();
 
@@ -48,81 +65,41 @@ export default function ProfileScreen() {
 
   const totalMinutes =
     analytics?.totalStudyTime ??
-    progress?.reduce((total, item) => total + (item.totalStudyTimeMinutes ?? 0), 0) ??
+    progress?.reduce(
+      (total, item) => total + (item.totalStudyTimeMinutes ?? 0),
+      0
+    ) ??
     0;
-  const studyTime = totalMinutes >= 60
-    ? `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`
-    : `${totalMinutes}m`;
-  const quizzesTaken = progress?.reduce(
-    (total, item) => total + (item.quizzesAttempted ?? 0),
-    0
-  ) ?? 0;
-  const flashcardsReviewed = progress?.reduce(
-    (total, item) => total + (item.flashcardsReviewed ?? 0),
-    0
-  ) ?? 0;
+  const studyTime =
+    totalMinutes >= 60
+      ? `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`
+      : `${totalMinutes}m`;
+  const quizzesTaken =
+    progress?.reduce(
+      (total, item) => total + (item.quizzesAttempted ?? 0),
+      0
+    ) ?? 0;
+  const flashcardsReviewed =
+    progress?.reduce(
+      (total, item) => total + (item.flashcardsReviewed ?? 0),
+      0
+    ) ?? 0;
 
   const updateProfile = trpc.auth.updateProfile.useMutation({
-    onSuccess: (updated) => {
+    onSuccess: updated => {
       utils.auth.me.setData(undefined, updated as any);
       setEditing(false);
       Alert.alert("Saved", "Profile updated.");
     },
-    onError: (err) => Alert.alert("Error", err.message),
+    onError: err => Alert.alert("Error", err.message),
   });
 
   /** Pick an image from the camera roll and upload it as the avatar */
   const pickAvatar = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Allow access to your photo library to change your profile picture.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
-
-    if (result.canceled || !result.assets[0]) return;
-
-    const asset = result.assets[0];
-    const ext = (asset.uri.split(".").pop() ?? "jpg").toLowerCase();
-    const mimeType = asset.mimeType ?? (ext === "png" ? "image/png" : "image/jpeg");
-    const key = `avatars/${user?.id ?? "me"}-${Date.now()}.${ext}`;
-
     try {
       setAvatarUploading(true);
-
-      const { getToken } = await import("../../src/lib/api");
-      const token = await getToken();
-
-      // expo-file-system v18+ (SDK 57) uses the File class API
-      // Read the image bytes directly using the new FileSystem.File class
-      const { File: FSFile } = await import("expo-file-system");
-      const file = new FSFile(asset.uri);
-      const bytes = await file.bytes(); // returns Uint8Array — no base64 needed
-
-      const uploadRes = await fetch(
-        `${API_URL}/api/storage/put?key=${encodeURIComponent(key)}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": mimeType,
-            ...(token ? { authorization: `Bearer ${token}` } : {}),
-          },
-          body: bytes,
-        }
-      );
-
-      if (!uploadRes.ok) {
-        const errText = await uploadRes.text().catch(() => "");
-        throw new Error(`Server error ${uploadRes.status}${errText ? `: ${errText}` : ""}`);
-      }
-
-      const { url } = (await uploadRes.json()) as { url: string };
+      const url = await pickAndUploadAvatar(user?.id);
+      if (!url) return;
       await updateProfile.mutateAsync({ avatarUrl: url });
       Alert.alert("Done", "Profile picture updated.");
     } catch (e: any) {
@@ -138,20 +115,16 @@ export default function ProfileScreen() {
       setNewPw("");
       setConfirmPw("");
       setPwOpen(false);
-      Alert.alert("Password updated", "You can use your new password next time you sign in.");
+      Alert.alert(
+        "Password updated",
+        "You can use your new password next time you sign in."
+      );
     },
-    onError: (err) => Alert.alert("Could not change password", err.message),
+    onError: err => Alert.alert("Could not change password", err.message),
   });
 
   const submitPassword = () => {
-    if (newPw.length < 8) {
-      Alert.alert("Too short", "New password must be at least 8 characters.");
-      return;
-    }
-    if (newPw !== confirmPw) {
-      Alert.alert("Mismatch", "New passwords do not match.");
-      return;
-    }
+    if (!checkPw(passwordChangeErrors(currentPw, newPw, confirmPw))) return;
     changePassword.mutate({ currentPassword: currentPw, newPassword: newPw });
   };
 
@@ -169,163 +142,287 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const closePassword = () => {
+    setPwOpen(false);
+    setCurrentPw("");
+    setNewPw("");
+    setConfirmPw("");
+    resetPw();
+  };
+
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header ── */}
+        <Text style={s.eyebrow}>Your account</Text>
         <Text style={s.pageTitle}>Profile</Text>
 
-        {/* ── Avatar card ── */}
-        <View style={s.avatarCard}>
-          <TouchableOpacity onPress={pickAvatar} activeOpacity={0.8} style={s.avatarRing}>
+        <View style={s.idCard}>
+          <LinearGradient
+            colors={gradients.hero}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.cover}
+          >
+            <View style={s.coverRingLg} />
+            <View style={s.coverRingSm} />
+          </LinearGradient>
+
+          <TouchableOpacity
+            onPress={pickAvatar}
+            activeOpacity={0.85}
+            style={s.avatarRing}
+            accessibilityLabel="Change profile picture"
+          >
             {avatarUploading ? (
               <View style={s.avatar}>
                 <ActivityIndicator color={colors.white} size="large" />
               </View>
             ) : user?.avatarUrl ? (
               <Image
-                source={{ uri: user.avatarUrl.startsWith("/") ? `${API_URL}${user.avatarUrl}` : user.avatarUrl }}
+                source={{ uri: resolveAvatarUri(user.avatarUrl) }}
                 style={s.avatarImg}
               />
             ) : (
-              <View style={s.avatar}>
+              <LinearGradient colors={gradients.hero} style={s.avatar}>
                 <Text style={s.avatarText}>
                   {user?.name?.charAt(0).toUpperCase() ?? "?"}
                 </Text>
-              </View>
+              </LinearGradient>
             )}
-            {/* Camera badge overlay */}
             <View style={s.cameraBadge}>
               <Ionicons name="camera" size={12} color={colors.white} />
             </View>
           </TouchableOpacity>
 
-          {editing ? (
-            <View style={s.editRow}>
-              <TextInput
-                style={s.nameInput}
-                value={name}
-                onChangeText={setName}
-                placeholder="Your name"
-                placeholderTextColor={colors.textLight}
-                autoFocus
-              />
+          <View style={s.idBody}>
+            {editing ? (
+              <View style={s.editRow}>
+                <TextInput
+                  style={[s.nameInput, !!nameError && s.inputError]}
+                  value={name}
+                  onChangeText={v => {
+                    setName(v);
+                    setNameError(null);
+                  }}
+                  placeholder="Your name"
+                  placeholderTextColor={colors.textLight}
+                  maxLength={LIMITS.name.max}
+                  autoComplete="name"
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[s.saveBtn, updateProfile.isPending && s.saveBtnOff]}
+                  disabled={updateProfile.isPending}
+                  onPress={() => {
+                    const error = validatePersonName(name);
+                    setNameError(error);
+                    if (!error) updateProfile.mutate({ name: name.trim().replace(/\s+/g, " ") });
+                  }}
+                >
+                  {updateProfile.isPending ? (
+                    <ActivityIndicator color={colors.white} size="small" />
+                  ) : (
+                    <Text style={s.saveBtnText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            {editing ? <FieldError message={nameError} style={{ alignSelf: "stretch", marginBottom: 6 }} /> : (
               <TouchableOpacity
-                style={[
-                  s.saveBtn,
-                  (!name.trim() || updateProfile.isPending) && s.saveBtnOff,
-                ]}
-                disabled={!name.trim() || updateProfile.isPending}
-                onPress={() => updateProfile.mutate({ name: name.trim() })}
+                style={s.nameRow}
+                onPress={() => setEditing(true)}
               >
-                {updateProfile.isPending ? (
-                  <ActivityIndicator color={colors.white} size="small" />
-                ) : (
-                  <Text style={s.saveBtnText}>Save</Text>
-                )}
+                <Text style={s.displayName}>{user?.name ?? "—"}</Text>
+                <View style={s.pencil}>
+                  <Ionicons name="pencil" size={11} color={colors.primary} />
+                </View>
               </TouchableOpacity>
+            )}
+
+            <Text style={s.emailText}>{user?.email ?? "—"}</Text>
+
+            <View style={s.roleBadge}>
+              <Ionicons name="school" size={12} color={colors.primary} />
+              <Text style={s.roleText}>Student</Text>
             </View>
-          ) : (
-            <TouchableOpacity style={s.nameRow} onPress={() => setEditing(true)}>
-              <Text style={s.displayName}>{user?.name ?? "—"}</Text>
-              <Ionicons name="pencil-outline" size={15} color={colors.textLight} />
-            </TouchableOpacity>
-          )}
-
-          <Text style={s.emailText}>{user?.email ?? "—"}</Text>
-
-          <View style={s.roleBadge}>
-            <Ionicons name="school-outline" size={12} color={colors.primary} />
-            <Text style={s.roleText}>Student</Text>
           </View>
         </View>
 
-        {/* ── Account ── */}
+        <TouchableOpacity
+          style={s.progressWrap}
+          onPress={() => router.push("/(tabs)/progress" as any)}
+          activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel="View my learning progress"
+        >
+          <LinearGradient
+            colors={gradients.hero}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.progressCard}
+          >
+            <View style={s.progressRing} />
+            <View style={s.progressCardHeader}>
+              <View>
+                <Text style={s.progressEyebrow}>YOUR LEARNING</Text>
+                <Text style={s.progressHeading}>My progress</Text>
+              </View>
+              <View style={s.progressArrow}>
+                <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+              </View>
+            </View>
+            {progressLoading ? (
+              <ActivityIndicator
+                color={colors.white}
+                style={s.progressLoader}
+              />
+            ) : (
+              <View style={s.progressStats}>
+                <ProgressMetric
+                  icon="time-outline"
+                  value={studyTime}
+                  label="Study time"
+                />
+                <ProgressMetric
+                  icon="flame-outline"
+                  value={`${analytics?.currentStreak ?? 0}`}
+                  label="Day streak"
+                />
+                <ProgressMetric
+                  icon="help-circle-outline"
+                  value={`${quizzesTaken}`}
+                  label="Quizzes"
+                />
+                <ProgressMetric
+                  icon="layers-outline"
+                  value={`${flashcardsReviewed}`}
+                  label="Cards reviewed"
+                />
+              </View>
+            )}
+            <Text style={s.progressLink}>View detailed activity</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
         <Section title="Account">
-          <Row icon="person-outline" label="Edit Profile" onPress={() => setEditing(true)} />
+          <Row
+            icon="person-outline"
+            tone={TONES.green}
+            label="Edit profile"
+            onPress={() => setEditing(true)}
+          />
           <Row
             icon="lock-closed-outline"
-            label="Change Password"
+            tone={TONES.violet}
+            label="Change password"
             onPress={() => setPwOpen(true)}
           />
-          <Row icon="mail-outline" label="Email" value={user?.email ?? "—"} last />
+          <Row
+            icon="mail-outline"
+            tone={TONES.blue}
+            label="Email"
+            value={user?.email ?? "—"}
+            last
+          />
         </Section>
 
-        {/* ── Preferences ── */}
         <Section title="Preferences">
-          <View style={s.switchRow}>
+          <View style={[s.row, s.rowBorder, s.switchRow]}>
             <View style={s.rowLeft}>
-              <View style={[s.rowIcon, { backgroundColor: "#fff7ed" }]}>
-                <Ionicons name="notifications-outline" size={17} color="#f59e0b" />
+              <View style={[s.rowIcon, { backgroundColor: TONES.amber.bg }]}>
+                <Ionicons
+                  name="notifications-outline"
+                  size={17}
+                  color={TONES.amber.fg}
+                />
               </View>
               <Text style={s.rowLabel}>Notifications</Text>
             </View>
             <Switch
               value={notifs}
               onValueChange={setNotifs}
-              trackColor={{ false: "#e2e8f0", true: colors.primary }}
+              trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor={colors.white}
             />
           </View>
-          <Row icon="globe-outline" label="Language" value="English" last />
-        </Section>
-
-        {/* ── Learning ── */}
-        <Section title="Learning">
-          <TouchableOpacity
-            style={s.progressCard}
-            onPress={() => router.push("/(tabs)/progress" as any)}
-            accessibilityRole="button"
-            accessibilityLabel="View my learning progress"
-          >
-            <View style={s.progressCardHeader}>
-              <View>
-                <Text style={s.progressEyebrow}>YOUR LEARNING</Text>
-                <Text style={s.progressHeading}>My Progress</Text>
+          <View style={[s.row, s.rowBorder, s.switchRow]}>
+            <View style={[s.rowLeft, { flex: 1, paddingRight: 12 }]}>
+              <View style={[s.rowIcon, { backgroundColor: TONES.violet.bg }]}>
+                <Ionicons name="sparkles" size={17} color={TONES.violet.fg} />
               </View>
-              <View style={s.progressArrow}>
-                <Ionicons name="arrow-forward" size={17} color={colors.white} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.rowLabel}>AI study coach</Text>
+                <Text style={s.switchHint}>
+                  Checks in every few hours and may prepare flashcards or quizzes for you.
+                </Text>
               </View>
             </View>
-            {progressLoading ? (
-              <ActivityIndicator color={colors.white} style={s.progressLoader} />
-            ) : (
-              <View style={s.progressStats}>
-                <ProgressMetric icon="time-outline" value={studyTime} label="Study time" />
-                <ProgressMetric icon="flame-outline" value={`${analytics?.currentStreak ?? 0}`} label="Day streak" />
-                <ProgressMetric icon="help-circle-outline" value={`${quizzesTaken}`} label="Quizzes" />
-                <ProgressMetric icon="layers-outline" value={`${flashcardsReviewed}`} label="Cards reviewed" />
-              </View>
-            )}
-            <Text style={s.progressLink}>View detailed activity</Text>
-          </TouchableOpacity>
+            <Switch
+              value={aiCoachOn}
+              disabled={prefs.isLoading || savePrefs.isPending}
+              onValueChange={value =>
+                savePrefs.mutate({
+                  notifications: {
+                    ...(prefs.data?.notifications ?? {}),
+                    "student.aiCoach": value,
+                  },
+                })
+              }
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.white}
+            />
+          </View>
+          <Row
+            icon="globe-outline"
+            tone={TONES.blue}
+            label="Language"
+            value="English"
+            last
+          />
+        </Section>
+
+        <Section title="Learning">
           <Row
             icon="layers-outline"
-            label="Flashcard History"
+            tone={TONES.green}
+            label="Flashcard history"
             onPress={() => router.push("/(tabs)/flashcards" as any)}
           />
           <Row
             icon="help-circle-outline"
-            label="Quiz History"
+            tone={TONES.amber}
+            label="Quiz history"
             last
             onPress={() => router.push("/(tabs)/quizzes" as any)}
           />
         </Section>
 
-        {/* ── About ── */}
         <Section title="About">
-          <Row icon="information-circle-outline" label="App Version" value="1.0.0" />
-          <Row icon="shield-checkmark-outline" label="Privacy Policy" />
-          <Row icon="document-text-outline" label="Terms of Service" last />
+          <Row
+            icon="information-circle-outline"
+            tone={TONES.slate}
+            label="App version"
+            value="1.0.0"
+          />
+          <Row
+            icon="shield-checkmark-outline"
+            tone={TONES.slate}
+            label="Privacy policy"
+          />
+          <Row
+            icon="document-text-outline"
+            tone={TONES.slate}
+            label="Terms of service"
+            last
+          />
         </Section>
 
-        {/* ── Sign out ── */}
         <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={19} color={colors.error} />
-          <Text style={s.logoutText}>Sign Out</Text>
+          <Text style={s.logoutText}>Sign out</Text>
         </TouchableOpacity>
 
         <View style={{ height: 32 }} />
@@ -334,40 +431,71 @@ export default function ProfileScreen() {
       <Modal visible={pwOpen} animationType="slide" transparent>
         <View style={s.modalBackdrop}>
           <View style={s.modalCard}>
-            <Text style={s.modalTitle}>Change password</Text>
-            <Text style={s.modalHint}>
-              Enter your current password, then choose a new one (at least 8 characters).
-            </Text>
+            <View style={s.grabber} />
+            <View style={s.modalHead}>
+              <View style={s.modalIcon}>
+                <Ionicons name="lock-closed" size={18} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.modalTitle}>Change password</Text>
+                <Text style={s.modalHint}>
+                  Enter your current password, then choose a new one with at
+                  least 8 characters, including a letter and a number.
+                </Text>
+              </View>
+            </View>
             <TextInput
-              style={s.pwInput}
+              style={[s.pwInput, !!pwErrors.current && s.inputError]}
               value={currentPw}
-              onChangeText={setCurrentPw}
+              onChangeText={v => {
+                setCurrentPw(v);
+                clearPw("current");
+              }}
               placeholder="Current password"
               placeholderTextColor={colors.textLight}
               secureTextEntry
               autoCapitalize="none"
+              autoComplete="current-password"
+              maxLength={LIMITS.password.max}
             />
+            <FieldError message={pwErrors.current} style={s.pwError} />
             <TextInput
-              style={s.pwInput}
+              style={[s.pwInput, !!pwErrors.next && s.inputError]}
               value={newPw}
-              onChangeText={setNewPw}
+              onChangeText={v => {
+                setNewPw(v);
+                clearPw("next");
+              }}
               placeholder="New password"
               placeholderTextColor={colors.textLight}
               secureTextEntry
               autoCapitalize="none"
+              autoComplete="new-password"
+              maxLength={LIMITS.password.max}
             />
+            <FieldError message={pwErrors.next} style={s.pwError} />
             <TextInput
-              style={s.pwInput}
+              style={[s.pwInput, !!pwErrors.confirm && s.inputError]}
               value={confirmPw}
-              onChangeText={setConfirmPw}
+              onChangeText={v => {
+                setConfirmPw(v);
+                clearPw("confirm");
+              }}
               placeholder="Confirm new password"
               placeholderTextColor={colors.textLight}
               secureTextEntry
               autoCapitalize="none"
+              autoComplete="new-password"
+              maxLength={LIMITS.password.max}
             />
+            <FieldError message={pwErrors.confirm} style={s.pwError} />
             <TouchableOpacity
-              style={[s.saveBtn, changePassword.isPending && s.saveBtnOff]}
-              disabled={changePassword.isPending || !currentPw || !newPw}
+              style={[
+                s.saveBtn,
+                s.modalSave,
+                changePassword.isPending && s.saveBtnOff,
+              ]}
+              disabled={changePassword.isPending}
               onPress={submitPassword}
             >
               {changePassword.isPending ? (
@@ -376,15 +504,7 @@ export default function ProfileScreen() {
                 <Text style={s.saveBtnText}>Update password</Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity
-              style={s.cancelBtn}
-              onPress={() => {
-                setPwOpen(false);
-                setCurrentPw("");
-                setNewPw("");
-                setConfirmPw("");
-              }}
-            >
+            <TouchableOpacity style={s.cancelBtn} onPress={closePassword}>
               <Text style={s.cancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -394,19 +514,49 @@ export default function ProfileScreen() {
   );
 }
 
-function ProgressMetric({ icon, value, label }: { icon: string; value: string; label: string }) {
+type Tone = { fg: string; bg: string };
+
+const TONES = {
+  green: { fg: colors.primary, bg: colors.primaryLight },
+  violet: { fg: colors.violet, bg: colors.violetSoft },
+  blue: { fg: colors.info, bg: colors.infoSoft },
+  amber: { fg: "#d97706", bg: colors.warningSoft },
+  slate: { fg: colors.textMuted, bg: colors.surfaceAlt },
+} satisfies Record<string, Tone>;
+
+function ProgressMetric({
+  icon,
+  value,
+  label,
+}: {
+  icon: string;
+  value: string;
+  label: string;
+}) {
   return (
     <View style={s.progressMetric}>
-      <Ionicons name={icon as any} size={15} color="rgba(255,255,255,0.78)" />
-      <Text style={s.progressMetricValue} numberOfLines={1}>{value}</Text>
-      <Text style={s.progressMetricLabel} numberOfLines={1}>{label}</Text>
+      <View style={s.metricIcon}>
+        <Ionicons name={icon as any} size={15} color={colors.white} />
+      </View>
+      <View style={{ flexShrink: 1 }}>
+        <Text style={s.progressMetricValue} numberOfLines={1}>
+          {value}
+        </Text>
+        <Text style={s.progressMetricLabel} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
     </View>
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <View style={s.section}>
       <Text style={s.sectionLabel}>{title}</Text>
@@ -421,12 +571,14 @@ function Row({
   value,
   onPress,
   last,
+  tone = TONES.slate,
 }: {
   icon: string;
   label: string;
   value?: string;
   onPress?: () => void;
   last?: boolean;
+  tone?: Tone;
 }) {
   return (
     <TouchableOpacity
@@ -435,13 +587,17 @@ function Row({
       activeOpacity={onPress ? 0.65 : 1}
     >
       <View style={s.rowLeft}>
-        <View style={s.rowIcon}>
-          <Ionicons name={icon as any} size={17} color={colors.textMuted} />
+        <View style={[s.rowIcon, { backgroundColor: tone.bg }]}>
+          <Ionicons name={icon as any} size={17} color={tone.fg} />
         </View>
         <Text style={s.rowLabel}>{label}</Text>
       </View>
       <View style={s.rowRight}>
-        {value && <Text style={s.rowValue}>{value}</Text>}
+        {value && (
+          <Text style={s.rowValue} numberOfLines={1}>
+            {value}
+          </Text>
+        )}
         {onPress && (
           <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
         )}
@@ -450,251 +606,273 @@ function Row({
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+const AVATAR = 92;
+
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f5f6fa" },
+  safe: { flex: 1, ...design.page },
   scroll: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 },
 
-  pageTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: colors.text,
-    letterSpacing: -0.3,
-    marginBottom: 20,
-  },
+  eyebrow: { ...design.eyebrow, color: colors.primary, marginBottom: 6 },
+  pageTitle: { marginBottom: 18, ...design.screenTitle },
 
-  // Avatar card
-  avatarCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 22,
-    padding: 24,
+  idCard: {
     alignItems: "center",
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    marginBottom: 16,
+    overflow: "hidden",
+    ...design.card,
+  },
+  cover: { width: "100%", height: 92, overflow: "hidden" },
+  coverRingLg: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    right: -70,
+    top: -110,
+  },
+  coverRingSm: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(52,211,153,0.14)",
+    left: -40,
+    bottom: -70,
   },
   avatarRing: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    borderWidth: 3,
-    borderColor: colors.primaryLight,
+    width: AVATAR + 8,
+    height: AVATAR + 8,
+    borderRadius: (AVATAR + 8) / 2,
+    marginTop: -(AVATAR + 8) / 2,
+    backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14,
+    ...elevation.md,
   },
   avatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: AVATAR,
+    height: AVATAR,
+    borderRadius: AVATAR / 2,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarImg: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-  },
+  avatarImg: { width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2 },
   cameraBadge: {
     position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    bottom: 4,
+    right: 4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: colors.white,
   },
-  avatarText: { fontSize: 32, fontWeight: "900", color: colors.white },
+  avatarText: { fontSize: 34, fontWeight: "900", color: colors.white },
+  idBody: {
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
+    width: "100%",
+  },
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
+    gap: 8,
+    marginBottom: 3,
   },
-  displayName: { fontSize: 20, fontWeight: "800", color: colors.text },
+  displayName: { ...design.sectionTitle, fontSize: 20 },
+  pencil: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   editRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     width: "100%",
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  nameInput: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: colors.text,
-    backgroundColor: "#f8fafc",
-  },
+  nameInput: { flex: 1, ...design.input },
   saveBtn: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   saveBtnOff: { opacity: 0.45 },
   saveBtnText: { color: colors.white, fontWeight: "800", fontSize: 14 },
-  emailText: { fontSize: 13, color: colors.textMuted, marginBottom: 10 },
+  emailText: { fontSize: 13, color: colors.textMuted, marginBottom: 12 },
   roleBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    backgroundColor: "#e8fdf2",
-    borderRadius: 20,
+    gap: 6,
+    backgroundColor: colors.primaryLight,
+    borderRadius: 999,
     paddingHorizontal: 14,
-    paddingVertical: 5,
+    paddingVertical: 6,
   },
-  roleText: { fontSize: 12, fontWeight: "700", color: colors.primary },
+  roleText: { fontSize: 12, fontWeight: "800", color: colors.primary },
 
-  // Live learning summary
-  progressCard: {
-    backgroundColor: colors.primary,
-    padding: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.15)",
+  progressWrap: { borderRadius: 24, marginBottom: 22, ...elevation.brand },
+  progressCard: { padding: 20, borderRadius: 24, overflow: "hidden" },
+  progressRing: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    right: -70,
+    top: -90,
   },
   progressCardHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 16,
+    marginBottom: 18,
   },
-  progressEyebrow: {
-    fontSize: 10,
+  progressEyebrow: { ...design.eyebrow, color: "rgba(255,255,255,0.7)" },
+  progressHeading: {
+    fontSize: 21,
     fontWeight: "800",
-    color: "rgba(255,255,255,0.7)",
-    letterSpacing: 1.1,
+    color: colors.white,
+    marginTop: 4,
+    letterSpacing: -0.3,
   },
-  progressHeading: { fontSize: 19, fontWeight: "800", color: colors.white, marginTop: 3 },
   progressArrow: {
     width: 34,
     height: 34,
     borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.18)",
+    backgroundColor: colors.white,
   },
-  progressStats: { flexDirection: "row", flexWrap: "wrap", rowGap: 14 },
-  progressMetric: { width: "50%", flexDirection: "row", alignItems: "center", gap: 6 },
-  progressMetricValue: { color: colors.white, fontSize: 14, fontWeight: "800", maxWidth: 68 },
-  progressMetricLabel: { color: "rgba(255,255,255,0.72)", fontSize: 11, flexShrink: 1 },
-  progressLoader: { height: 54 },
-  progressLink: { color: colors.white, fontSize: 12, fontWeight: "700", marginTop: 16 },
+  progressStats: { flexDirection: "row", flexWrap: "wrap", rowGap: 16 },
+  progressMetric: {
+    width: "50%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  metricIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  progressMetricValue: { color: colors.white, fontSize: 16, fontWeight: "800" },
+  progressMetricLabel: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  progressLoader: { height: 84 },
+  progressLink: {
+    color: colors.accent,
+    fontSize: 12.5,
+    fontWeight: "800",
+    marginTop: 18,
+  },
 
-  // Section
-  section: { marginBottom: 16 },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 8,
-    paddingLeft: 4,
-  },
-  sectionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
+  section: { marginBottom: 18 },
+  sectionLabel: { marginBottom: 8, paddingLeft: 4, ...design.eyebrow },
+  sectionCard: { overflow: "hidden", ...design.card },
 
-  // Row
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 13,
+    gap: 12,
   },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  switchRow: { paddingVertical: 9 },
+  switchHint: { fontSize: 11.5, color: colors.textMuted, marginTop: 2, lineHeight: 15 },
   rowLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   rowIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    backgroundColor: "#f1f5f9",
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
   },
-  rowLabel: { fontSize: 14, color: colors.text, fontWeight: "500" },
-  rowRight: { flexDirection: "row", alignItems: "center", gap: 6 },
-  rowValue: { fontSize: 13, color: colors.textMuted },
-
-  // Switch row (same height as Row)
-  switchRow: {
+  rowLabel: { fontSize: 14.5, color: colors.text, fontWeight: "600" },
+  rowRight: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    gap: 6,
+    flexShrink: 1,
   },
+  rowValue: { fontSize: 13, color: colors.textMuted, flexShrink: 1 },
 
-  // Logout
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.errorSoft,
     borderRadius: 18,
     paddingVertical: 15,
     marginTop: 4,
-    borderWidth: 1.5,
-    borderColor: "#fee2e2",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
   },
   logoutText: { fontSize: 15, fontWeight: "700", color: colors.error },
 
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15,23,42,0.45)",
+    backgroundColor: colors.overlay,
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 36,
-    gap: 10,
+    padding: 22,
+    paddingTop: 12,
+    paddingBottom: 34,
+    gap: 12,
+    ...design.sheet,
   },
-  modalTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
-  modalHint: { fontSize: 13, color: colors.textMuted, marginBottom: 6 },
-  pwInput: {
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: colors.text,
-    backgroundColor: "#f8fafc",
+  grabber: {
+    alignSelf: "center",
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    marginBottom: 6,
   },
+  modalHead: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 4,
+  },
+  modalIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalTitle: { ...design.sectionTitle },
+  modalHint: { ...design.caption, marginTop: 3, lineHeight: 18 },
+  pwInput: { ...design.input },
+  pwError: { marginTop: -4, marginBottom: 4 },
+  inputError: { borderColor: FIELD_ERROR_COLOR },
+  modalSave: { marginTop: 6, paddingVertical: 15 },
   cancelBtn: { alignItems: "center", paddingVertical: 10 },
   cancelText: { fontSize: 15, fontWeight: "700", color: colors.textMuted },
 });

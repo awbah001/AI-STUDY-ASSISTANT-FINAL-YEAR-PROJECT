@@ -1,3 +1,6 @@
+import { design, elevation } from "../../src/theme/design";
+import { LinearGradient } from "expo-linear-gradient";
+import { EmptyCard, IconTile } from "../../src/components/ui/Kit";
 import {
   View,
   Text,
@@ -13,7 +16,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "../../src/lib/api";
-import { colors } from "../../src/theme/colors";
+import { colors, gradients } from "../../src/theme/colors";
 
 type Filter = "All" | "PDF" | "PPT" | "DOC";
 const FILTERS: Filter[] = ["All", "PDF", "PPT", "DOC"];
@@ -21,7 +24,8 @@ const FILTERS: Filter[] = ["All", "PDF", "PPT", "DOC"];
 function mimeToFilter(mime?: string | null): Filter {
   if (!mime) return "All";
   if (mime.includes("pdf")) return "PDF";
-  if (mime.includes("presentation") || mime.includes("powerpoint")) return "PPT";
+  if (mime.includes("presentation") || mime.includes("powerpoint"))
+    return "PPT";
   if (mime.includes("word") || mime.includes("document")) return "DOC";
   return "All";
 }
@@ -60,9 +64,13 @@ export default function LibraryScreen() {
   const [filter, setFilter] = useState<Filter>("All");
   const [refreshing, setRefreshing] = useState(false);
 
-  const { data: documents, isLoading, refetch } = trpc.documents.list.useQuery();
+  const {
+    data: documents,
+    isLoading,
+    refetch,
+  } = trpc.documents.list.useQuery();
 
-  const filtered = (documents ?? []).filter((doc) => {
+  const filtered = (documents ?? []).filter(doc => {
     const matchSearch = doc.title.toLowerCase().includes(search.toLowerCase());
     const matchFilter =
       filter === "All" || mimeToFilter(doc.mimeType) === filter;
@@ -79,17 +87,19 @@ export default function LibraryScreen() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       {/* ── Header ── */}
       <View style={s.header}>
-        <Text style={s.title}>Documents</Text>
-        <TouchableOpacity style={s.sortBtn}>
-          <Ionicons name="options-outline" size={20} color={colors.textSub} />
-        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={s.eyebrow}>
+            {documents?.length ?? 0} {documents?.length === 1 ? "document" : "documents"}
+          </Text>
+          <Text style={s.title}>Library</Text>
+        </View>
       </View>
 
       {/* ── Search ── */}
       <View style={s.searchWrap}>
         <Ionicons
           name="search-outline"
-          size={17}
+          size={18}
           color={colors.textLight}
           style={{ marginLeft: 14 }}
         />
@@ -97,36 +107,39 @@ export default function LibraryScreen() {
           style={s.searchInput}
           value={search}
           onChangeText={setSearch}
-          placeholder="Search documents..."
+          placeholder="Search documents"
           placeholderTextColor={colors.textLight}
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch("")} style={{ marginRight: 12 }}>
-            <Ionicons name="close-circle" size={17} color={colors.textLight} />
+          <TouchableOpacity
+            onPress={() => setSearch("")}
+            style={{ paddingHorizontal: 12 }}
+            accessibilityLabel="Clear search"
+          >
+            <Ionicons name="close-circle" size={18} color={colors.textLight} />
           </TouchableOpacity>
         )}
       </View>
 
       {/* ── Filter pills ── */}
       <View style={s.filterRow}>
-        {FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f}
-            style={[
-              s.filterPill,
-              filter === f
-                ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                : {},
-            ]}
-            onPress={() => setFilter(f)}
-          >
-            <Text
-              style={[s.filterPillText, filter === f && { color: colors.white }]}
+        {FILTERS.map(f => {
+          const active = filter === f;
+          return (
+            <TouchableOpacity
+              key={f}
+              style={[s.filterPill, active && s.filterPillActive]}
+              onPress={() => setFilter(f)}
             >
-              {f}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              {f !== "All" ? (
+                <View style={[s.filterDot, { backgroundColor: active ? colors.white : docColor(f) }]} />
+              ) : null}
+              <Text style={[s.filterPillText, active && { color: colors.white }]}>
+                {f}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* ── List ── */}
@@ -135,7 +148,7 @@ export default function LibraryScreen() {
       ) : (
         <FlatList
           data={filtered}
-          keyExtractor={(d) => String(d.id)}
+          keyExtractor={d => String(d.id)}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -146,17 +159,17 @@ export default function LibraryScreen() {
             />
           }
           ListEmptyComponent={
-            <View style={s.empty}>
-              <View style={s.emptyIconWrap}>
-                <Ionicons name="documents-outline" size={36} color={colors.primary} />
-              </View>
-              <Text style={s.emptyTitle}>No documents found</Text>
-              <Text style={s.emptyText}>
-                {search
+            <EmptyCard
+              icon="documents-outline"
+              title="No documents found"
+              body={
+                search
                   ? "Try a different search term."
-                  : "Documents shared by your lecturers appear here."}
-              </Text>
-            </View>
+                  : "Documents shared by your lecturers appear here."
+              }
+              action={search ? undefined : "Upload a document"}
+              onAction={() => router.push("/upload-document" as any)}
+            />
           }
           renderItem={({ item: doc }) => {
             const ft = mimeToFilter(doc.mimeType);
@@ -169,31 +182,39 @@ export default function LibraryScreen() {
               <TouchableOpacity
                 style={s.row}
                 onPress={() =>
-                  router.push({ pathname: "/document/[id]", params: { id: doc.id } })
+                  router.push({
+                    pathname: "/document/[id]",
+                    params: { id: doc.id },
+                  })
                 }
                 activeOpacity={0.75}
               >
-                {/* icon */}
-                <View style={[s.rowIcon, { backgroundColor: bg }]}>
-                  <Ionicons name={ic as any} size={22} color={col} />
-                </View>
+                <IconTile icon={ic as any} color={col} bg={bg} size={48} />
 
-                {/* info */}
                 <View style={s.rowInfo}>
                   <Text style={s.rowTitle} numberOfLines={1}>
                     {doc.title}
                   </Text>
-                  <Text style={s.rowMeta}>
-                    {sizeMB} MB · {ago}
-                  </Text>
+                  <View style={s.rowMetaLine}>
+                    <View style={[s.typeTag, { backgroundColor: bg }]}>
+                      <Text style={[s.typeTagText, { color: col }]}>
+                        {ft === "All" ? "FILE" : ft}
+                      </Text>
+                    </View>
+                    <Text style={s.rowMeta}>
+                      {sizeMB} MB · {ago}
+                    </Text>
+                  </View>
                 </View>
 
-                {/* star */}
-                <TouchableOpacity style={s.starBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity
+                  style={s.starBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
                   <Ionicons
                     name={doc.isFavorite ? "star" : "star-outline"}
-                    size={18}
-                    color={doc.isFavorite ? "#f59e0b" : colors.textLight}
+                    size={17}
+                    color={doc.isFavorite ? colors.warning : colors.textLight}
                   />
                 </TouchableOpacity>
               </TouchableOpacity>
@@ -202,138 +223,104 @@ export default function LibraryScreen() {
         />
       )}
 
-      {/* ── FAB ── */}
       <TouchableOpacity
         style={s.fab}
         onPress={() => router.push("/upload-document" as any)}
+        activeOpacity={0.9}
+        accessibilityLabel="Upload a document"
       >
-        <Ionicons name="add" size={26} color={colors.white} />
+        <LinearGradient
+          colors={gradients.hero}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={s.fabInner}
+        >
+          <Ionicons name="cloud-upload-outline" size={22} color={colors.white} />
+          <Text style={s.fabText}>Upload</Text>
+        </LinearGradient>
       </TouchableOpacity>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f5f6fa" },
+  safe: { flex: 1, ...design.page },
 
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-end",
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 14,
+    paddingBottom: 16,
   },
-  title: { fontSize: 22, fontWeight: "800", color: colors.text, letterSpacing: -0.3 },
-  sortBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  eyebrow: { ...design.eyebrow, color: colors.primary, marginBottom: 4 },
+  title: { ...design.screenTitle },
 
-  // Search
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: 20,
     marginBottom: 12,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...design.search,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 11,
+    height: 50,
     paddingHorizontal: 10,
-    fontSize: 14,
+    fontSize: 14.5,
     color: colors.text,
   },
 
-  // Filter pills
   filterRow: {
     flexDirection: "row",
     gap: 8,
     paddingHorizontal: 20,
-    marginBottom: 14,
+    marginBottom: 16,
   },
-  filterPill: {
-    paddingHorizontal: 18,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  filterPillText: { fontSize: 13, fontWeight: "600", color: colors.textMuted },
+  filterPill: { ...design.chip, flexDirection: "row", alignItems: "center", gap: 6 },
+  filterPillActive: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
+  filterDot: { width: 6, height: 6, borderRadius: 3 },
+  filterPillText: { fontSize: 13, fontWeight: "600", color: colors.textSub },
 
-  // List
-  list: { paddingHorizontal: 20, paddingBottom: 100 },
+  list: { paddingHorizontal: 20, paddingBottom: 110 },
 
   row: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 16,
     padding: 14,
     marginBottom: 10,
-    gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    gap: 14,
+    ...design.card,
   },
-  rowIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
+  rowInfo: { flex: 1, gap: 5 },
+  rowTitle: { ...design.cardTitle },
+  rowMetaLine: { flexDirection: "row", alignItems: "center", gap: 8 },
+  typeTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  typeTagText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  rowMeta: { ...design.caption },
+  starBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-  },
-  rowInfo: { flex: 1 },
-  rowTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
-  rowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 3 },
-  starBtn: { paddingLeft: 4 },
-
-  // Empty
-  empty: { alignItems: "center", paddingTop: 60, gap: 12 },
-  emptyIconWrap: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    backgroundColor: "#e8fdf2",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-  emptyText: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: "center",
-    maxWidth: 240,
+    backgroundColor: colors.surfaceAlt,
   },
 
-  // FAB
   fab: {
     position: "absolute",
-    bottom: 24,
-    right: 24,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 10,
+    bottom: 22,
+    right: 20,
+    borderRadius: 28,
+    ...elevation.brand,
   },
+  fabInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 54,
+    paddingHorizontal: 20,
+    borderRadius: 27,
+  },
+  fabText: { color: colors.white, fontWeight: "700", fontSize: 14.5 },
 });

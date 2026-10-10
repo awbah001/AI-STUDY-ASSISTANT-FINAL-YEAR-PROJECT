@@ -311,6 +311,7 @@ Rules:
       },
     ],
     max_tokens: 1024,
+    taskType: "summarization",
   });
 
     const content = llmMessageText(response.choices[0]?.message.content);
@@ -424,6 +425,7 @@ export async function generateFlashcards(
         ],
         max_tokens: 280,
         temperature: 0.7,
+        taskType: "flashcard_generation",
       });
     } catch (error) {
       console.warn("[LLM] Flashcard attempt failed:", error);
@@ -530,6 +532,7 @@ export async function generateQuiz(
         ],
         max_tokens: 700,
         temperature: 0.7,
+        taskType: "quiz_generation",
       });
     } catch (error) {
       console.warn("[LLM] Quiz attempt failed:", error);
@@ -587,16 +590,21 @@ export async function generateDocumentAwareResponse(
   documentTitle: string,
   chatHistory: Array<{ role: "user" | "assistant"; content: string }>
 ): Promise<string> {
+  const totalStarted = Date.now();
   // documentId === 0 means general Ask AI — skip RAG, answer from LLM knowledge only
   let context = "";
+  let ragMs = 0;
   if (documentId > 0) {
+    const ragStarted = Date.now();
     context = await retrieveRelevantChunks(documentId, userQuestion, 4);
+    ragMs = Date.now() - ragStarted;
     if (!context.trim() && documentText.trim()) {
       context = documentText.slice(0, 3000); // 3B model — less context, faster chat
     }
   }
 
   // Sanitize retrieved context against prompt injection
+  const promptStarted = Date.now();
   if (context) context = sanitizeContext(context);
 
   // Limit history to avoid token bloat
@@ -610,7 +618,7 @@ export async function generateDocumentAwareResponse(
       role: "system",
       content: documentId > 0
         ? `You are a helpful learning assistant for higher education. Answer questions accurately using only the provided document context. If the answer is not clearly in the context, say you do not have enough information from this document. Be concise, clear, and educational. Document title: "${documentTitle}"`
-        : `You are Cognify, a helpful AI learning assistant for higher education students. Answer questions clearly, concisely and educationally. You can explain concepts, help with study topics, and assist with learning. Keep answers focused and student-friendly.`,
+        : `You are the Course-Specific AI Learning Assistant, a helpful AI learning assistant for higher education students. Answer questions clearly, concisely and educationally. You can explain concepts, help with study topics, and assist with learning. Keep answers focused and student-friendly.`,
     },
   ];
 
@@ -624,10 +632,18 @@ export async function generateDocumentAwareResponse(
       ? `Document context:\n${context}\n\nStudent question: ${userQuestion}`
       : userQuestion,
   });
+  const promptMs = Date.now() - promptStarted;
 
-  const response = await invokeLLM({ messages, max_tokens: 512 });  // chat reply — keep concise for speed
+  const llmStarted = Date.now();
+  const response = await invokeLLM({
+    messages,
+    max_tokens: 512,
+    taskType: documentId > 0 ? "rag_question" : "student_chat",
+  });
+  const llmMs = Date.now() - llmStarted;
+  console.log(
+    `[Perf] chat doc=${documentId} rag=${ragMs}ms prompt=${promptMs}ms provider=${llmMs}ms total=${Date.now() - totalStarted}ms`
+  );
 
-  const content = response.choices[0]?.message.content;
-  if (typeof content !== "string") throw new Error("Invalid response from LLM");
-  return content;
+  return llmMessageText(response.choices[0]?.message?.content) || "";
 }

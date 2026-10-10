@@ -1,3 +1,8 @@
+import { design } from "../theme/design";
+import {
+  useStaffStyles,
+  useStaffAppearance,
+} from "../contexts/StaffAppearance";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,6 +30,9 @@ export function BackHeader({
   subtitle?: string;
   fallback?: string;
 }) {
+  const styles = useStaffStyles(baseStyles);
+  const { colors } = useStaffAppearance();
+
   const goBack = useGoBack(fallback);
 
   return (
@@ -35,7 +43,7 @@ export function BackHeader({
         accessibilityRole="button"
         accessibilityLabel="Go back"
       >
-        <Ionicons name="arrow-back" size={22} color={colors.text} />
+        <Ionicons name="chevron-back" size={21} color={colors.text} />
       </TouchableOpacity>
       <View style={styles.textCol}>
         <Text style={styles.title} numberOfLines={1}>
@@ -51,33 +59,15 @@ export function BackHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   wrap: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     marginBottom: 18,
   },
-  btn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  btn: { ...design.iconButton },
   textCol: { flex: 1 },
-  title: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: colors.text,
-    letterSpacing: -0.3,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
+  title: { ...design.sectionTitle },
+  subtitle: { marginTop: 2, ...design.caption },
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  extractPlanSubject,
   fallbackCalendarDrafts,
   formatStudyPlanReply,
   parseCalendarEventDrafts,
@@ -67,6 +68,15 @@ describe("fallbackCalendarDrafts", () => {
     expect(events.some((e) => e.type === "exam")).toBe(true);
     expect(studies[0]?.notes).toMatch(/^Day 1 of 5:/);
     expect(studies[studies.length - 1]?.notes).toMatch(/^Day 5 of 5:/);
+  });
+});
+
+describe("extractPlanSubject", () => {
+  it("extracts subject from for-my-course phrasing", () => {
+    expect(extractPlanSubject("Create a study timetable for my GIS course")).toMatch(/GIS/i);
+    expect(
+      extractPlanSubject("Create a 5-day study plan for Artificial Intelligence exam on 25 September")
+    ).toMatch(/Artificial Intelligence/i);
   });
 });
 

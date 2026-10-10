@@ -1,3 +1,4 @@
+import { design, elevation } from "../src/theme/design";
 /**
  * Upload Document Screen — lets students upload their own study materials.
  *
@@ -29,9 +30,12 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { trpc, API_URL, getToken } from "../src/lib/api";
-import { colors } from "../src/theme/colors";
+import { LIMITS, titleFromFileName, useFieldErrors, validateText } from "../src/lib/validation";
+import { FieldError, FIELD_ERROR_COLOR } from "../src/components/FieldError";
+import { LinearGradient } from "expo-linear-gradient";
+import { colors, gradients } from "../src/theme/colors";
 
 // Allowed MIME types and their display labels / icons
 const SUPPORTED_TYPES = [
@@ -43,9 +47,12 @@ const SUPPORTED_TYPES = [
 ];
 
 function mimeIcon(mime: string) {
-  if (mime.includes("pdf")) return { icon: "document-text", color: "#ef4444", bg: "#fef2f2" };
-  if (mime.includes("presentation") || mime.includes("powerpoint")) return { icon: "easel", color: "#f59e0b", bg: "#fffbeb" };
-  if (mime.includes("word") || mime.includes("document")) return { icon: "document", color: "#3b82f6", bg: "#eff6ff" };
+  if (mime.includes("pdf"))
+    return { icon: "document-text", color: "#ef4444", bg: "#fef2f2" };
+  if (mime.includes("presentation") || mime.includes("powerpoint"))
+    return { icon: "easel", color: "#f59e0b", bg: "#fffbeb" };
+  if (mime.includes("word") || mime.includes("document"))
+    return { icon: "document", color: "#3b82f6", bg: "#eff6ff" };
   return { icon: "document-text", color: colors.primary, bg: "#e8fdf2" };
 }
 
@@ -70,9 +77,9 @@ type PickedFile = {
 
 type UploadStage =
   | "idle"
-  | "reading"    // reading bytes from disk
-  | "uploading"  // PUT to /api/storage/put
-  | "saving"     // trpc.documents.createOwn
+  | "reading" // reading bytes from disk
+  | "uploading" // PUT to /api/storage/put
+  | "saving" // trpc.documents.createOwn
   | "done";
 
 export default function UploadDocumentScreen() {
@@ -80,6 +87,7 @@ export default function UploadDocumentScreen() {
   const [file, setFile] = useState<PickedFile | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const { errors, check, clear } = useFieldErrors<"title" | "description">();
   const [stage, setStage] = useState<UploadStage>("idle");
   const [uploadPct, setUploadPct] = useState(0);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -88,7 +96,7 @@ export default function UploadDocumentScreen() {
     onSuccess: () => {
       setStage("done");
     },
-    onError: (err) => {
+    onError: err => {
       setStage("idle");
       Alert.alert("Save failed", err.message);
     },
@@ -109,7 +117,10 @@ export default function UploadDocumentScreen() {
 
       // Guard: 50 MB limit (server has a 60 MB hard limit)
       if (asset.size && asset.size > 50 * 1024 * 1024) {
-        Alert.alert("File too large", "Please choose a file smaller than 50 MB.");
+        Alert.alert(
+          "File too large",
+          "Please choose a file smaller than 50 MB."
+        );
         return;
       }
 
@@ -122,8 +133,8 @@ export default function UploadDocumentScreen() {
 
       // Pre-fill title from filename (strip extension)
       if (!title.trim()) {
-        const nameWithoutExt = asset.name.replace(/\.[^.]+$/, "");
-        setTitle(nameWithoutExt);
+        setTitle(titleFromFileName(asset.name));
+        clear("title");
       }
     } catch {
       Alert.alert("Error", "Could not open the file picker.");
@@ -143,10 +154,11 @@ export default function UploadDocumentScreen() {
   // ── Step 3: Upload + register ─────────────────────────────────────────────
   const handleUpload = async () => {
     if (!file) return;
-    if (!title.trim()) {
-      Alert.alert("Title required", "Please enter a title for this document.");
-      return;
-    }
+    const ok = check({
+      title: validateText(title, { label: "Title", ...LIMITS.title }),
+      description: validateText(description, { label: "Description", required: false, max: 500 }),
+    });
+    if (!ok) return;
 
     try {
       // — Read file bytes as base64 —
@@ -186,7 +198,10 @@ export default function UploadDocumentScreen() {
         throw new Error(`Upload failed with status ${uploadResult.status}`);
       }
 
-      const uploadBody = JSON.parse(uploadResult.body) as { url: string; key: string };
+      const uploadBody = JSON.parse(uploadResult.body) as {
+        url: string;
+        key: string;
+      };
 
       animateTo(85);
 
@@ -208,7 +223,8 @@ export default function UploadDocumentScreen() {
       animateTo(0, 200);
       Alert.alert(
         "Upload failed",
-        err?.message ?? "Something went wrong. Check your connection and try again."
+        err?.message ??
+          "Something went wrong. Check your connection and try again."
       );
     }
   };
@@ -218,10 +234,17 @@ export default function UploadDocumentScreen() {
     return (
       <SafeAreaView style={s.safe} edges={["top"]}>
         <View style={s.doneWrap}>
-          <View style={s.doneIcon}>
-            <Ionicons name="checkmark-circle" size={64} color={colors.primary} />
+          <View style={s.doneHalo}>
+            <LinearGradient
+              colors={gradients.hero}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={s.doneIcon}
+            >
+              <Ionicons name="checkmark" size={44} color={colors.white} />
+            </LinearGradient>
           </View>
-          <Text style={s.doneTitle}>Upload complete!</Text>
+          <Text style={s.doneTitle}>Upload complete</Text>
           <Text style={s.doneSub}>
             Your document has been saved.{"\n"}
             The AI is indexing it in the background — chat and flashcard
@@ -252,7 +275,11 @@ export default function UploadDocumentScreen() {
   }
 
   const isUploading = stage !== "idle";
-  const { icon: fileIcon, color: fileColor, bg: fileBg } = file
+  const {
+    icon: fileIcon,
+    color: fileColor,
+    bg: fileBg,
+  } = file
     ? mimeIcon(file.mimeType)
     : { icon: "document", color: colors.textLight, bg: "#f1f5f9" };
 
@@ -273,11 +300,22 @@ export default function UploadDocumentScreen() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       {/* ── Header ── */}
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} disabled={isUploading}>
-          <Ionicons name="arrow-back" size={22} color={isUploading ? colors.textLight : colors.text} />
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={s.backBtn}
+          disabled={isUploading}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons
+            name="chevron-back"
+            size={21}
+            color={isUploading ? colors.textLight : colors.text}
+          />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Upload Document</Text>
-        <View style={{ width: 44 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={s.headerTitle}>Upload document</Text>
+          <Text style={s.headerSub}>Add your own study material</Text>
+        </View>
       </View>
 
       <ScrollView
@@ -297,7 +335,9 @@ export default function UploadDocumentScreen() {
                 <Ionicons name={fileIcon as any} size={32} color={fileColor} />
               </View>
               <View style={s.fileInfo}>
-                <Text style={s.fileName} numberOfLines={2}>{file.name}</Text>
+                <Text style={s.fileName} numberOfLines={2}>
+                  {file.name}
+                </Text>
                 <Text style={s.fileMeta}>
                   {formatBytes(file.size)} ·{" "}
                   {file.mimeType.split("/")[1]?.toUpperCase() ?? "FILE"}
@@ -316,7 +356,11 @@ export default function UploadDocumentScreen() {
           ) : (
             <View style={s.pickEmpty}>
               <View style={s.pickIconCircle}>
-                <Ionicons name="cloud-upload-outline" size={36} color={colors.primary} />
+                <Ionicons
+                  name="cloud-upload-outline"
+                  size={36}
+                  color={colors.primary}
+                />
               </View>
               <Text style={s.pickTitle}>Choose a document</Text>
               <Text style={s.pickSub}>PDF, DOCX, PPTX, TXT · Max 50 MB</Text>
@@ -329,22 +373,31 @@ export default function UploadDocumentScreen() {
           <View style={s.field}>
             <Text style={s.label}>Title *</Text>
             <TextInput
-              style={[s.input, isUploading && s.inputDisabled]}
+              style={[s.input, isUploading && s.inputDisabled, !!errors.title && { borderColor: FIELD_ERROR_COLOR }]}
               value={title}
-              onChangeText={setTitle}
+              onChangeText={v => {
+                setTitle(v);
+                clear("title");
+              }}
               placeholder="e.g. Data Structures Lecture 3"
               placeholderTextColor={colors.textLight}
               editable={!isUploading}
-              maxLength={300}
+              maxLength={LIMITS.title.max}
+              accessibilityLabel="Title"
             />
+            <FieldError message={errors.title} />
           </View>
 
           <View style={s.field}>
             <Text style={s.label}>Description (optional)</Text>
             <TextInput
-              style={[s.input, s.inputMulti, isUploading && s.inputDisabled]}
+              style={[s.input, s.inputMulti, isUploading && s.inputDisabled, !!errors.description && { borderColor: FIELD_ERROR_COLOR }]}
               value={description}
-              onChangeText={setDescription}
+              onChangeText={v => {
+                setDescription(v);
+                clear("description");
+              }}
+              accessibilityLabel="Description"
               placeholder="What is this document about?"
               placeholderTextColor={colors.textLight}
               editable={!isUploading}
@@ -353,6 +406,7 @@ export default function UploadDocumentScreen() {
               maxLength={500}
               textAlignVertical="top"
             />
+            <FieldError message={errors.description} />
           </View>
         </View>
 
@@ -362,8 +416,8 @@ export default function UploadDocumentScreen() {
             <Ionicons name="sparkles" size={18} color={colors.primary} />
           </View>
           <Text style={s.aiBannerText}>
-            After upload, Cognify AI will automatically extract the text
-            and index it — enabling chat, flashcard generation, and quizzes.
+            After upload, the AI learning assistant will automatically extract the text and
+            index it — enabling chat, flashcard generation, and quizzes.
           </Text>
         </View>
 
@@ -371,7 +425,9 @@ export default function UploadDocumentScreen() {
         {isUploading && (
           <View style={s.progressWrap}>
             <View style={s.progressBg}>
-              <Animated.View style={[s.progressFill, { width: progressWidth as any }]} />
+              <Animated.View
+                style={[s.progressFill, { width: progressWidth as any }]}
+              />
             </View>
             <View style={s.progressRow}>
               <Text style={s.progressLabel}>{stageLabel}</Text>
@@ -383,24 +439,31 @@ export default function UploadDocumentScreen() {
         {/* ── Upload button ── */}
         <TouchableOpacity
           style={[
-            s.uploadBtn,
-            (!file || !title.trim() || isUploading) && s.uploadBtnDisabled,
+            s.uploadWrap,
+            (!file || isUploading) && s.uploadBtnDisabled,
           ]}
-          disabled={!file || !title.trim() || isUploading}
+          disabled={!file || isUploading}
           onPress={handleUpload}
-          activeOpacity={0.85}
+          activeOpacity={0.9}
         >
-          {isUploading ? (
-            <View style={s.uploadBtnInner}>
-              <ActivityIndicator color={colors.white} size="small" />
-              <Text style={s.uploadBtnText}>{stageLabel}</Text>
-            </View>
-          ) : (
-            <View style={s.uploadBtnInner}>
-              <Ionicons name="cloud-upload" size={20} color={colors.white} />
-              <Text style={s.uploadBtnText}>Upload Document</Text>
-            </View>
-          )}
+          <LinearGradient
+            colors={gradients.hero}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.uploadBtn}
+          >
+            {isUploading ? (
+              <View style={s.uploadBtnInner}>
+                <ActivityIndicator color={colors.white} size="small" />
+                <Text style={s.uploadBtnText}>{stageLabel}</Text>
+              </View>
+            ) : (
+              <View style={s.uploadBtnInner}>
+                <Ionicons name="cloud-upload" size={20} color={colors.white} />
+                <Text style={s.uploadBtnText}>Upload document</Text>
+              </View>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         <View style={{ height: 32 }} />
@@ -410,56 +473,78 @@ export default function UploadDocumentScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f5f6fa" },
+  safe: { flex: 1, ...design.page },
 
   // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 4,
   },
-  backBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
+  backBtn: { ...design.iconButton, borderRadius: 22 },
+  headerTitle: { ...design.screenTitle, fontSize: 22, lineHeight: 28 },
+  headerSub: { ...design.caption, marginTop: 1 },
 
-  scroll: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24 },
+  scroll: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 24 },
 
-  // Pick card
   pickCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderStyle: "dashed",
     overflow: "hidden",
-    marginBottom: 20,
+    marginBottom: 22,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#a7d9c4",
+    backgroundColor: "#f7fcfa",
   },
   pickCardFilled: {
     borderStyle: "solid",
+    borderWidth: 1,
     borderColor: colors.primaryMuted,
+    backgroundColor: colors.white,
+    ...elevation.sm,
   },
   pickEmpty: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 44,
-    gap: 10,
+    paddingVertical: 34,
+    gap: 8,
+  },
+  pickHalo: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
   },
   pickIconCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#e8fdf2",
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
   },
-  pickTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-  pickSub: { fontSize: 13, color: colors.textMuted },
-
+  pickTitle: { ...design.sectionTitle, fontSize: 17 },
+  pickSub: { ...design.caption },
+  browsePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  browsePillText: { fontSize: 13, fontWeight: "700", color: colors.primary },
   filePreview: {
     flexDirection: "row",
     alignItems: "center",
@@ -474,44 +559,31 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   fileInfo: { flex: 1 },
-  fileName: { fontSize: 14, fontWeight: "600", color: colors.text, lineHeight: 20 },
-  fileMeta: { fontSize: 12, color: colors.textMuted, marginTop: 3 },
+  fileName: { ...design.cardTitle },
+  fileMeta: { marginTop: 3, ...design.caption },
   changeBtn: {
-    backgroundColor: "#f1f5f9",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  changeBtnText: { fontSize: 12, fontWeight: "700", color: colors.textSub },
-
-  // Form
-  form: { gap: 16, marginBottom: 16 },
-  field: { gap: 7 },
-  label: { fontSize: 13, fontWeight: "600", color: colors.textSub },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+    backgroundColor: colors.primaryLight,
+    borderRadius: 999,
     paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontSize: 14,
-    color: colors.text,
+    paddingVertical: 7,
   },
-  inputMulti: { minHeight: 88, paddingTop: 13 },
+  changeBtnText: { fontSize: 12.5, fontWeight: "700", color: colors.primary },
+
+  form: { gap: 16, marginBottom: 18 },
+  field: { gap: 7 },
+  label: { fontSize: 13, fontWeight: "700", color: colors.textSub },
+  input: { ...design.input },
+  inputMulti: { minHeight: 96, paddingTop: 13 },
   inputDisabled: { opacity: 0.55 },
 
-  // AI banner
   aiBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    backgroundColor: "#e8fdf2",
-    borderRadius: 16,
     padding: 14,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: colors.primaryMuted,
+    marginBottom: 22,
+    borderRadius: 18,
+    backgroundColor: colors.primaryLight,
   },
   aiBannerIcon: {
     width: 32,
@@ -542,16 +614,12 @@ const s = StyleSheet.create({
   progressPct: { fontSize: 12, color: colors.primary, fontWeight: "700" },
 
   // Upload button
+  uploadWrap: { borderRadius: 18, ...elevation.brand },
   uploadBtn: {
-    backgroundColor: colors.primary,
+    paddingVertical: 17,
     borderRadius: 18,
-    paddingVertical: 16,
     alignItems: "center",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
+    justifyContent: "center",
   },
   uploadBtnDisabled: { opacity: 0.45 },
   uploadBtnInner: { flexDirection: "row", alignItems: "center", gap: 10 },
@@ -565,16 +633,23 @@ const s = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 16,
   },
-  doneIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 32,
-    backgroundColor: "#e8fdf2",
+  doneHalo: {
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
   },
-  doneTitle: { fontSize: 26, fontWeight: "900", color: colors.text },
+  doneIcon: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  doneTitle: { ...design.screenTitle, fontSize: 24 },
   doneSub: {
     fontSize: 14,
     color: colors.textMuted,
@@ -582,18 +657,15 @@ const s = StyleSheet.create({
     lineHeight: 22,
   },
   doneBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 18,
-    paddingVertical: 15,
+    ...design.action,
     paddingHorizontal: 40,
     marginTop: 8,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
   },
-  doneBtnText: { fontSize: 16, fontWeight: "800", color: colors.white },
+  doneBtnText: { ...design.actionText },
   doneBtnSecondary: { paddingVertical: 10 },
-  doneBtnSecondaryText: { fontSize: 14, color: colors.primary, fontWeight: "700" },
+  doneBtnSecondaryText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: "700",
+  },
 });

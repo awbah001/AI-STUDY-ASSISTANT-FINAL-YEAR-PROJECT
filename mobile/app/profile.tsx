@@ -1,3 +1,4 @@
+import { design } from "../src/theme/design";
 import {
   View,
   Text,
@@ -15,21 +16,24 @@ import { useState } from "react";
 import { useAuth } from "../src/contexts/AuthContext";
 import { trpc } from "../src/lib/api";
 import { colors } from "../src/theme/colors";
+import { LIMITS, validatePersonName } from "../src/lib/validation";
+import { FieldError, FIELD_ERROR_COLOR } from "../src/components/FieldError";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name ?? "");
+  const [nameError, setNameError] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
   const updateProfile = trpc.auth.updateProfile.useMutation({
-    onSuccess: (updated) => {
+    onSuccess: updated => {
       utils.auth.me.setData(undefined, updated as any);
       setEditing(false);
       Alert.alert("Saved", "Profile updated.");
     },
-    onError: (err) => Alert.alert("Error", err.message),
+    onError: err => Alert.alert("Error", err.message),
   });
 
   const handleLogout = () => {
@@ -73,7 +77,7 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Profile</Text>
-            <TouchableOpacity onPress={() => setEditing((v) => !v)}>
+            <TouchableOpacity onPress={() => setEditing(v => !v)}>
               <Text style={styles.editLink}>{editing ? "Cancel" : "Edit"}</Text>
             </TouchableOpacity>
           </View>
@@ -82,16 +86,29 @@ export default function ProfileScreen() {
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Name</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, !!nameError && { borderColor: FIELD_ERROR_COLOR }]}
                 value={name}
-                onChangeText={setName}
+                onChangeText={value => {
+                  setName(value);
+                  setNameError(null);
+                }}
                 placeholder="Your name"
                 placeholderTextColor={colors.textPlaceholder}
+                maxLength={LIMITS.name.max}
+                autoComplete="name"
               />
+              <FieldError message={nameError} style={{ marginBottom: 8 }} />
               <TouchableOpacity
-                style={[styles.saveBtn, updateProfile.isPending && styles.saveBtnDisabled]}
-                disabled={updateProfile.isPending || !name.trim()}
-                onPress={() => updateProfile.mutate({ name: name.trim() })}
+                style={[
+                  styles.saveBtn,
+                  updateProfile.isPending && styles.saveBtnDisabled,
+                ]}
+                disabled={updateProfile.isPending}
+                onPress={() => {
+                  const error = validatePersonName(name);
+                  setNameError(error);
+                  if (!error) updateProfile.mutate({ name: name.trim().replace(/\s+/g, " ") });
+                }}
               >
                 {updateProfile.isPending ? (
                   <ActivityIndicator color={colors.white} size="small" />
@@ -102,7 +119,11 @@ export default function ProfileScreen() {
             </View>
           ) : (
             <View style={styles.infoRow}>
-              <Ionicons name="person-outline" size={18} color={colors.textMuted} />
+              <Ionicons
+                name="person-outline"
+                size={18}
+                color={colors.textMuted}
+              />
               <Text style={styles.infoText}>{user?.name ?? "—"}</Text>
             </View>
           )}
@@ -127,7 +148,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f5f6fa" },
+  safe: { flex: 1, ...design.page },
   content: { paddingHorizontal: 24, paddingBottom: 40, paddingTop: 16 },
   back: {
     flexDirection: "row",
@@ -136,7 +157,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   backText: { fontSize: 15, color: colors.primary, fontWeight: "600" },
-  avatarSection: { alignItems: "center", marginBottom: 32 },
+  avatarSection: { alignItems: "center", marginBottom: 32, ...design.card },
   avatar: {
     width: 80,
     height: 80,
@@ -152,8 +173,8 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   avatarText: { fontSize: 36, fontWeight: "800", color: colors.white },
-  displayName: { fontSize: 22, fontWeight: "800", color: colors.text },
-  email: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
+  displayName: { ...design.sectionTitle },
+  email: { marginTop: 4, ...design.caption },
   roleBadge: {
     marginTop: 10,
     backgroundColor: colors.surface,
@@ -162,24 +183,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   roleText: { fontSize: 13, fontWeight: "700", color: colors.primary },
-  section: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
+  section: { padding: 20, marginBottom: 16, ...design.card },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 14,
   },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
+  sectionTitle: { ...design.sectionTitle },
   editLink: { fontSize: 14, fontWeight: "700", color: colors.primary },
   infoRow: {
     flexDirection: "row",
@@ -191,24 +202,14 @@ const styles = StyleSheet.create({
   },
   infoText: { fontSize: 14, color: colors.text },
   field: { marginBottom: 4 },
-  fieldLabel: { fontSize: 13, fontWeight: "600", color: colors.text, marginBottom: 6 },
-  input: {
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "600",
     color: colors.text,
-    backgroundColor: "#f8fafc",
-    marginBottom: 12,
+    marginBottom: 6,
   },
-  saveBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 14,
-    paddingVertical: 13,
-    alignItems: "center",
-  },
+  input: { marginBottom: 12, ...design.input },
+  saveBtn: { paddingVertical: 13, ...design.action },
   saveBtnDisabled: { opacity: 0.5 },
   saveBtnText: { color: colors.white, fontWeight: "700", fontSize: 15 },
   dangerBtn: {

@@ -1,8 +1,8 @@
-# Cognify native shells (Capacitor)
+# Course-Specific AI Learning Assistant native shells (Capacitor)
 
-**Students use the Expo app** in [`mobile/`](./mobile/README.md).
+**Students can use the website or the Expo app** in [`mobile/`](./mobile/README.md).
 
-Capacitor in this repo wraps the **staff React web client** (`client/` → `dist/public`). A student who logs into that APK/IPA is sent to `/student-blocked`. Use these projects only if you want a native wrapper for lecturers/admins.
+Capacitor in this repo wraps the shared React web client (`client/` ? `dist/public`). Students can sign in to its student workspace; lecturers and admins keep their own portals. The dedicated native student experience is the Expo app.
 
 ## Staff Capacitor (optional)
 

@@ -47,24 +47,6 @@ function decodeWavPcm(buffer: Buffer): { samples: Float32Array; sampleRate: numb
   return { samples, sampleRate };
 }
 
-async function transcribeWithLmStudio(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
-  const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
-  form.append("model", process.env.LM_STUDIO_WHISPER_MODEL ?? "whisper-1");
-  form.append("language", "en");
-  const response = await fetch(`${ENV.lmStudioBaseUrl}/audio/transcriptions`, {
-    method: "POST",
-    body: form,
-  });
-  if (!response.ok) {
-    throw new Error(`LM Studio transcription failed (${response.status})`);
-  }
-  const json = (await response.json()) as { text?: string };
-  const text = json.text?.trim() ?? "";
-  if (!text) throw new Error("Empty transcription");
-  return text;
-}
-
 async function transcribeWithWhisper(buffer: Buffer): Promise<string> {
   const { samples, sampleRate } = decodeWavPcm(buffer);
   if (!asr) {
@@ -77,17 +59,58 @@ async function transcribeWithWhisper(buffer: Buffer): Promise<string> {
   return text;
 }
 
+const GROQ_AUDIO_EXTENSIONS: Array<[string, string]> = [
+  ["wav", "wav"],
+  ["webm", "webm"],
+  ["ogg", "ogg"],
+  ["m4a", "m4a"],
+  ["mp4", "m4a"],
+  ["aac", "m4a"],
+  ["mpeg", "mp3"],
+  ["mp3", "mp3"],
+  ["flac", "flac"],
+];
+
+/** Groq-hosted Whisper; accepts compressed formats (m4a, webm, ogg) that the local model cannot decode. */
+async function transcribeWithGroq(buffer: Buffer, mimeType: string): Promise<string> {
+  const ext = GROQ_AUDIO_EXTENSIONS.find(([key]) => mimeType.includes(key))?.[1] ?? "wav";
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), `speech.${ext}`);
+  form.append("model", ENV.groqSttModel);
+  form.append("language", "en");
+  form.append("response_format", "json");
+  const response = await fetch(`${ENV.groqBaseUrl}/audio/transcriptions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ENV.groqApiKey}` },
+    body: form,
+    signal: AbortSignal.timeout(ENV.groqTimeoutMs),
+  });
+  if (!response.ok) {
+    throw new Error(`Groq transcription failed (${response.status})`);
+  }
+  const payload = (await response.json()) as { text?: string };
+  const text = payload.text?.trim() ?? "";
+  return /[a-z0-9]/i.test(text) ? text : "";
+}
+
 export async function transcribeStudentAudio(audioBase64: string, mimeType = "audio/wav"): Promise<string> {
   const buffer = Buffer.from(audioBase64, "base64");
   if (buffer.length < 64) throw new Error("Recording was too short.");
-  const filename = mimeType.includes("wav") ? "speech.wav" : mimeType.includes("mp4") || mimeType.includes("m4a") ? "speech.m4a" : "speech.audio";
-  try {
-    return await transcribeWithLmStudio(buffer, filename, mimeType);
-  } catch (lmError) {
-    console.warn("[voice] LM Studio transcription unavailable", lmError);
+  const isWav = mimeType.includes("wav") || buffer.toString("ascii", 0, 4) === "RIFF";
+
+  if (ENV.groqApiKey) {
+    let text: string | null = null;
+    try {
+      text = await transcribeWithGroq(buffer, isWav ? "audio/wav" : mimeType);
+    } catch (error) {
+      console.warn("[voice] Groq transcription failed, trying local model", error);
+      if (!isWav) throw new Error("Could not convert speech to text. Try again, or type your question.");
+    }
+    if (text !== null) {
+      if (!text) throw new Error("No speech detected. Please speak closer to the microphone and try again.");
+      return text;
+    }
   }
-  if (mimeType.includes("wav") || buffer.toString("ascii", 0, 4) === "RIFF") {
-    return transcribeWithWhisper(buffer);
-  }
+  if (isWav) return transcribeWithWhisper(buffer);
   throw new Error("Could not transcribe that recording. Try again, or type your question.");
 }

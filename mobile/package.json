@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
+    "test:chat": "node scripts/test-chat-rendering.cjs",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -38,6 +39,7 @@
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "expo-web-browser": "~57.0.3",
+    "marked": "^16.4.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",

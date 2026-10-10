@@ -1,3 +1,4 @@
+import { design, elevation } from "../../src/theme/design";
 import {
   View,
   Text,
@@ -16,16 +17,22 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState, useRef, useEffect } from "react";
 import { Linking } from "react-native";
 import { trpc } from "../../src/lib/api";
-import { colors } from "../../src/theme/colors";
+import { colors, gradients } from "../../src/theme/colors";
+import { LinearGradient } from "expo-linear-gradient";
 import { API_URL } from "../../src/lib/api";
 import { useChatVoice, VoiceCapture } from "../../src/lib/useChatVoice";
 import { FlippingFlashcard } from "../../src/components/FlippingFlashcard";
 import { oldestFirstById } from "../../src/lib/chatHistory";
+import { AssistantMessage } from "../../src/components/AssistantMessage";
 
 type Tab = "chat" | "flashcards" | "quiz";
 
 export default function DocumentDetailScreen() {
-  const { id, tab: initialTab, quizId: initialQuizId } = useLocalSearchParams<{
+  const {
+    id,
+    tab: initialTab,
+    quizId: initialQuizId,
+  } = useLocalSearchParams<{
     id: string;
     tab?: string;
     quizId?: string;
@@ -67,7 +74,13 @@ export default function DocumentDetailScreen() {
             <Ionicons name="arrow-back" size={22} color={colors.primary} />
           </TouchableOpacity>
         </View>
-        <Text style={{ textAlign: "center", marginTop: 40, color: colors.textMuted }}>
+        <Text
+          style={{
+            textAlign: "center",
+            marginTop: 40,
+            color: colors.textMuted,
+          }}
+        >
           Document not found.
         </Text>
       </SafeAreaView>
@@ -93,80 +106,71 @@ export default function DocumentDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      {/* Header */}
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={colors.primary} />
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron-back" size={21} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.docTitle} numberOfLines={1}>
-          {doc.title}
-        </Text>
+        <View style={styles.docIconSmall}>
+          <Ionicons
+            name={doc.mimeType?.includes("pdf") ? "document-text" : "document"}
+            size={18}
+            color={colors.primary}
+          />
+        </View>
+        <View style={styles.docInfoLeft}>
+          <Text style={styles.docTitle} numberOfLines={1}>
+            {doc.title}
+          </Text>
+          <Text style={styles.docFileMeta} numberOfLines={1}>
+            {(doc.fileSize / 1024).toFixed(0)} KB ·{" "}
+            {doc.mimeType?.split("/")[1]?.toUpperCase() ?? "FILE"} ·{" "}
+            {doc.fileName}
+          </Text>
+        </View>
         <TouchableOpacity
           style={styles.viewBtn}
           onPress={openDocument}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
+          accessibilityLabel="Open document"
         >
-          <Ionicons name="eye-outline" size={16} color={colors.white} />
-          <Text style={styles.viewBtnText}>View</Text>
+          <Ionicons name="open-outline" size={15} color={colors.white} />
+          <Text style={styles.viewBtnText}>Open</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Document info strip */}
-      <View style={styles.docInfoStrip}>
-        <View style={styles.docInfoLeft}>
-          <View style={styles.docIconSmall}>
-            <Ionicons
-              name={doc.mimeType?.includes("pdf") ? "document-text" : "document"}
-              size={16}
-              color={colors.primary}
-            />
-          </View>
-          <View>
-            <Text style={styles.docFileName} numberOfLines={1}>
-              {doc.fileName}
-            </Text>
-            <Text style={styles.docFileMeta}>
-              {(doc.fileSize / 1024).toFixed(0)} KB · {doc.mimeType?.split("/")[1]?.toUpperCase() ?? "FILE"}
-            </Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          style={styles.previewBtn}
-          onPress={openDocument}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="open-outline" size={14} color={colors.primary} />
-          <Text style={styles.previewBtnText}>Open PDF</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Tabs */}
       <View style={styles.tabBar}>
-        {(["chat", "flashcards", "quiz"] as Tab[]).map((t) => (
-          <TouchableOpacity
-            key={t}
-            style={[styles.tab, activeTab === t && styles.tabActive]}
-            onPress={() => setActiveTab(t)}
-          >
-            <Ionicons
-              name={
-                t === "chat"
-                  ? "chatbubble-ellipses-outline"
-                  : t === "flashcards"
-                  ? "layers-outline"
-                  : "help-circle-outline"
-              }
-              size={16}
-              color={activeTab === t ? colors.white : colors.textMuted}
-            />
-            <Text
-              style={[styles.tabText, activeTab === t && styles.tabTextActive]}
+        <View style={styles.tabTrack}>
+          {(["chat", "flashcards", "quiz"] as Tab[]).map(t => (
+            <TouchableOpacity
+              key={t}
+              style={[styles.tab, activeTab === t && styles.tabActive]}
+              onPress={() => setActiveTab(t)}
+              activeOpacity={0.85}
             >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Ionicons
+                name={
+                  t === "chat"
+                    ? "chatbubble-ellipses"
+                    : t === "flashcards"
+                      ? "layers"
+                      : "help-circle"
+                }
+                size={15}
+                color={activeTab === t ? colors.primary : colors.textMuted}
+              />
+              <Text
+                style={[styles.tabText, activeTab === t && styles.tabTextActive]}
+              >
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       {/* Tab content */}
@@ -188,24 +192,24 @@ function ChatTab({ docId }: { docId: number }) {
   const [message, setMessage] = useState("");
   const scrollRef = useRef<ScrollView>(null);
   const utils = trpc.useUtils();
-  const voice = useChatVoice((heard) => {
-    setMessage((current) => {
+  const voice = useChatVoice(heard => {
+    setMessage(current => {
       const next = current.trim() ? `${current.trim()} ${heard}` : heard;
       return next.slice(0, 500);
     });
   });
 
-  const { data: history, isLoading } = trpc.chat.history.useQuery({ documentId: docId });
+  const { data: history, isLoading } = trpc.chat.history.useQuery({
+    documentId: docId,
+  });
 
   const sendMsg = trpc.chat.send.useMutation({
     onSuccess: (data: any) => {
       utils.chat.history.invalidate({ documentId: docId });
       setMessage("");
       scrollToBottom();
-      const aiContent = data?.aiResponse ?? data?.response ?? data?.content;
-      if (typeof aiContent === "string" && aiContent.trim()) voice.speak(aiContent);
     },
-    onError: (err) => Alert.alert("Error", err.message),
+    onError: err => Alert.alert("Error", err.message),
   });
 
   const messages = oldestFirstById(history);
@@ -216,122 +220,160 @@ function ChatTab({ docId }: { docId: number }) {
 
   return (
     <>
-    <VoiceCapture listening={voice.listening} usingWebSpeech={voice.usingWebSpeech} onMessage={voice.handleWebMessage} />
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-    >
-      {isLoading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
-      ) : (
-        <ScrollView
-          ref={scrollRef}
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.chatList}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          onContentSizeChange={scrollToBottom}
-        >
-          {messages.length === 0 ? (
-            <View style={styles.chatEmpty}>
-              <Ionicons name="chatbubbles-outline" size={40} color={colors.primaryLight} />
-              <Text style={styles.chatEmptyText}>Ask anything about this document</Text>
-              <Text style={styles.chatEmptyHint}>
-                Try: /summary · /flashcards 10 · /quiz 5
-              </Text>
-            </View>
-          ) : (
-            messages.map((item) => (
-              <View
-                key={String(item.id)}
-                style={[
-                  styles.bubble,
-                  item.role === "user" ? styles.bubbleUser : styles.bubbleAI,
-                ]}
-              >
-                <Text
+      <VoiceCapture
+        listening={voice.listening}
+        usingWebSpeech={voice.usingWebSpeech}
+        onMessage={voice.handleWebMessage}
+      />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
+        {isLoading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
+        ) : (
+          <ScrollView
+            ref={scrollRef}
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.chatList}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={scrollToBottom}
+          >
+            {messages.length === 0 ? (
+              <View style={styles.chatEmpty}>
+                <View style={styles.chatEmptyHalo}>
+                  <LinearGradient
+                    colors={gradients.hero}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.chatEmptyOrb}
+                  >
+                    <Ionicons name="sparkles" size={26} color={colors.white} />
+                  </LinearGradient>
+                </View>
+                <Text style={styles.chatEmptyText}>
+                  Ask anything about this document
+                </Text>
+                <View style={styles.hintRow}>
+                  {["/summary", "/flashcards 10", "/quiz 5"].map(cmd => (
+                    <TouchableOpacity
+                      key={cmd}
+                      style={styles.hintChip}
+                      onPress={() => setMessage(cmd)}
+                    >
+                      <Text style={styles.hintChipText}>{cmd}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              messages.map(item => (
+                <View
+                  key={String(item.id)}
                   style={[
-                    styles.bubbleText,
-                    item.role === "user"
-                      ? styles.bubbleTextUser
-                      : styles.bubbleTextAI,
+                    styles.bubble,
+                    item.role === "user" ? styles.bubbleUser : styles.bubbleAI,
                   ]}
                 >
-                  {item.content}
-                </Text>
-                {item.role === "assistant" ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (voice.speaking) voice.stopSpeaking();
-                      else void voice.speak(item.content, { ignoreMute: true });
-                    }}
-                    hitSlop={8}
-                    style={styles.speakBtn}
-                  >
-                    <Ionicons
-                      name={voice.speaking ? "stop-circle-outline" : "volume-medium-outline"}
-                      size={14}
-                      color={colors.primary}
-                    />
-                  </TouchableOpacity>
-                ) : null}
+                  {item.role === "assistant" ? (
+                    <AssistantMessage content={item.content} />
+                  ) : (
+                    <Text style={[styles.bubbleText, styles.bubbleTextUser]}>
+                      {item.content}
+                    </Text>
+                  )}
+                  {item.role === "assistant" ? (
+                    <TouchableOpacity
+                      onPress={() => voice.toggleSpeak(item.content, String(item.id))}
+                      hitSlop={8}
+                      style={styles.speakBtn}
+                      accessibilityLabel={
+                        voice.speakingId === String(item.id) ? "Stop reading aloud" : "Read aloud"
+                      }
+                    >
+                      <Ionicons
+                        name={
+                          voice.speakingId === String(item.id)
+                            ? "stop-circle-outline"
+                            : "volume-medium-outline"
+                        }
+                        size={14}
+                        color={colors.primary}
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ))
+            )}
+
+            {/* Typing indicator — shown as the last item while waiting */}
+            {sendMsg.isPending && (
+              <View
+                style={[styles.bubble, styles.bubbleAI, styles.typingIndicator]}
+              >
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.typingText}>Thinking…</Text>
               </View>
-            ))
-          )}
+            )}
+          </ScrollView>
+        )}
 
-          {/* Typing indicator — shown as the last item while waiting */}
-          {sendMsg.isPending && (
-            <View style={[styles.bubble, styles.bubbleAI, styles.typingIndicator]}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.typingText}>Thinking…</Text>
-            </View>
-          )}
-        </ScrollView>
-      )}
-
-      {/* Input row */}
-      <View style={styles.inputRow}>
-        <TextInput
-          style={styles.chatInput}
-          value={message}
-          onChangeText={setMessage}
-          placeholder={voice.listening ? "Listening…" : "Ask a question or tap the mic…"}
-          placeholderTextColor={colors.textPlaceholder}
-          multiline
-          maxLength={500}
-        />
-        <TouchableOpacity
-          style={[styles.micBtn, voice.listening && styles.micBtnActive]}
-          onPress={voice.toggleListening}
-          disabled={sendMsg.isPending}
-        >
-          <Ionicons
-            name={voice.listening ? "mic" : "mic-outline"}
-            size={20}
-            color={voice.listening ? colors.white : colors.textMuted}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.sendBtn,
-            (!message.trim() || sendMsg.isPending) && styles.sendBtnDisabled,
-          ]}
-          disabled={!message.trim() || sendMsg.isPending}
-          onPress={() => {
-            if (voice.listening) voice.stopListening();
-            voice.stopSpeaking();
-            sendMsg.mutate({ documentId: docId, message: message.trim() });
-          }}
-        >
-          {sendMsg.isPending ? (
-            <ActivityIndicator color={colors.white} size="small" />
-          ) : (
-            <Ionicons name="send" size={18} color={colors.white} />
-          )}
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+        <View style={styles.inputRow}>
+          <View style={styles.composer}>
+            <TextInput
+              style={styles.chatInput}
+              value={message}
+              onChangeText={setMessage}
+              placeholder={
+                voice.listening ? "Listening…" : "Ask about this document…"
+              }
+              placeholderTextColor={colors.textPlaceholder}
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity
+              style={[styles.micBtn, voice.listening && styles.micBtnActive]}
+              onPress={voice.toggleListening}
+              disabled={sendMsg.isPending}
+              accessibilityLabel="Voice input"
+            >
+              <Ionicons
+                name={voice.listening ? "mic" : "mic-outline"}
+                size={19}
+                color={voice.listening ? colors.white : colors.textMuted}
+              />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.sendWrap,
+              (!message.trim() || sendMsg.isPending) && styles.sendBtnDisabled,
+            ]}
+            disabled={!message.trim() || sendMsg.isPending}
+            onPress={() => {
+              if (voice.listening) voice.stopListening();
+              voice.stopSpeaking();
+              sendMsg.mutate({ documentId: docId, message: message.trim() });
+            }}
+            accessibilityLabel="Send"
+          >
+            <LinearGradient
+              colors={gradients.hero}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.sendBtn}
+            >
+              {sendMsg.isPending ? (
+                <ActivityIndicator color={colors.white} size="small" />
+              ) : (
+                <Ionicons name="arrow-up" size={20} color={colors.white} />
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </>
   );
 }
@@ -342,23 +384,29 @@ function FlashcardsTab({ docId }: { docId: number }) {
   const [flipped, setFlipped] = useState<Record<number, boolean>>({});
   const utils = trpc.useUtils();
 
-  const { data: cards, isLoading } = trpc.flashcards.list.useQuery({ documentId: docId });
+  const { data: cards, isLoading } = trpc.flashcards.list.useQuery({
+    documentId: docId,
+  });
 
   const generate = trpc.flashcards.generate.useMutation({
     onSuccess: () => utils.flashcards.list.invalidate({ documentId: docId }),
-    onError: (err) => Alert.alert("Error", err.message),
+    onError: err => Alert.alert("Error", err.message),
   });
 
   const markReviewed = trpc.flashcards.markReviewed.useMutation();
 
   if (isLoading)
-    return <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />;
+    return (
+      <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
+    );
 
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
       {!cards || cards.length === 0 ? (
         <View style={styles.emptyBox}>
-          <Ionicons name="layers-outline" size={44} color={colors.primary} />
+          <View style={styles.emptyIcon}>
+            <Ionicons name="layers" size={28} color={colors.primary} />
+          </View>
           <Text style={styles.emptyTitle}>No flashcards yet</Text>
           <Text style={styles.emptyText}>
             Generate AI flashcards from this document.
@@ -378,33 +426,45 @@ function FlashcardsTab({ docId }: { docId: number }) {
       ) : (
         <>
           <View style={styles.flashcardHeader}>
-            <Text style={styles.flashcardCount}>{cards.length} cards</Text>
+            <View>
+              <Text style={styles.sectionEyebrow}>Deck</Text>
+              <Text style={styles.flashcardCount}>{cards.length} cards</Text>
+            </View>
             <TouchableOpacity
               style={styles.genBtnSmall}
               onPress={() => generate.mutate({ documentId: docId, count: 10 })}
               disabled={generate.isPending}
             >
+              {generate.isPending ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Ionicons name="add" size={16} color={colors.primary} />
+              )}
               <Text style={styles.genBtnSmallText}>
-                {generate.isPending ? "Generating..." : "+ More"}
+                {generate.isPending ? "Generating…" : "More cards"}
               </Text>
             </TouchableOpacity>
           </View>
 
-          {cards.map((card) => (
+          {cards.map(card => (
             <FlippingFlashcard
               key={card.id}
               question={card.question}
               answer={card.answer}
               flipped={Boolean(flipped[card.id])}
-              onFlip={(showingAnswer) => {
-                setFlipped((prev) => {
+              onFlip={showingAnswer => {
+                setFlipped(prev => {
                   if (showingAnswer && !prev[card.id]) {
                     markReviewed.mutate({ flashcardId: card.id });
                   }
                   return { ...prev, [card.id]: showingAnswer };
                 });
               }}
-              footer={card.reviewCount > 0 ? `Reviewed ${card.reviewCount}×` : undefined}
+              footer={
+                card.reviewCount > 0
+                  ? `Reviewed ${card.reviewCount}×`
+                  : undefined
+              }
             />
           ))}
         </>
@@ -415,37 +475,47 @@ function FlashcardsTab({ docId }: { docId: number }) {
 
 // ─── Quiz Tab ─────────────────────────────────────────────────────────────────
 
-function QuizTab({ docId, initialQuizId }: { docId: number; initialQuizId?: number }) {
+function QuizTab({
+  docId,
+  initialQuizId,
+}: {
+  docId: number;
+  initialQuizId?: number;
+}) {
   const [quizId, setQuizId] = useState<number | null>(initialQuizId ?? null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const utils = trpc.useUtils();
 
-  const { data: quizzes, isLoading } = trpc.quizzes.list.useQuery({ documentId: docId });
+  const { data: quizzes, isLoading } = trpc.quizzes.list.useQuery({
+    documentId: docId,
+  });
   const { data: activeQuiz } = trpc.quizzes.get.useQuery(
     { quizId: quizId! },
     { enabled: quizId !== null }
   );
 
   const generate = trpc.quizzes.generate.useMutation({
-    onSuccess: (quiz) => {
+    onSuccess: quiz => {
       utils.quizzes.list.invalidate({ documentId: docId });
       setQuizId(quiz.id);
       setAnswers({});
       setSubmitted(false);
     },
-    onError: (err) => Alert.alert("Error", err.message),
+    onError: err => Alert.alert("Error", err.message),
   });
 
   const submit = trpc.quizzes.submitQuiz.useMutation({
     onSuccess: () => setSubmitted(true),
-    onError: (err) => Alert.alert("Error", err.message),
+    onError: err => Alert.alert("Error", err.message),
   });
 
   const handleSubmit = () => {
     if (!quizId || !activeQuiz) return;
     const questions = activeQuiz.questions ?? [];
-    const correct = questions.filter((q) => answers[q.id] === q.correctAnswer).length;
+    const correct = questions.filter(
+      q => answers[q.id] === q.correctAnswer
+    ).length;
     const s = (correct / questions.length) * 100;
     // Convert Record<number,string> → Record<string,string> for the server
     const answersForServer: Record<string, string> = {};
@@ -458,25 +528,47 @@ function QuizTab({ docId, initialQuizId }: { docId: number; initialQuizId?: numb
   if (quizId && activeQuiz) {
     const questions = activeQuiz.questions ?? [];
     const correctCount = submitted
-      ? questions.filter((q) => answers[q.id] === q.correctAnswer).length
+      ? questions.filter(q => answers[q.id] === q.correctAnswer).length
       : 0;
-    const score = questions.length > 0 ? (correctCount / questions.length) * 100 : 0;
+    const score =
+      questions.length > 0 ? (correctCount / questions.length) * 100 : 0;
 
     return (
       <ScrollView contentContainerStyle={styles.tabContent}>
         {submitted ? (
           <>
             {/* Score summary */}
-            <View style={styles.scoreCard}>
-              <Text style={styles.scoreEmoji}>
-                {score >= 70 ? "🎉" : score >= 50 ? "📚" : "💪"}
-              </Text>
-              <Text style={styles.scoreValue}>{score.toFixed(0)}%</Text>
-              <Text style={styles.scoreLabel}>{correctCount}/{questions.length} correct</Text>
-              <View style={styles.scoreBar}>
-                <View style={[styles.scoreBarFill, { width: `${score}%` as any }]} />
+            <LinearGradient
+              colors={gradients.hero}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.scoreCard}
+            >
+              <View style={styles.scoreRing} />
+              <View style={styles.scoreIcon}>
+                <Ionicons
+                  name={
+                    score >= 70 ? "trophy" : score >= 50 ? "book" : "barbell"
+                  }
+                  size={24}
+                  color="#fbbf24"
+                />
               </View>
-            </View>
+              <Text style={styles.scoreValue}>{score.toFixed(0)}%</Text>
+              <Text style={styles.scoreLabel}>
+                {correctCount}/{questions.length} correct ·{" "}
+                {score >= 70
+                  ? "Great work"
+                  : score >= 50
+                    ? "Nearly there"
+                    : "Keep practising"}
+              </Text>
+              <View style={styles.scoreBar}>
+                <View
+                  style={[styles.scoreBarFill, { width: `${score}%` as any }]}
+                />
+              </View>
+            </LinearGradient>
 
             {/* Per-question breakdown */}
             <Text style={styles.reviewTitle}>Answer Review</Text>
@@ -484,12 +576,39 @@ function QuizTab({ docId, initialQuizId }: { docId: number; initialQuizId?: numb
               const userAns = answers[q.id];
               const isCorrect = userAns === q.correctAnswer;
               return (
-                <View key={q.id} style={[styles.reviewCard, isCorrect ? styles.reviewCorrect : styles.reviewWrong]}>
+                <View
+                  key={q.id}
+                  style={[
+                    styles.reviewCard,
+                    isCorrect ? styles.reviewCorrect : styles.reviewWrong,
+                  ]}
+                >
                   <View style={styles.reviewHeader}>
-                    <Text style={styles.questionNumber}>Q{idx + 1}</Text>
-                    <View style={[styles.resultBadge, isCorrect ? styles.resultBadgeCorrect : styles.resultBadgeWrong]}>
-                      <Text style={[styles.resultBadgeText, isCorrect ? styles.resultBadgeTextCorrect : styles.resultBadgeTextWrong]}>
-                        {isCorrect ? "✓ Correct" : "✗ Wrong"}
+                    <View style={styles.qChip}>
+                      <Text style={styles.qChipText}>Q{idx + 1}</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.resultBadge,
+                        isCorrect
+                          ? styles.resultBadgeCorrect
+                          : styles.resultBadgeWrong,
+                      ]}
+                    >
+                      <Ionicons
+                        name={isCorrect ? "checkmark-circle" : "close-circle"}
+                        size={13}
+                        color={isCorrect ? colors.success : colors.error}
+                      />
+                      <Text
+                        style={[
+                          styles.resultBadgeText,
+                          isCorrect
+                            ? styles.resultBadgeTextCorrect
+                            : styles.resultBadgeTextWrong,
+                        ]}
+                      >
+                        {isCorrect ? "Correct" : "Wrong"}
                       </Text>
                     </View>
                   </View>
@@ -499,7 +618,9 @@ function QuizTab({ docId, initialQuizId }: { docId: number; initialQuizId?: numb
                   {!isCorrect && (
                     <View style={styles.answerRow}>
                       <Text style={styles.answerLabel}>Your answer: </Text>
-                      <Text style={styles.answerWrong}>{userAns ?? "Not answered"}</Text>
+                      <Text style={styles.answerWrong}>
+                        {userAns ?? "Not answered"}
+                      </Text>
                     </View>
                   )}
 
@@ -512,8 +633,13 @@ function QuizTab({ docId, initialQuizId }: { docId: number; initialQuizId?: numb
                   {/* Explanation if available */}
                   {q.explanation ? (
                     <View style={styles.explanationBox}>
-                      <Text style={styles.explanationLabel}>💡 Explanation</Text>
-                      <Text style={styles.explanationText}>{q.explanation}</Text>
+                      <View style={styles.explanationHead}>
+                        <Ionicons name="bulb" size={13} color="#b45309" />
+                        <Text style={styles.explanationLabel}>Explanation</Text>
+                      </View>
+                      <Text style={styles.explanationText}>
+                        {q.explanation}
+                      </Text>
                     </View>
                   ) : null}
                 </View>
@@ -522,7 +648,11 @@ function QuizTab({ docId, initialQuizId }: { docId: number; initialQuizId?: numb
 
             <TouchableOpacity
               style={[styles.genBtn, { marginTop: 8 }]}
-              onPress={() => { setQuizId(null); setAnswers({}); setSubmitted(false); }}
+              onPress={() => {
+                setQuizId(null);
+                setAnswers({});
+                setSubmitted(false);
+              }}
             >
               <Text style={styles.genBtnText}>Back to quizzes</Text>
             </TouchableOpacity>
@@ -530,34 +660,84 @@ function QuizTab({ docId, initialQuizId }: { docId: number; initialQuizId?: numb
         ) : (
           <>
             <Text style={styles.quizTitle}>{activeQuiz.title}</Text>
-            <Text style={styles.quizMeta}>{questions.length} questions · {Object.keys(answers).length}/{questions.length} answered</Text>
+            <Text style={styles.quizMeta}>
+              {questions.length} questions · {Object.keys(answers).length}/
+              {questions.length} answered
+            </Text>
+            <View style={styles.quizProgress}>
+              <View
+                style={[
+                  styles.quizProgressFill,
+                  {
+                    width: `${
+                      questions.length
+                        ? (Object.keys(answers).length / questions.length) * 100
+                        : 0
+                    }%` as any,
+                  },
+                ]}
+              />
+            </View>
 
             {questions.map((q, idx) => (
               <View key={q.id} style={styles.questionCard}>
-                <Text style={styles.questionNumber}>Q{idx + 1}</Text>
+                <View style={[styles.qChip, { marginBottom: 10 }]}>
+                  <Text style={styles.qChipText}>Question {idx + 1}</Text>
+                </View>
                 <Text style={styles.questionText}>{q.question}</Text>
-                {(Array.isArray(q.options) ? q.options : []).map((opt, optIdx) => (
-                  <TouchableOpacity
-                    key={`${q.id}-${optIdx}`}
-                    style={[styles.option, answers[q.id] === opt && styles.optionSelected]}
-                    onPress={() => setAnswers((prev) => ({ ...prev, [q.id]: opt }))}
-                  >
-                    <View style={[styles.optionDot, answers[q.id] === opt && styles.optionDotSelected]} />
-                    <Text style={[styles.optionText, answers[q.id] === opt && styles.optionTextSelected]}>{opt}</Text>
-                  </TouchableOpacity>
-                ))}
+                {(Array.isArray(q.options) ? q.options : []).map(
+                  (opt, optIdx) => (
+                    <TouchableOpacity
+                      key={`${q.id}-${optIdx}`}
+                      style={[
+                        styles.option,
+                        answers[q.id] === opt && styles.optionSelected,
+                      ]}
+                      onPress={() =>
+                        setAnswers(prev => ({ ...prev, [q.id]: opt }))
+                      }
+                    >
+                      <View
+                        style={[
+                          styles.optionDot,
+                          answers[q.id] === opt && styles.optionDotSelected,
+                        ]}
+                      >
+                        {answers[q.id] === opt && (
+                          <Ionicons name="checkmark" size={12} color={colors.white} />
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.optionText,
+                          answers[q.id] === opt && styles.optionTextSelected,
+                        ]}
+                      >
+                        {opt}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                )}
               </View>
             ))}
 
             <TouchableOpacity
-              style={[styles.genBtn, Object.keys(answers).length < questions.length && styles.genBtnDisabled]}
-              disabled={Object.keys(answers).length < questions.length || submit.isPending}
+              style={[
+                styles.genBtn,
+                Object.keys(answers).length < questions.length &&
+                  styles.genBtnDisabled,
+              ]}
+              disabled={
+                Object.keys(answers).length < questions.length ||
+                submit.isPending
+              }
               onPress={handleSubmit}
             >
-              {submit.isPending
-                ? <ActivityIndicator color={colors.white} size="small" />
-                : <Text style={styles.genBtnText}>Submit quiz</Text>
-              }
+              {submit.isPending ? (
+                <ActivityIndicator color={colors.white} size="small" />
+              ) : (
+                <Text style={styles.genBtnText}>Submit quiz</Text>
+              )}
             </TouchableOpacity>
           </>
         )}
@@ -566,47 +746,95 @@ function QuizTab({ docId, initialQuizId }: { docId: number; initialQuizId?: numb
   }
 
   if (isLoading)
-    return <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />;
+    return (
+      <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
+    );
 
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
+      <View style={styles.genCard}>
+        <View style={styles.genCardIcon}>
+          <Ionicons name="sparkles" size={20} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.genCardTitle}>Test your understanding</Text>
+          <Text style={styles.genCardBody}>
+            Generate a 5-question quiz from this document.
+          </Text>
+        </View>
+      </View>
       <TouchableOpacity
         style={[styles.genBtn, generate.isPending && styles.genBtnDisabled]}
-        onPress={() =>
-          generate.mutate({ documentId: docId, questionCount: 5 })
-        }
+        onPress={() => generate.mutate({ documentId: docId, questionCount: 5 })}
         disabled={generate.isPending}
       >
         {generate.isPending ? (
           <ActivityIndicator color={colors.white} size="small" />
         ) : (
-          <Text style={styles.genBtnText}>Generate new quiz (5 questions)</Text>
+          <View style={styles.genBtnRow}>
+            <Ionicons name="flash" size={16} color={colors.white} />
+            <Text style={styles.genBtnText}>Generate new quiz</Text>
+          </View>
         )}
       </TouchableOpacity>
 
       {quizzes && quizzes.length > 0 && (
         <>
-          <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Previous quizzes</Text>
-          {quizzes.map((q) => (
-            <TouchableOpacity
-              key={q.id}
-              style={styles.quizItem}
-              onPress={() => {
-                setQuizId(q.id);
-                setAnswers({});
-                setSubmitted(false);
-              }}
-            >
-              <View>
-                <Text style={styles.quizItemTitle}>{q.title}</Text>
-                <Text style={styles.quizItemMeta}>
-                  {q.totalQuestions} questions ·{" "}
-                  {q.score !== null ? `Score: ${Number(q.score).toFixed(0)}%` : "Not attempted"}
+          <Text style={[styles.sectionTitle, { marginTop: 26 }]}>
+            Previous quizzes
+          </Text>
+          {quizzes.map(q => {
+            const attempted = q.score !== null;
+            const pct = attempted ? Number(q.score) : 0;
+            const tone = !attempted
+              ? colors.textMuted
+              : pct >= 70
+                ? colors.primary
+                : "#d97706";
+            return (
+              <TouchableOpacity
+                key={q.id}
+                style={styles.quizItem}
+                onPress={() => {
+                  setQuizId(q.id);
+                  setAnswers({});
+                  setSubmitted(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.quizItemIcon,
+                    {
+                      backgroundColor: !attempted
+                        ? colors.surfaceAlt
+                        : pct >= 70
+                          ? colors.primaryLight
+                          : colors.warningSoft,
+                    },
+                  ]}
+                >
+                  <Ionicons name="help-circle" size={20} color={tone} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.quizItemTitle} numberOfLines={1}>
+                    {q.title}
+                  </Text>
+                  <Text style={styles.quizItemMeta}>
+                    {q.totalQuestions} questions
+                  </Text>
+                </View>
+                <Text style={[styles.quizItemScore, { color: tone }]}>
+                  {attempted ? `${pct.toFixed(0)}%` : "New"}
                 </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-          ))}
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={colors.textLight}
+                />
+              </TouchableOpacity>
+            );
+          })}
         </>
       )}
     </ScrollView>
@@ -616,135 +844,115 @@ function QuizTab({ docId, initialQuizId }: { docId: number; initialQuizId?: numb
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f5f6fa" },
+  safe: { flex: 1, ...design.page },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
   },
-  docTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.text,
-  },
+  backBtn: { ...design.iconButton, borderRadius: 22 },
+  docTitle: { ...design.cardTitle, fontSize: 16.5 },
   viewBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
   },
   viewBtnText: { fontSize: 13, fontWeight: "700", color: colors.white },
-  // Document info strip
-  docInfoStrip: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "#f1f5f9",
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: 12,
-  },
-  docInfoLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flex: 1,
-    minWidth: 0,
-  },
+  docInfoLeft: { flex: 1, minWidth: 0 },
   docIconSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
   },
-  docFileName: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.text,
-    maxWidth: 180,
-  },
-  docFileMeta: {
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 1,
-  },
-  previewBtn: {
+  docFileMeta: { marginTop: 2, ...design.caption, fontSize: 11.5 },
+  tabBar: { paddingHorizontal: 16, paddingBottom: 10 },
+  tabTrack: {
     flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: "#e9efec",
+    borderRadius: 16,
+    padding: 4,
     gap: 4,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: colors.surface,
-  },
-  previewBtnText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.primary,
-  },
-  tabBar: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
   },
   tab: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
+    gap: 6,
     borderRadius: 12,
-    paddingVertical: 8,
-    backgroundColor: "#f1f5f9",
+    paddingVertical: 9,
   },
-  tabActive: { backgroundColor: colors.primary },
+  tabActive: { backgroundColor: colors.white, ...elevation.sm },
   tabText: { fontSize: 13, fontWeight: "600", color: colors.textMuted },
-  tabTextActive: { color: colors.white },
-  // Chat
-  chatList: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  chatEmpty: { alignItems: "center", marginTop: 60, gap: 8 },
-  chatEmptyText: { fontSize: 15, fontWeight: "600", color: colors.text },
-  chatEmptyHint: { fontSize: 12, color: colors.textMuted },
+  tabTextActive: { color: colors.primary, fontWeight: "800" },
+  chatList: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
+  chatEmpty: { alignItems: "center", marginTop: 56, gap: 12 },
+  chatEmptyHalo: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  chatEmptyOrb: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chatEmptyText: { ...design.sectionTitle, fontSize: 17, textAlign: "center" },
+  hintRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  hintChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  hintChipText: { fontSize: 12.5, fontWeight: "700", color: colors.primary },
   bubble: {
     maxWidth: "80%",
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 12,
+    paddingHorizontal: 14,
     marginBottom: 10,
   },
   bubbleUser: {
     alignSelf: "flex-end",
     backgroundColor: colors.primary,
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: 6,
   },
   bubbleAI: {
+    maxWidth: "96%",
     alignSelf: "flex-start",
     backgroundColor: colors.surface,
-    borderBottomLeftRadius: 4,
+    borderBottomLeftRadius: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderLight,
+    ...elevation.sm,
   },
   bubbleText: { fontSize: 14, lineHeight: 20 },
   bubbleTextUser: { color: colors.white },
-  bubbleTextAI: { color: colors.text },
   typingIndicator: {
     flexDirection: "row",
     alignItems: "center",
@@ -757,48 +965,75 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     gap: 10,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
+    paddingTop: 10,
+    paddingBottom: 10,
+  },
+  composer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    backgroundColor: colors.white,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingLeft: 16,
+    paddingRight: 5,
+    paddingVertical: 5,
+    minHeight: 52,
   },
   chatInput: {
     flex: 1,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: colors.text,
-    backgroundColor: "#f8fafc",
     maxHeight: 100,
+    fontSize: 14.5,
+    color: colors.text,
+    paddingVertical: 9,
   },
+  sendWrap: { borderRadius: 26, ...elevation.brand },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
   },
-  sendBtnDisabled: { opacity: 0.4 },
-  speakBtn: { marginTop: 6, alignSelf: "flex-start" },
+  sendBtnDisabled: { opacity: 0.45 },
+  speakBtn: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   micBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "#f1f5f9",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  micBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  // Shared tab
-  tabContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
-  emptyBox: { alignItems: "center", marginTop: 24, gap: 10 },
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
+  micBtnActive: { backgroundColor: colors.primary },
+  tabContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
+  emptyBox: {
+    alignItems: "center",
+    marginTop: 16,
+    gap: 10,
+    padding: 24,
+    ...design.card,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  emptyTitle: { ...design.sectionTitle, fontSize: 17 },
   emptyText: {
     fontSize: 13,
     color: colors.textMuted,
@@ -806,120 +1041,178 @@ const styles = StyleSheet.create({
     maxWidth: 260,
   },
   genBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 16,
+    paddingVertical: 15,
+    marginTop: 14,
+    alignSelf: "stretch",
+    ...design.action,
   },
+  genBtnRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   genBtnDisabled: { opacity: 0.5 },
   genBtnText: { color: colors.white, fontWeight: "700", fontSize: 15 },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text, marginBottom: 12 },
-  // Flashcards
+  genCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 16,
+    ...design.card,
+  },
+  genCardIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  genCardTitle: { ...design.cardTitle },
+  genCardBody: { ...design.caption, marginTop: 2 },
+  sectionTitle: { marginBottom: 12, ...design.sectionTitle },
+  sectionEyebrow: { ...design.eyebrow, color: colors.primary },
   flashcardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 14,
   },
-  flashcardCount: { fontSize: 14, fontWeight: "600", color: colors.textMuted },
+  flashcardCount: { ...design.sectionTitle, marginTop: 2 },
   genBtnSmall: {
-    backgroundColor: colors.primary + "20",
-    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.primaryLight,
+    borderRadius: 999,
     paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
   genBtnSmallText: { fontSize: 13, fontWeight: "700", color: colors.primary },
-  // Quiz
-  quizTitle: { fontSize: 18, fontWeight: "800", color: colors.text, marginBottom: 16 },
-  questionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+  quizTitle: { ...design.sectionTitle, fontSize: 19, marginBottom: 14 },
+  quizProgress: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.borderLight,
+    overflow: "hidden",
+    marginBottom: 18,
   },
-  questionNumber: { fontSize: 12, fontWeight: "700", color: colors.primary, marginBottom: 6 },
-  questionText: { fontSize: 15, fontWeight: "600", color: colors.text, marginBottom: 14 },
+  quizProgressFill: {
+    height: "100%",
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+  },
+  qChip: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.primaryLight,
+  },
+  qChipText: { fontSize: 11.5, fontWeight: "800", color: colors.primary },
+  questionCard: { padding: 18, marginBottom: 14, ...design.card },
+  questionNumber: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary,
+    marginBottom: 6,
+  },
+  questionText: { marginBottom: 14, ...design.cardTitle },
   option: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 12,
+    padding: 13,
     marginBottom: 8,
+    ...design.chip,
+    borderRadius: 14,
   },
-  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primary + "10" },
+  optionSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  },
   optionDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  optionDotSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
-  optionText: { fontSize: 14, color: colors.text, flex: 1 },
-  optionTextSelected: { color: colors.primary, fontWeight: "600" },
-  scoreCard: { alignItems: "center", marginTop: 16, marginBottom: 8, gap: 8 },
-  scoreEmoji: { fontSize: 52 },
-  scoreValue: { fontSize: 52, fontWeight: "800", color: colors.primary },
-  scoreLabel: { fontSize: 16, color: colors.textMuted },
+  optionDotSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  optionText: { fontSize: 14, color: colors.text, flex: 1, lineHeight: 20 },
+  optionTextSelected: { color: colors.primaryDark, fontWeight: "700" },
+  scoreCard: {
+    alignItems: "center",
+    marginTop: 4,
+    marginBottom: 8,
+    gap: 6,
+    padding: 24,
+    borderRadius: 24,
+    overflow: "hidden",
+  },
+  scoreRing: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    right: -80,
+    top: -100,
+  },
+  scoreIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  scoreValue: {
+    fontSize: 48,
+    fontWeight: "900",
+    color: colors.white,
+    letterSpacing: -1,
+  },
+  scoreLabel: { fontSize: 14, color: "rgba(255,255,255,0.8)", fontWeight: "600" },
   scoreBar: {
-    width: "80%",
+    width: "86%",
     height: 8,
-    backgroundColor: "#e2e8f0",
+    backgroundColor: "rgba(255,255,255,0.18)",
     borderRadius: 4,
     overflow: "hidden",
-    marginTop: 4,
+    marginTop: 10,
   },
   scoreBarFill: {
     height: "100%",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     borderRadius: 4,
   },
-  reviewTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: colors.text,
-    marginTop: 20,
-    marginBottom: 12,
-  },
-  reviewCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1.5,
-  },
-  reviewCorrect: {
-    backgroundColor: "#f0fdf4",
-    borderColor: "#86efac",
-  },
-  reviewWrong: {
-    backgroundColor: "#fff7f7",
-    borderColor: "#fca5a5",
-  },
+  reviewTitle: { marginTop: 22, marginBottom: 12, ...design.sectionTitle },
+  reviewCard: { padding: 16, marginBottom: 12, ...design.card, borderWidth: 1 },
+  reviewCorrect: { borderColor: "#bfe8d4" },
+  reviewWrong: { borderColor: "#f6c9c9" },
   reviewHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   resultBadge: {
-    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
     paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingVertical: 4,
   },
-  resultBadgeCorrect: { backgroundColor: "#dcfce7" },
-  resultBadgeWrong: { backgroundColor: "#fee2e2" },
+  resultBadgeCorrect: { backgroundColor: colors.successSoft },
+  resultBadgeWrong: { backgroundColor: colors.errorSoft },
   resultBadgeText: { fontSize: 12, fontWeight: "700" },
-  resultBadgeTextCorrect: { color: "#16a34a" },
-  resultBadgeTextWrong: { color: "#dc2626" },
+  resultBadgeTextCorrect: { color: colors.success },
+  resultBadgeTextWrong: { color: colors.error },
   answerRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -930,30 +1223,41 @@ const styles = StyleSheet.create({
   answerCorrect: { fontSize: 13, color: "#16a34a", fontWeight: "700", flex: 1 },
   answerWrong: { fontSize: 13, color: "#dc2626", fontWeight: "700", flex: 1 },
   explanationBox: {
-    marginTop: 10,
-    backgroundColor: "#fffbeb",
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "#fde68a",
+    marginTop: 12,
+    backgroundColor: colors.warningSoft,
+    borderRadius: 14,
+    padding: 12,
   },
-  explanationLabel: { fontSize: 12, fontWeight: "700", color: "#92400e", marginBottom: 4 },
+  explanationHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 4,
+  },
+  explanationLabel: { fontSize: 12, fontWeight: "800", color: "#92400e" },
   explanationText: { fontSize: 13, color: "#78350f", lineHeight: 18 },
-  quizMeta: { fontSize: 13, color: colors.textMuted, marginBottom: 16, marginTop: -8 },
+  quizMeta: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginBottom: 16,
+    marginTop: -8,
+  },
   quizItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+    gap: 12,
     padding: 14,
     marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    ...design.card,
   },
-  quizItemTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
-  quizItemMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  quizItemIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quizItemTitle: { ...design.cardTitle },
+  quizItemMeta: { marginTop: 2, ...design.caption },
+  quizItemScore: { fontSize: 14, fontWeight: "800" },
 });

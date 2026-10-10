@@ -1,3 +1,5 @@
+import StudentAccount from "@/pages/student/StudentAccount";
+import { LecturerHero } from "@/components/lecturer/LecturerUi";
 import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -19,6 +21,10 @@ import {
   Pencil,
 } from "lucide-react";
 import { Link } from "wouter";
+import { FieldError } from "@/components/FieldError";
+import { PasswordRules } from "@/components/PasswordRules";
+import { useFieldErrors } from "@/lib/formValidation";
+import { validateNewPassword, validatePasswordConfirm, validatePersonName } from "@shared/validation";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_BYTES = 3 * 1024 * 1024;
@@ -35,6 +41,7 @@ export default function Profile() {
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
+  const { errors, check, clear } = useFieldErrors<"name" | "currentPw" | "newPw" | "confirmPw">();
 
   const updateProfile = trpc.auth.updateProfile.useMutation({
     onSuccess: async () => {
@@ -54,9 +61,9 @@ export default function Profile() {
   });
 
   const handleSaveName = () => {
-    const trimmed = name.trim();
-    if (!trimmed) { toast.error("Name cannot be empty"); return; }
+    const trimmed = name.trim().replace(/\s+/g, " ");
     if (trimmed === user?.name) return;
+    if (!check({ name: validatePersonName(trimmed, "Display name") })) return;
     updateProfile.mutate({ name: trimmed });
   };
 
@@ -79,25 +86,26 @@ export default function Profile() {
 
   const handleChangePassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPw !== confirmPw) { toast.error("New passwords do not match"); return; }
-    changePassword.mutate({ currentPassword: currentPw, newPassword: newPw });
+    const newError = validateNewPassword(newPw) ?? (newPw && newPw === currentPw ? "Choose a password that is different from your current one." : null);
+    const ok = check({
+      currentPw: currentPw ? null : "Enter your current password.",
+      newPw: newError,
+      confirmPw: validatePasswordConfirm(newPw, confirmPw),
+    });
+    if (ok) changePassword.mutate({ currentPassword: currentPw, newPassword: newPw });
   };
 
   const saving = updateProfile.isPending;
   const pwBusy = changePassword.isPending;
   const isLocalAccount = user?.loginMethod === "local";
 
+  if (user?.role === "user") return <StudentAccount />;
+
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-2xl space-y-6">
+      <div className={user?.role === "lecturer" ? "lecturer-content lecturer-profile" : "mx-auto max-w-2xl space-y-6"}>
 
-        {/* Page title */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Profile</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Manage your personal information and account security.
-          </p>
-        </div>
+        {user?.role === "lecturer" ? <LecturerHero eyebrow="Account" title="Profile" description="Manage your personal information and account security." icon={User}/> : <div><h1 className="text-2xl font-bold">Profile</h1><p className="mt-1 text-sm text-slate-500">Manage your personal information and account security.</p></div>}
 
         {/* ── Avatar & Name card ── */}
         <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
@@ -128,7 +136,7 @@ export default function Profile() {
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   disabled={avatarUploading || saving}
-                  className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-white shadow-md hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-burgundy text-white shadow-md hover:bg-burgundy-hover disabled:opacity-50 transition-colors"
                   aria-label="Upload photo"
                 >
                   {avatarUploading
@@ -145,11 +153,13 @@ export default function Profile() {
                   <Input
                     id="profile-name"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => { setName(e.target.value); clear("name"); }}
                     placeholder="Your name"
                     maxLength={100}
+                    aria-invalid={Boolean(errors.name)}
                     className="rounded-xl border-slate-200 focus-visible:ring-emerald-500"
                   />
+                  <FieldError message={errors.name} />
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -231,9 +241,11 @@ export default function Profile() {
                     type="password"
                     autoComplete="current-password"
                     value={currentPw}
-                    onChange={(e) => setCurrentPw(e.target.value)}
+                    onChange={(e) => { setCurrentPw(e.target.value); clear("currentPw"); }}
+                    aria-invalid={Boolean(errors.currentPw)}
                     className="rounded-xl border-slate-200 focus-visible:ring-emerald-500"
                   />
+                  <FieldError message={errors.currentPw} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="new-password" className="text-sm font-medium text-slate-700">New password</Label>
@@ -242,10 +254,12 @@ export default function Profile() {
                     type="password"
                     autoComplete="new-password"
                     value={newPw}
-                    onChange={(e) => setNewPw(e.target.value)}
-                    minLength={8}
+                    onChange={(e) => { setNewPw(e.target.value); clear("newPw"); }}
+                    aria-invalid={Boolean(errors.newPw)}
                     className="rounded-xl border-slate-200 focus-visible:ring-emerald-500"
                   />
+                  <PasswordRules value={newPw} />
+                  <FieldError message={errors.newPw} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="confirm-password" className="text-sm font-medium text-slate-700">Confirm new password</Label>
@@ -254,14 +268,15 @@ export default function Profile() {
                     type="password"
                     autoComplete="new-password"
                     value={confirmPw}
-                    onChange={(e) => setConfirmPw(e.target.value)}
-                    minLength={8}
+                    onChange={(e) => { setConfirmPw(e.target.value); clear("confirmPw"); }}
+                    aria-invalid={Boolean(errors.confirmPw)}
                     className="rounded-xl border-slate-200 focus-visible:ring-emerald-500"
                   />
+                  <FieldError message={errors.confirmPw} />
                 </div>
                 <Button
                   type="submit"
-                  disabled={pwBusy || !currentPw || !newPw || !confirmPw}
+                  disabled={pwBusy}
                   className="rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 hover:text-emerald-800 gap-2"
                   size="sm"
                 >

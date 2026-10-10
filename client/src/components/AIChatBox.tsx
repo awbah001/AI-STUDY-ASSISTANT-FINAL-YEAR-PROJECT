@@ -11,11 +11,24 @@ import {
   User,
   Volume2,
   Volume1,
-  VolumeX,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
 import { toast } from "sonner";
+import { LIMITS } from "@shared/validation";
+import {
+  startRecording,
+  transcribeRecording,
+  voiceInputBlockedReason,
+  type ActiveRecording,
+} from "@/lib/voiceInput";
+
+/** Errors where the browser's speech service is unusable but recording + server transcription still works. */
+const RECOGNITION_FALLBACK_ERRORS = new Set(["network", "service-not-allowed", "language-not-supported"]);
+
+function joinDictation(base: string, spoken: string) {
+  return [base.trimEnd(), spoken.trim()].filter(Boolean).join(" ");
+}
 
 type SpeechRecognitionEvent = Event & {
   results: SpeechRecognitionResultList;
@@ -162,7 +175,7 @@ export function AIChatBox({
 }: AIChatBoxProps) {
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -174,27 +187,23 @@ export function AIChatBox({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const hasAnnouncedSynthesisUnavailableRef = useRef(false);
-  const previousAssistantCountRef = useRef<number | null>(null);
-  const onSendMessageRef = useRef(onSendMessage);
-  const isLoadingRef = useRef(isLoading);
   const speakingMessageIndexRef = useRef<number | null>(null);
+  const inputValueRef = useRef("");
+  const dictationBaseRef = useRef("");
+  const recordingRef = useRef<ActiveRecording | null>(null);
+  const preferRecorderRef = useRef(false);
+  const startRecorderRef = useRef<() => Promise<void>>(async () => undefined);
+  const finishRecordingRef = useRef<() => Promise<void>>(async () => undefined);
 
   // Filter out system messages
   const displayMessages = messages.filter((msg) => msg.role !== "system");
-  const assistantMessages = displayMessages.filter(
-    (message) => message.role === "assistant"
-  );
+
+  useEffect(() => {
+    inputValueRef.current = input;
+  }, [input]);
 
   // Calculate min-height for last assistant message to push user message to top
   const [minHeightForLastMessage, setMinHeightForLastMessage] = useState(0);
-
-  useEffect(() => {
-    onSendMessageRef.current = onSendMessage;
-  }, [onSendMessage]);
-
-  useEffect(() => {
-    isLoadingRef.current = isLoading;
-  }, [isLoading]);
 
   useEffect(() => {
     if (containerRef.current && inputAreaRef.current) {
@@ -225,46 +234,35 @@ export function AIChatBox({
 
     const recognition = new RecognitionClass();
     recognition.lang = "en-US";
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
+    // Words appear in the box as they are spoken; the student reviews them and presses send.
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = Array.from(event.results)
-        .slice(event.resultIndex)
         .map((result) => result[0]?.transcript ?? "")
-        .join(" ")
-        .trim();
-
-      if (!transcript) {
-        toast.error("No speech detected. Please try again.");
-        return;
-      }
-
-      setInput(transcript);
-
-      if (isLoadingRef.current) {
-        toast.error("Please wait for the current response to finish.");
-        return;
-      }
-
-      onSendMessageRef.current(transcript);
-      setInput("");
-      scrollToBottom();
-      textareaRef.current?.focus();
+        .join(" ");
+      setInput(joinDictation(dictationBaseRef.current, transcript));
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        toast.error("Microphone permission denied. Please enable microphone access.");
+      if (RECOGNITION_FALLBACK_ERRORS.has(event.error)) {
+        preferRecorderRef.current = true;
+        void startRecorderRef.current();
+      } else if (event.error === "not-allowed") {
+        toast.error("Microphone permission denied. Allow microphone access in your browser's address bar.");
       } else if (event.error === "no-speech") {
         toast.error("No speech detected. Please try again.");
-      } else {
+      } else if (event.error === "audio-capture") {
+        toast.error("No microphone was found. Check that one is connected.");
+      } else if (event.error !== "aborted") {
         toast.error("Speech recognition failed. Please try again.");
       }
     };
 
     recognition.onend = () => {
-      setIsListening(false);
+      if (!recordingRef.current) setIsListening(false);
+      textareaRef.current?.focus();
     };
 
     recognitionRef.current = recognition;
@@ -274,6 +272,14 @@ export function AIChatBox({
       recognitionRef.current = null;
     };
   }, []);
+
+  useEffect(
+    () => () => {
+      void recordingRef.current?.stop();
+      recordingRef.current = null;
+    },
+    []
+  );
 
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -320,8 +326,13 @@ export function AIChatBox({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedInput = input.trim();
-    if (!trimmedInput || isLoading) return;
+    if (!trimmedInput || isLoading || isTranscribing) return;
+    if (trimmedInput.length > LIMITS.chatMessage) {
+      toast.error(`Messages can be up to ${LIMITS.chatMessage.toLocaleString()} characters. Shorten it or split it into two questions.`);
+      return;
+    }
 
+    if (isListening) handleStopListening();
     onSendMessage(trimmedInput);
     setInput("");
 
@@ -333,7 +344,7 @@ export function AIChatBox({
   };
 
   const speakText = (text: string, messageIndex?: number) => {
-    if (!text.trim() || isMuted) return;
+    if (!text.trim()) return;
 
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       setSpeechSynthesisSupported(false);
@@ -393,60 +404,88 @@ export function AIChatBox({
     speakingMessageIndexRef.current = null;
   };
 
-  const handleStartListening = () => {
-    if (isListening) return;
+  const finishRecording = async () => {
+    const recording = recordingRef.current;
+    if (!recording) return;
+    recordingRef.current = null;
+    setIsListening(false);
+    setIsTranscribing(true);
+    try {
+      const blob = await recording.stop();
+      if (blob.size < 1000) throw new Error("No speech detected. Please try again.");
+      const text = await transcribeRecording(blob);
+      setInput(joinDictation(inputValueRef.current, text));
+      textareaRef.current?.focus();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not convert speech to text.");
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+  finishRecordingRef.current = finishRecording;
 
-    const recognition = recognitionRef.current;
-    if (!recognition) {
-      toast.error("Speech recognition is not supported in this browser.");
+  const startRecorderInput = async () => {
+    const blocked = voiceInputBlockedReason();
+    if (blocked) {
+      toast.error(blocked);
+      setIsListening(false);
+      return;
+    }
+    try {
+      recordingRef.current = await startRecording(() => void finishRecordingRef.current());
+      setIsListening(true);
+    } catch (error) {
+      const denied =
+        error instanceof DOMException &&
+        (error.name === "NotAllowedError" || error.name === "SecurityError");
+      toast.error(
+        denied
+          ? "Microphone permission denied. Allow microphone access in your browser's address bar."
+          : "Could not start the microphone. Check that one is connected."
+      );
+      setIsListening(false);
+    }
+  };
+  startRecorderRef.current = startRecorderInput;
+
+  const handleStartListening = () => {
+    if (isListening || isTranscribing) return;
+    stopSpeaking();
+
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      toast.error(voiceInputBlockedReason() ?? "Voice input needs a secure connection.");
       return;
     }
 
+    const recognition = recognitionRef.current;
+    if (!recognition || preferRecorderRef.current) {
+      void startRecorderInput();
+      return;
+    }
+
+    dictationBaseRef.current = inputValueRef.current;
     try {
       recognition.start();
       setIsListening(true);
     } catch {
-      toast.error("Unable to start listening. Please try again.");
-      setIsListening(false);
+      void startRecorderInput();
     }
   };
 
   const handleStopListening = () => {
+    if (recordingRef.current) {
+      void finishRecording();
+      return;
+    }
     recognitionRef.current?.stop();
     setIsListening(false);
   };
-
-  useEffect(() => {
-    if (!speechSynthesisSupported || assistantMessages.length === 0) return;
-
-    if (previousAssistantCountRef.current === null) {
-      previousAssistantCountRef.current = assistantMessages.length;
-      return;
-    }
-
-    const hasNewAssistantMessage =
-      assistantMessages.length > previousAssistantCountRef.current;
-    previousAssistantCountRef.current = assistantMessages.length;
-
-    if (!hasNewAssistantMessage) return;
-
-    const latestAssistantMessage = assistantMessages[assistantMessages.length - 1];
-    if (!latestAssistantMessage || isMuted) return;
-
-    const latestAssistantIndex = displayMessages.length - 1;
-    speakText(latestAssistantMessage.content, latestAssistantIndex);
-  }, [assistantMessages.length, isMuted, speechSynthesisSupported, selectedVoiceURI, availableVoices, displayMessages.length]);
 
   useEffect(() => {
     return () => {
       stopSpeaking();
     };
   }, []);
-
-  useEffect(() => {
-    if (!isMuted) return;
-    stopSpeaking();
-  }, [isMuted]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -541,32 +580,33 @@ export function AIChatBox({
                       </div>
                       {message.role === "assistant" && (
                         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                          <button
-                            type="button"
-                            onClick={() => speakText(message.content, index)}
-                            className="inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-accent hover:text-foreground"
-                            disabled={!speechSynthesisSupported}
-                            title="Replay voice output"
-                          >
-                            <Volume2 className="size-3.5" />
-                            Speak
-                          </button>
-                          {isSpeaking && speakingMessageIndex === index && (
+                          {isSpeaking && speakingMessageIndex === index ? (
                             <>
                               <span className="inline-flex items-center gap-1 text-primary animate-pulse">
                                 <Volume1 className="size-3.5" />
-                                Speaking...
+                                Playing...
                               </span>
                               <button
                                 type="button"
                                 onClick={stopSpeaking}
                                 className="inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-accent hover:text-foreground"
-                                title="Stop speaking"
+                                title="Stop playback"
                               >
                                 <Square className="size-3" />
                                 Stop
                               </button>
                             </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => speakText(message.content, index)}
+                              className="inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-accent hover:text-foreground"
+                              disabled={!speechSynthesisSupported}
+                              title="Read this answer aloud"
+                            >
+                              <Volume2 className="size-3.5" />
+                              Listen
+                            </button>
                           )}
                         </div>
                       )}
@@ -619,53 +659,52 @@ export function AIChatBox({
               "shrink-0 rounded-full h-[38px] w-[38px] transition-all duration-200",
               isListening ? "animate-pulse shadow-lg shadow-destructive/30" : "hover:scale-105"
             )}
-            disabled={isLoading && !isListening}
-            title={isListening ? "Stop listening" : "Start voice input"}
+            disabled={isTranscribing}
+            title={isListening ? "Stop and use what I said" : "Speak your question"}
           >
-            {isListening ? <Square className="size-4" /> : <Mic className="size-4" />}
+            {isTranscribing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : isListening ? (
+              <Square className="size-4" />
+            ) : (
+              <Mic className="size-4" />
+            )}
           </Button>
           <span
             className={cn(
               "text-[11px] text-muted-foreground transition-opacity duration-200",
-              isListening ? "opacity-100" : "opacity-0"
+              isListening || isTranscribing ? "opacity-100" : "opacity-0"
             )}
           >
-            Listening...
+            {isTranscribing ? "Converting..." : "Listening..."}
           </span>
         </div>
-        {isListening && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleStopListening}
-            className="h-[38px] transition-all duration-200"
-          >
-            <Square className="size-3.5" />
-            Stop
-          </Button>
-        )}
 
-        <Textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className="flex-1 max-h-32 resize-none min-h-9"
-          rows={1}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsMuted((prev) => !prev)}
-          className="shrink-0 h-[38px] w-[38px] transition-colors"
-          title={isMuted ? "Unmute voice output" : "Mute voice output"}
-          disabled={!speechSynthesisSupported}
-        >
-          {isMuted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-        </Button>
+        <div className="relative flex-1">
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              isListening ? "Speak now — your words will appear here..." : placeholder
+            }
+            maxLength={LIMITS.chatMessage}
+            aria-invalid={input.length > LIMITS.chatMessage}
+            className="max-h-32 resize-none min-h-9"
+            rows={1}
+          />
+          {input.length > LIMITS.chatMessage * 0.8 && (
+            <span
+              className={cn(
+                "pointer-events-none absolute bottom-1 right-2 text-[10px]",
+                input.length > LIMITS.chatMessage ? "text-destructive" : "text-muted-foreground"
+              )}
+            >
+              {input.length}/{LIMITS.chatMessage}
+            </span>
+          )}
+        </div>
         {isSpeaking && (
           <Button
             type="button"

@@ -18,6 +18,7 @@ export function FlashcardComponent({ card, onReviewMarked, documentId }: Flashca
   const utils = trpc.useUtils();
   
   const toggleFavoriteMutation = trpc.flashcards.toggleFavorite.useMutation({
+    onError: error => toast.error(error.message),
     onSuccess: () => {
       toast.success(card.isFavorite ? "Removed from favorites" : "Added to favorites");
       if (documentId) {
@@ -27,6 +28,7 @@ export function FlashcardComponent({ card, onReviewMarked, documentId }: Flashca
   });
 
   const markReviewedMutation = trpc.flashcards.markReviewed.useMutation({
+    onError: error => toast.error(error.message),
     onSuccess: () => {
       toast.success("Flashcard marked as reviewed");
       if (documentId) {

@@ -15,7 +15,7 @@ interface QuizComponentProps {
 }
 
 interface AnswerState {
-  [questionId: number]: string;
+  [questionId: string]: string;
 }
 
 export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
@@ -32,7 +32,6 @@ export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
   const submitQuizMutation = trpc.quizzes.submitQuiz.useMutation({
     onSuccess: () => {
       toast.success("Quiz submitted successfully!");
-      onComplete?.();
     },
   });
 
@@ -92,14 +91,14 @@ export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
     }
 
     const score = (correctCount / questions.length) * 100;
-    setResults({ correct: correctCount, total: questions.length });
-    setShowResults(true);
-
-    // Submit quiz with score
-    await submitQuizMutation.mutateAsync({
-      quizId: quiz.id,
-      score,
-    });
+    try {
+      await submitQuizMutation.mutateAsync({ quizId: quiz.id, score, answers });
+      setResults({ correct: correctCount, total: questions.length });
+      setShowResults(true);
+      onComplete?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not submit quiz. Please try again.");
+    }
   };
 
   if (showResults && results) {
@@ -134,8 +133,8 @@ export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
               </p>
             </div>
 
-            <Button onClick={onComplete} className="w-full">
-              Back to Document
+            <Button onClick={() => { setCurrentQuestionIndex(0); setAnswers({}); setShowResults(false); setResults(null); onComplete?.(); }} className="w-full">
+              Practice again
             </Button>
           </CardContent>
         </Card>
@@ -170,8 +169,8 @@ export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
               <div className="space-y-3">
                 {currentQuestion.options?.map((option, idx) => (
                   <div key={idx} className="flex items-center space-x-3 p-3 rounded-lg border border-input hover:bg-accent cursor-pointer transition-colors">
-                    <RadioGroupItem value={option} id={`option-${idx}`} />
-                    <Label htmlFor={`option-${idx}`} className="flex-1 cursor-pointer font-normal">
+                    <RadioGroupItem value={option} id={`quiz-${quiz.id}-option-${idx}`} />
+                    <Label htmlFor={`quiz-${quiz.id}-option-${idx}`} className="flex-1 cursor-pointer font-normal">
                       {option}
                     </Label>
                   </div>
@@ -195,7 +194,7 @@ export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
         {currentQuestionIndex === questions.length - 1 ? (
           <Button
             onClick={handleSubmit}
-            disabled={submitQuizMutation.isPending}
+            disabled={submitQuizMutation.isPending || questions.some(q => !answers[q.id])}
             className="bg-emerald-500/15 border border-emerald-400/50 text-emerald-700 hover:bg-emerald-500/25 rounded-2xl"
           >
             {submitQuizMutation.isPending ? "Submitting..." : "Submit Quiz"}

@@ -1,22 +1,52 @@
+import { design, elevation } from "../../src/theme/design";
 import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput,
-  ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useState, useRef, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { trpc } from "../../src/lib/api";
-import { colors } from "../../src/theme/colors";
+import { colors, gradients } from "../../src/theme/colors";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { useChatVoice, VoiceCapture } from "../../src/lib/useChatVoice";
 import { oldestFirstById } from "../../src/lib/chatHistory";
+import { AssistantMessage } from "../../src/components/AssistantMessage";
 import { useLocalSearchParams } from "expo-router";
 
-const QUICK_PROMPTS = [
-  "Explain Binary Search algorithm",
-  "Create a timetable for my upcoming exam",
-  "Create a quiz on Data Structures",
-  "How does Recursion work?",
+type Prompt = { text: string; icon: React.ComponentProps<typeof Ionicons>["name"] };
+
+const QUICK_PROMPTS: Prompt[] = [
+  { text: "Explain Binary Search algorithm", icon: "search" },
+  { text: "Create a timetable for my upcoming exam", icon: "calendar" },
+  { text: "Create a quiz on Data Structures", icon: "help-circle" },
+  { text: "How does Recursion work?", icon: "git-branch" },
+];
+
+const COURSE_PROMPTS: Prompt[] = [
+  { text: "Explain this", icon: "bulb" },
+  { text: "Simplify this topic", icon: "color-wand" },
+  { text: "Give an example", icon: "flask" },
+  { text: "Summarize", icon: "list" },
+  { text: "Create flashcards", icon: "layers" },
+  { text: "Quiz me", icon: "help-circle" },
+  { text: "Explain step-by-step", icon: "footsteps" },
+];
+
+const PROMPT_TONES = [
+  { fg: colors.primary, bg: colors.primaryLight },
+  { fg: colors.info, bg: colors.infoSoft },
+  { fg: colors.violet, bg: colors.violetSoft },
+  { fg: "#d97706", bg: colors.warningSoft },
 ];
 
 export default function AskAIScreen() {
@@ -24,7 +54,8 @@ export default function AskAIScreen() {
   const firstName = user?.name?.split(/\s+/)[0] ?? "there";
   const params = useLocalSearchParams<{ courseId?: string; prompt?: string }>();
   const courseId = Number(params.courseId);
-  const scopedCourseId = Number.isInteger(courseId) && courseId > 0 ? courseId : undefined;
+  const scopedCourseId =
+    Number.isInteger(courseId) && courseId > 0 ? courseId : undefined;
   const [message, setMessage] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -37,7 +68,12 @@ export default function AskAIScreen() {
     });
 
   const [localMessages, setLocalMessages] = useState<
-    Array<{ id: string; role: "user" | "assistant"; content: string; time: string }>
+    Array<{
+      id: string;
+      role: "user" | "assistant";
+      content: string;
+      time: string;
+    }>
   >([]);
 
   useEffect(() => {
@@ -50,11 +86,14 @@ export default function AskAIScreen() {
     if (!savedHistory) return;
     if (isThinking) return;
     setLocalMessages(
-      oldestFirstById(savedHistory).map((m) => ({
+      oldestFirstById(savedHistory).map(m => ({
         id: String(m.id),
         role: m.role,
         content: m.content,
-        time: new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        time: new Date(m.createdAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
       }))
     );
   }, [savedHistory, isThinking]);
@@ -63,8 +102,8 @@ export default function AskAIScreen() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
   };
 
-  const voice = useChatVoice((heard) => {
-    setMessage((current) => {
+  const voice = useChatVoice(heard => {
+    setMessage(current => {
       const next = current.trim() ? `${current.trim()} ${heard}` : heard;
       return next.slice(0, 600);
     });
@@ -73,32 +112,39 @@ export default function AskAIScreen() {
   const sendMsg = trpc.chat.send.useMutation({
     onSuccess: (data: any) => {
       const aiContent =
-        data?.aiResponse ?? data?.response ?? data?.content ??
+        data?.aiResponse ??
+        data?.response ??
+        data?.content ??
         "I couldn't generate a response. Please try again.";
 
-      setLocalMessages((prev) => [
+      setLocalMessages(prev => [
         ...prev,
         {
           id: String(Date.now() + 1),
           role: "assistant",
           content: aiContent,
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          time: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
         },
       ]);
       setIsThinking(false);
-      voice.speak(aiContent);
       utils.generalChat.history.invalidate();
       scrollToBottom();
     },
-    onError: (err) => {
+    onError: err => {
       setIsThinking(false);
-      setLocalMessages((prev) => [
+      setLocalMessages(prev => [
         ...prev,
         {
           id: String(Date.now() + 1),
           role: "assistant",
           content: `Sorry, I couldn't process that. ${err.message}`,
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          time: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
         },
       ]);
       scrollToBottom();
@@ -118,62 +164,92 @@ export default function AskAIScreen() {
     if (voice.listening) voice.stopListening();
     voice.stopSpeaking();
 
-    setLocalMessages((prev) => [
+    setLocalMessages(prev => [
       ...prev,
       {
         id: String(Date.now()),
         role: "user",
         content,
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
       },
     ]);
     setMessage("");
     setIsThinking(true);
     scrollToBottom();
-    sendMsg.mutate({ documentId: 0, message: content, courseId: scopedCourseId });
+    sendMsg.mutate({
+      documentId: 0,
+      message: content,
+      courseId: scopedCourseId,
+    });
   };
 
   const handleClear = () => {
     Alert.alert("Clear history", "Delete all Ask AI chat history?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Clear", style: "destructive", onPress: () => clearMutation.mutate() },
+      {
+        text: "Clear",
+        style: "destructive",
+        onPress: () => clearMutation.mutate(),
+      },
     ]);
   };
 
   const isEmpty = localMessages.length === 0 && !isThinking;
 
+  const prompts = scopedCourseId ? COURSE_PROMPTS : QUICK_PROMPTS;
+  const canSend = !!message.trim() && !isThinking;
+
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.header}>
-        <TouchableOpacity style={s.menuBtn}>
-          <Ionicons name="menu" size={22} color={colors.textSub} />
-        </TouchableOpacity>
-        <View style={s.headerCenter}>
-          <View style={s.headerIconWrap}>
-            <Ionicons name="sparkles" size={14} color={colors.white} />
-          </View>
-          <View>
-            <Text style={s.headerTitle}>Ask AI</Text>
-            <Text style={s.headerSub}>Cognify Assistant</Text>
+        <LinearGradient
+          colors={gradients.hero}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={s.headerIconWrap}
+        >
+          <Ionicons name="sparkles" size={17} color={colors.white} />
+        </LinearGradient>
+        <View style={{ flex: 1 }}>
+          <Text style={s.headerTitle}>Ask AI</Text>
+          <View style={s.headerSubRow}>
+            <View style={s.onlineDot} />
+            <Text style={s.headerSub} numberOfLines={1}>
+              {scopedCourseId ? "Using this course's materials" : "AI Learning Assistant"}
+            </Text>
           </View>
         </View>
         <View style={s.headerActions}>
-          <TouchableOpacity style={s.iconBtn} onPress={voice.togglePlayback} hitSlop={8}>
-            <Ionicons
-              name={voice.muted ? "volume-mute-outline" : voice.speaking ? "volume-high" : "volume-medium-outline"}
-              size={18}
-              color={voice.muted ? colors.textMuted : colors.primary}
-            />
-          </TouchableOpacity>
+          {voice.speaking ? (
+            <TouchableOpacity
+              style={[s.iconBtn, s.iconBtnOn]}
+              onPress={voice.stopSpeaking}
+              hitSlop={8}
+              accessibilityLabel="Stop reading aloud"
+            >
+              <Ionicons name="stop-circle-outline" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          ) : null}
           {localMessages.length > 0 ? (
-            <TouchableOpacity style={s.iconBtn} onPress={handleClear}>
+            <TouchableOpacity
+              style={s.iconBtn}
+              onPress={handleClear}
+              accessibilityLabel="Clear chat history"
+            >
               <Ionicons name="trash-outline" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           ) : null}
         </View>
       </View>
 
-      <VoiceCapture listening={voice.listening} usingWebSpeech={voice.usingWebSpeech} onMessage={voice.handleWebMessage} />
+      <VoiceCapture
+        listening={voice.listening}
+        usingWebSpeech={voice.usingWebSpeech}
+        onMessage={voice.handleWebMessage}
+      />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -184,29 +260,53 @@ export default function AskAIScreen() {
             <ActivityIndicator color={colors.primary} />
           </View>
         ) : isEmpty ? (
-          <View style={s.emptyContainer}>
+          <ScrollView
+            contentContainerStyle={s.emptyScroll}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={s.welcomeBox}>
-              <View style={s.aiBubbleIcon}>
-                <Ionicons name="sparkles" size={32} color={colors.white} />
+              <View style={s.orbHalo}>
+                <View style={s.orbHaloInner}>
+                  <LinearGradient
+                    colors={gradients.hero}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={s.orb}
+                  >
+                    <Ionicons name="sparkles" size={30} color={colors.white} />
+                  </LinearGradient>
+                </View>
               </View>
-              <Text style={s.hiText}>Hi {firstName}! 👋</Text>
+              <Text style={s.hiText}>Hi {firstName}, how can I help?</Text>
               <Text style={s.hiSub}>
                 {scopedCourseId
                   ? "I'll use this course's materials when answering."
-                  : "Ask me anything about your\ncourses or documents."}
+                  : "Ask me anything about your courses or documents."}
               </Text>
             </View>
+            <Text style={s.suggestLabel}>Try asking</Text>
             <View style={s.promptGrid}>
-              {(scopedCourseId
-                ? ["Explain this", "Simplify this topic", "Give an example", "Summarize", "Create flashcards", "Quiz me", "Explain step-by-step"]
-                : QUICK_PROMPTS
-              ).map((p, i) => (
-                <TouchableOpacity key={i} style={s.promptChip} onPress={() => handleSend(p)}>
-                  <Text style={s.promptText}>{p}</Text>
-                </TouchableOpacity>
-              ))}
+              {prompts.map((p, i) => {
+                const tone = PROMPT_TONES[i % PROMPT_TONES.length];
+                return (
+                  <TouchableOpacity
+                    key={p.text}
+                    style={s.promptCard}
+                    activeOpacity={0.85}
+                    onPress={() => handleSend(p.text)}
+                  >
+                    <View style={[s.promptIcon, { backgroundColor: tone.bg }]}>
+                      <Ionicons name={p.icon} size={16} color={tone.fg} />
+                    </View>
+                    <Text style={s.promptText} numberOfLines={3}>
+                      {p.text}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-          </View>
+          </ScrollView>
         ) : (
           <ScrollView
             ref={scrollRef}
@@ -216,35 +316,57 @@ export default function AskAIScreen() {
             keyboardShouldPersistTaps="handled"
             onContentSizeChange={scrollToBottom}
           >
-            {localMessages.map((item) => (
+            {localMessages.map(item => (
               <View
                 key={item.id}
-                style={[s.bubbleRow, item.role === "user" ? s.bubbleRowUser : s.bubbleRowAI]}
+                style={[
+                  s.bubbleRow,
+                  item.role === "user" ? s.bubbleRowUser : s.bubbleRowAI,
+                ]}
               >
                 {item.role === "assistant" && (
-                  <View style={s.aiAvatar}>
+                  <LinearGradient colors={gradients.hero} style={s.aiAvatar}>
                     <Ionicons name="sparkles" size={12} color={colors.white} />
-                  </View>
+                  </LinearGradient>
                 )}
-                <View style={[s.bubble, item.role === "user" ? s.bubbleUser : s.bubbleAI]}>
-                  <Text style={[s.bubbleText, item.role === "user" ? s.bubbleTextUser : s.bubbleTextAI]}>
-                    {item.content}
-                  </Text>
+                <View
+                  style={[
+                    s.bubble,
+                    item.role === "user" ? s.bubbleUser : s.bubbleAI,
+                  ]}
+                >
+                  {item.role === "assistant" ? (
+                    <AssistantMessage content={item.content} />
+                  ) : (
+                    <Text style={[s.bubbleText, s.bubbleTextUser]}>
+                      {item.content}
+                    </Text>
+                  )}
                   <View style={s.bubbleMeta}>
-                    <Text style={[s.bubbleTime, item.role === "user" && s.bubbleTimeUser]}>
+                    <Text
+                      style={[
+                        s.bubbleTime,
+                        item.role === "user" && s.bubbleTimeUser,
+                      ]}
+                    >
                       {item.time}
                     </Text>
                     {item.role === "assistant" ? (
                       <TouchableOpacity
-                        onPress={() => {
-                          if (voice.speaking) voice.stopSpeaking();
-                          else void voice.speak(item.content, { ignoreMute: true });
-                        }}
+                        style={s.speakChip}
+                        onPress={() => voice.toggleSpeak(item.content, item.id)}
                         hitSlop={8}
+                        accessibilityLabel={
+                          voice.speakingId === item.id ? "Stop reading aloud" : "Read aloud"
+                        }
                       >
                         <Ionicons
-                          name={voice.speaking ? "stop-circle-outline" : "volume-medium-outline"}
-                          size={14}
+                          name={
+                            voice.speakingId === item.id
+                              ? "stop-circle-outline"
+                              : "volume-medium-outline"
+                          }
+                          size={13}
                           color={colors.primary}
                         />
                       </TouchableOpacity>
@@ -256,9 +378,9 @@ export default function AskAIScreen() {
 
             {isThinking && (
               <View style={[s.bubbleRow, s.bubbleRowAI]}>
-                <View style={s.aiAvatar}>
+                <LinearGradient colors={gradients.hero} style={s.aiAvatar}>
                   <Ionicons name="sparkles" size={12} color={colors.white} />
-                </View>
+                </LinearGradient>
                 <View style={[s.bubble, s.bubbleAI, s.thinkingBubble]}>
                   <ActivityIndicator size="small" color={colors.primary} />
                   <Text style={s.thinkingText}>Thinking…</Text>
@@ -268,33 +390,54 @@ export default function AskAIScreen() {
           </ScrollView>
         )}
 
-        <View style={s.inputRow}>
-          <TextInput
-            style={s.input}
-            value={message}
-            onChangeText={setMessage}
-            placeholder={voice.listening ? "Recording… tap the mic to stop" : "Type or tap the mic…"}
-            placeholderTextColor={colors.textLight}
-            multiline
-            maxLength={600}
-            onSubmitEditing={() => handleSend()}
-            blurOnSubmit={false}
-          />
+        <View style={s.composerWrap}>
+          <View style={[s.composer, voice.listening && s.composerListening]}>
+            <TextInput
+              style={s.input}
+              value={message}
+              onChangeText={setMessage}
+              placeholder={
+                voice.listening
+                  ? "Recording… tap the mic to stop"
+                  : "Ask anything…"
+              }
+              placeholderTextColor={colors.textLight}
+              multiline
+              maxLength={600}
+              onSubmitEditing={() => handleSend()}
+              blurOnSubmit={false}
+            />
+            <TouchableOpacity
+              style={[s.micBtn, voice.listening && s.micBtnActive]}
+              onPress={voice.toggleListening}
+              disabled={isThinking}
+              accessibilityLabel={voice.listening ? "Stop recording" : "Speak your question"}
+            >
+              <Ionicons
+                name={voice.listening ? "mic" : "mic-outline"}
+                size={19}
+                color={voice.listening ? colors.white : colors.textMuted}
+              />
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity
-            style={[s.micBtn, voice.listening && s.micBtnActive]}
-            onPress={voice.toggleListening}
-            disabled={isThinking}
-          >
-            <Ionicons name={voice.listening ? "mic" : "mic-outline"} size={20} color={voice.listening ? colors.white : colors.textMuted} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.sendBtn, (!message.trim() || isThinking) && s.sendBtnDisabled]}
-            disabled={!message.trim() || isThinking}
+            style={[s.sendBtn, !canSend && s.sendBtnDisabled]}
+            disabled={!canSend}
             onPress={() => handleSend()}
+            accessibilityLabel="Send"
           >
-            {isThinking
-              ? <ActivityIndicator size="small" color={colors.white} />
-              : <Ionicons name="send" size={18} color={colors.white} />}
+            <LinearGradient
+              colors={gradients.hero}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={s.sendInner}
+            >
+              {isThinking ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <Ionicons name="arrow-up" size={20} color={colors.white} />
+              )}
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -303,44 +446,190 @@ export default function AskAIScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f5f6fa" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-  menuBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  headerCenter: { flexDirection: "row", alignItems: "center", gap: 10 },
-  headerIconWrap: { width: 30, height: 30, borderRadius: 10, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 15, fontWeight: "800", color: colors.text },
-  headerSub: { fontSize: 11, color: colors.textMuted },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 36, justifyContent: "flex-end" },
-  iconBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#f1f5f9", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-  emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 36 },
-  welcomeBox: { alignItems: "center", gap: 12 },
-  aiBubbleIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginBottom: 8, shadowColor: colors.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8 },
-  hiText: { fontSize: 26, fontWeight: "800", color: colors.text },
-  hiSub: { fontSize: 14, color: colors.textMuted, textAlign: "center", lineHeight: 22 },
-  promptGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "center" },
-  promptChip: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 10, maxWidth: 165 },
-  promptText: { fontSize: 13, color: colors.textSub, fontWeight: "500", textAlign: "center" },
+  safe: { flex: 1, ...design.page },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 14,
+    backgroundColor: colors.bg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  headerIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: { ...design.cardTitle, fontSize: 17 },
+  headerSubRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 1 },
+  onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
+  headerSub: { ...design.caption, flexShrink: 1 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  iconBtn: { ...design.iconButton, width: 40, height: 40, borderRadius: 20 },
+  iconBtnOn: { backgroundColor: colors.primaryLight, borderColor: colors.primaryLight },
+  emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
+  emptyScroll: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  welcomeBox: { alignItems: "center", gap: 8, marginBottom: 28 },
+  orbHalo: {
+    padding: 12,
+    borderRadius: 70,
+    backgroundColor: "rgba(10,110,82,0.06)",
+    marginBottom: 12,
+  },
+  orbHaloInner: {
+    padding: 10,
+    borderRadius: 58,
+    backgroundColor: "rgba(10,110,82,0.10)",
+  },
+  orb: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hiText: { ...design.screenTitle, fontSize: 23, lineHeight: 29, textAlign: "center" },
+  hiSub: { textAlign: "center", ...design.body, color: colors.textMuted, maxWidth: 290 },
+  suggestLabel: { ...design.eyebrow, marginBottom: 10, marginLeft: 2 },
+  promptGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  promptCard: {
+    ...design.card,
+    width: "48.4%",
+    flexGrow: 1,
+    padding: 14,
+    gap: 10,
+    minHeight: 104,
+  },
+  promptIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promptText: {
+    fontSize: 13.5,
+    lineHeight: 19,
+    color: colors.text,
+    fontWeight: "600",
+  },
   msgList: { flex: 1 },
-  msgContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, gap: 4 },
-  bubbleRow: { flexDirection: "row", gap: 8, marginBottom: 10, maxWidth: "85%" },
+  msgContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    gap: 4,
+  },
+  bubbleRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+    maxWidth: "85%",
+  },
   bubbleRowUser: { alignSelf: "flex-end", flexDirection: "row-reverse" },
-  bubbleRowAI: { alignSelf: "flex-start" },
-  aiAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginTop: 4, flexShrink: 0 },
-  bubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, flexShrink: 1 },
-  bubbleUser: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
-  bubbleAI: { backgroundColor: colors.surface, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: colors.border },
-  bubbleText: { fontSize: 14, lineHeight: 21 },
+  bubbleRowAI: { alignSelf: "flex-start", maxWidth: "100%" },
+  aiAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+    flexShrink: 0,
+  },
+  bubble: {
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 11,
+    flexShrink: 1,
+  },
+  bubbleUser: { backgroundColor: colors.primary, borderBottomRightRadius: 6 },
+  bubbleAI: { borderBottomLeftRadius: 6, ...design.card, borderRadius: 20 },
+  bubbleText: { fontSize: 14.5, lineHeight: 21 },
   bubbleTextUser: { color: colors.white },
-  bubbleTextAI: { color: colors.text },
-  bubbleTime: { fontSize: 10, color: colors.textLight },
-  bubbleMeta: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 4 },
-  bubbleTimeUser: { textAlign: "right", color: "rgba(255,255,255,0.65)" },
-  thinkingBubble: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12 },
+  bubbleTime: { fontSize: 10.5, color: colors.textLight },
+  bubbleMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginTop: 6,
+  },
+  bubbleTimeUser: { textAlign: "right", color: "rgba(255,255,255,0.7)" },
+  speakChip: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  thinkingBubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+  },
   thinkingText: { fontSize: 13, color: colors.textMuted },
-  inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
-  input: { flex: 1, borderWidth: 1.5, borderColor: colors.border, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: colors.text, backgroundColor: "#f8fafc", maxHeight: 100 },
-  micBtn: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#f1f5f9", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-  micBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  sendBtn: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  sendBtnDisabled: { opacity: 0.4 },
+  composerWrap: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
+    backgroundColor: colors.bg,
+  },
+  composer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    minHeight: 50,
+    borderRadius: 25,
+    paddingLeft: 18,
+    paddingRight: 5,
+    paddingVertical: 5,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...elevation.sm,
+  },
+  composerListening: { borderColor: colors.primary },
+  input: {
+    flex: 1,
+    maxHeight: 110,
+    minHeight: 40,
+    paddingTop: 10,
+    paddingBottom: 10,
+    fontSize: 15,
+    color: colors.text,
+  },
+  micBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceAlt,
+  },
+  micBtnActive: { backgroundColor: colors.primary },
+  sendBtn: { borderRadius: 25, ...elevation.brand },
+  sendInner: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sendBtnDisabled: { opacity: 0.4, shadowOpacity: 0, elevation: 0 },
 });

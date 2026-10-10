@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import { LecturerHero, LecturerStats, downloadCsv } from "@/components/lecturer/LecturerUi";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,6 +17,7 @@ export default function LecturerReports() {
   const [studentId, setStudentId] = useState("");
 
   const { data: courses } = trpc.lecturer.courses.list.useQuery(undefined, { enabled: isAllowed });
+  const { data: totals } = trpc.lecturer.dashboardStats.useQuery(undefined, { enabled: isAllowed });
   const cid = courseId ? Number(courseId) : undefined;
   const { data: students } = trpc.lecturer.students.listByCourse.useQuery(
     { courseId: cid! },
@@ -49,28 +51,27 @@ export default function LecturerReports() {
         new Date(s.startTime).toLocaleDateString(),
       ]),
     ];
-    const csv = rows.map((r) => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `report-${report.student.name?.replace(/\s+/g, "-")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(`report-${report.student.name?.replace(/\s+/g, "-") || "student"}.csv`, rows);
   };
 
   if (!isAllowed) return null;
 
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="lecturer-content lecturer-reports mx-auto space-y-6">
 
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Progress Reports</h1>
-          <p className="mt-1 text-sm text-slate-500">Generate detailed reports on individual student progress.</p>
-        </div>
+        <LecturerHero
+          eyebrow="Reporting"
+          title="Progress Reports"
+          description="Generate detailed reports on individual student progress."
+          icon={ClipboardList}
+        />
 
+        <LecturerStats items={[
+          { label:"Your Courses", value:courses?.length ?? "\u2014", hint:"Available for reporting", icon:BookOpen },
+          { label:"Enrolled Students", value:totals?.studentCount ?? "\u2014", hint:"Across your courses", icon:User },
+          { label:"Course Materials", value:totals?.documentCount ?? "\u2014", hint:"Available learning resources", icon:FileText },
+        ]}/>
         {/* Selector */}
         <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
           <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
@@ -130,7 +131,7 @@ export default function LecturerReports() {
               <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-lg font-bold text-white">
-                    {report.student.name?.charAt(0).toUpperCase() ?? "?"}
+                    {report.student.name?.charAt(0).toUpperCase() ?? "\u2014"}
                   </div>
                   <div>
                     <p className="font-bold text-slate-900">{report.student.name}</p>
@@ -138,9 +139,9 @@ export default function LecturerReports() {
                   </div>
                 </div>
                 <Button
-                  variant="outline"
+                  variant="accent-outline"
                   size="sm"
-                  className="rounded-xl border-slate-200 gap-2"
+                  className="rounded-xl gap-2"
                   onClick={exportCsv}
                 >
                   <Download className="h-4 w-4" /> Export CSV

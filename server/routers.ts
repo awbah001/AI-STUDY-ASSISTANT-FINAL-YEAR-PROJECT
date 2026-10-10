@@ -1,9 +1,12 @@
 import { ONE_YEAR_MS } from "../shared/const";
+import { EMAIL_DOMAIN_ERROR, isAllowedEmail } from "../shared/emailDomain";
+import { LIMITS, MESSAGES, zEmail, zLoginPassword, zNewPassword, zOptionalText, zPersonName, zReason, zText } from "../shared/validation";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure, adminProcedure, studentProcedure } from "./_core/trpc";
 import { lecturerRouter, studentCoursesRouter } from "./lecturerRouter";
 import { studentLearningRouter } from "./studentLearningRouter";
 import { settingsRouter } from "./settingsRouter";
+import { autonomousAgentRouter } from "./autonomousAgentRouter";
 import { stripSensitiveUser } from "./userSafe";
 import { getPasswordMinLength, getFeatureFlags } from "./settings";
 import { verifyTotp, consumeRecoveryCode } from "./totp";
@@ -47,7 +50,7 @@ async function deliverPasswordReset(email: string, token: string, expiresAt: Dat
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from, to: [email], subject: "Reset your Cognify password", html: `<p>Use this link to reset your Cognify password. It expires in one hour.</p><p><a href="${resetUrl}">Reset password</a></p>` }),
+        body: JSON.stringify({ from, to: [email], subject: "Reset your Course-Specific AI Learning Assistant password", html: `<p>Use this link to reset your Course-Specific AI Learning Assistant password. It expires in one hour.</p><p><a href="${resetUrl}">Reset password</a></p>` }),
       });
       if (response.ok) return;
       console.error("[PasswordReset] Email delivery failed:", await response.text());
@@ -89,70 +92,19 @@ export const appRouter = router({
       if (!u) return null;
       return stripSensitiveUser(u);
     }),
-    signup: publicProcedure
-      .input(
-        z.object({
-          name: z.string().min(1).max(100),
-          email: z.string().email(),
-          password: z.string().min(8).max(200),
-        })
-      )
-      .mutation(async ({ input }) => {
-        const minLen = await getPasswordMinLength();
-        if (input.password.length < minLen) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: `Password must be at least ${minLen} characters.`,
-          });
-        }
-        const email = normalizeEmail(input.email);
-        const existing = await db.getUserByEmail(email);
-        if (existing) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "An account with this email already exists.",
-          });
-        }
-
-        const passwordHash = await hashPassword(input.password);
-        const openId = localOpenIdForEmail(email);
-
-        const user = await db.createUser({
-          openId,
-          name: input.name,
-          email,
-          loginMethod: "local",
-          passwordHash,
-          lastSignedIn: new Date(),
-        });
-
-        if (!user) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to create account.",
-          });
-        }
-
-        const { beginStudentOnboarding } = await import("./studentLearningRouter");
-        await beginStudentOnboarding(user.id);
-
-        const token = await sdk.createSessionToken(openId, {
-          name: user.name || "",
-          expiresInMs: ONE_YEAR_MS,
-          tokenVersion: user.tokenVersion ?? 0,
-        });
-        return { token, user: stripSensitiveUser(user) } as const;
-      }),
     login: publicProcedure
       .input(
         z.object({
-          email: z.string().email(),
-          password: z.string().min(1).max(200),
-          totpCode: z.string().min(6).max(64).optional(),
+          email: zEmail,
+          password: zLoginPassword,
+          totpCode: z.string().trim().min(6, MESSAGES.codeInvalid).max(64, MESSAGES.codeInvalid).optional(),
         })
       )
       .mutation(async ({ input }) => {
         const email = normalizeEmail(input.email);
+        if (!isAllowedEmail(email)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: EMAIL_DOMAIN_ERROR });
+        }
         const user = await db.getUserByEmail(email);
         const stored = user?.passwordHash ?? null;
         const ok = stored ? await verifyPassword(input.password, stored) : false;
@@ -234,6 +186,10 @@ export const appRouter = router({
           });
         }
 
+        if (!isAllowedEmail(profile.email)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: EMAIL_DOMAIN_ERROR });
+        }
+
         let user =
           (await db.getUserByOpenId(googleOpenId(profile.sub))) ??
           (await db.getUserByEmail(profile.email));
@@ -245,57 +201,44 @@ export const appRouter = router({
           });
         }
 
+        // Institution students are provisioned on first Google sign-in; staff accounts stay admin-created.
         if (!user) {
-          if (input.client !== "mobile") {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message: "No staff account exists for this Google email. Ask an administrator to create one, then try again.",
-            });
-          }
           const created = await db.createUser({
             openId: googleOpenId(profile.sub),
             name: profile.name,
             email: profile.email,
+            avatarUrl: profile.picture ?? undefined,
             loginMethod: "google",
-            avatarUrl: profile.picture,
             role: "user",
-            lastSignedIn: new Date(),
           });
           if (!created) {
             throw new TRPCError({
               code: "INTERNAL_SERVER_ERROR",
-              message: "Failed to create account.",
+              message: "Failed to create your student account.",
             });
           }
           user = created;
           const { beginStudentOnboarding } = await import("./studentLearningRouter");
-          await beginStudentOnboarding(created.id);
-        } else {
-          const patch: { name?: string; avatarUrl?: string } = { };
-          if (!user.name && profile.name) patch.name = profile.name;
-          if (!user.avatarUrl && profile.picture) patch.avatarUrl = profile.picture;
-          if (Object.keys(patch).length > 0) {
-            await db.updateUserByOpenId(user.openId, patch);
-          }
-          await db.upsertUser({
-            openId: user.openId,
-            lastSignedIn: new Date(),
-          });
-          user = (await db.getUserByOpenId(user.openId)) ?? user;
+          await beginStudentOnboarding(user.id);
+          await queries.recordSystemEvent({
+            category: "auth",
+            severity: "info",
+            message: "STUDENT_AUTO_PROVISIONED",
+            userId: user.id,
+          }).catch(() => undefined);
         }
 
-        if (input.client === "web" && user.role === "user") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Students must use the Cognify mobile app.",
-          });
+        const patch: { name?: string; avatarUrl?: string } = {};
+        if (!user.name && profile.name) patch.name = profile.name;
+        if (!user.avatarUrl && profile.picture) patch.avatarUrl = profile.picture;
+        if (Object.keys(patch).length > 0) {
+          await db.updateUserByOpenId(user.openId, patch);
         }
-        if (input.client === "mobile" && user.role !== "user") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Lecturers and admins should use the Cognify web portal.",
-          });
-        }
+        await db.upsertUser({
+          openId: user.openId,
+          lastSignedIn: new Date(),
+        });
+        user = (await db.getUserByOpenId(user.openId)) ?? user;
 
         const token = await sdk.createSessionToken(user.openId, {
           name: user.name || "",
@@ -318,8 +261,8 @@ export const appRouter = router({
     updateProfile: protectedProcedure
       .input(
         z.object({
-          name: z.string().min(1).max(100).optional(),
-          avatarUrl: z.union([z.string().max(2048), z.literal("")]).optional(),
+          name: zPersonName().optional(),
+          avatarUrl: z.union([z.string().trim().max(2048), z.literal("")]).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -345,8 +288,8 @@ export const appRouter = router({
     changePassword: protectedProcedure
       .input(
         z.object({
-          currentPassword: z.string().min(1).max(200),
-          newPassword: z.string().min(8).max(200),
+          currentPassword: z.string().min(1, "Enter your current password.").max(LIMITS.password.max * 2),
+          newPassword: zNewPassword,
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -392,10 +335,11 @@ export const appRouter = router({
       }),
 
     forgotPassword: publicProcedure
-      .input(z.object({ email: z.string().email() }))
+      .input(z.object({ email: zEmail }))
       .mutation(async ({ input }) => {
         const { nanoid } = await import("nanoid");
         const email = input.email.toLowerCase().trim();
+        if (!isAllowedEmail(email)) return { success: true as const };
         const user = await db.getUserByEmail(email);
         // Always return success to prevent email enumeration
         if (!user || user.loginMethod !== "local") return { success: true as const };
@@ -408,10 +352,14 @@ export const appRouter = router({
 
     resetPassword: publicProcedure
       .input(z.object({
-        token: z.string().min(1),
-        newPassword: z.string().min(8).max(200),
+        token: z.string().trim().min(1, "This reset link is incomplete. Open the link from your email again.").max(300),
+        newPassword: zNewPassword,
       }))
       .mutation(async ({ input }) => {
+        const minLen = await getPasswordMinLength();
+        if (input.newPassword.length < minLen) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Password must be at least ${minLen} characters.` });
+        }
         const resetToken = await queries.getValidResetToken(input.token);
         if (!resetToken) {
           throw new TRPCError({
@@ -429,7 +377,7 @@ export const appRouter = router({
 
   documents: router({
     extractDocumentText: protectedProcedure
-      .input(z.object({ fileUrl: z.string() }))
+      .input(z.object({ fileUrl: z.string().trim().min(1, "File URL is required.").max(2048) }))
       .mutation(async ({ input }) => {
         const fileUrl = input.fileUrl.trim();
         if (!fileUrl.startsWith("/uploads/")) {
@@ -449,7 +397,7 @@ export const appRouter = router({
     list: protectedProcedure.query(({ ctx }) => queries.getUserDocuments(ctx.user.id)),
     favorites: protectedProcedure.query(({ ctx }) => queries.getUserFavoriteDocuments(ctx.user.id)),
     search: protectedProcedure
-      .input(z.object({ query: z.string() }))
+      .input(z.object({ query: zOptionalText("Search", LIMITS.search) }))
       .query(({ ctx, input }) => queries.searchUserDocuments(ctx.user.id, input.query)),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -465,14 +413,14 @@ export const appRouter = router({
       }),
     create: protectedProcedure
       .input(z.object({
-        title: z.string(),
-        description: z.string().optional(),
-        fileName: z.string(),
-        fileSize: z.number(),
-        fileUrl: z.string(),
-        fileKey: z.string(),
-        mimeType: z.string().optional(),
-        extractedText: z.string().optional(),
+        title: zText("Title", LIMITS.title),
+        description: zOptionalText("Description", LIMITS.description).optional(),
+        fileName: zText("File name", { max: 300 }),
+        fileSize: z.number().int().positive("The file is empty."),
+        fileUrl: zText("File URL", { max: 2048 }),
+        fileKey: zText("File key", { max: 500 }),
+        mimeType: z.string().trim().max(200).optional(),
+        extractedText: z.string().max(2_000_000).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { getSystemSettings } = await import("./settings");
@@ -526,13 +474,13 @@ export const appRouter = router({
     createOwn: protectedProcedure
       .input(
         z.object({
-          title: z.string().min(1).max(300),
-          fileName: z.string().min(1).max(300),
-          fileSize: z.number().int().positive(),
-          fileUrl: z.string().min(1),
-          fileKey: z.string().min(1).max(500),
-          mimeType: z.string().optional(),
-          description: z.string().max(2000).optional(),
+          title: zText("Title", LIMITS.title),
+          fileName: zText("File name", { max: 300 }),
+          fileSize: z.number().int().positive("The file is empty."),
+          fileUrl: zText("File URL", { max: 2048 }),
+          fileKey: zText("File key", { max: 500 }),
+          mimeType: z.string().trim().max(200).optional(),
+          description: zOptionalText("Description", LIMITS.description).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -586,7 +534,7 @@ export const appRouter = router({
     send: protectedProcedure
       .input(z.object({
         documentId: z.number(),
-        message: z.string(),
+        message: zText("Message", { max: LIMITS.chatMessage }),
         courseId: z.number().int().positive().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -595,6 +543,15 @@ export const appRouter = router({
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message: "AI Chat is currently disabled by an administrator.",
+          });
+        }
+        try {
+          const { assertAiRateLimit } = await import("./ai");
+          assertAiRateLimit(ctx.user.id);
+        } catch (rateErr) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: rateErr instanceof Error ? rateErr.message : "Too many AI requests.",
           });
         }
         // documentId === 0 → general Ask AI (no document context, no RAG)
@@ -693,7 +650,7 @@ export const appRouter = router({
           } else {
             console.error(err);
             aiResponse =
-              "Something went wrong while running the AI. Check that LM Studio is running and try again.";
+              "The AI service is temporarily unavailable. Please try again.";
           }
         }
 
@@ -716,7 +673,8 @@ export const appRouter = router({
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
         await assertDocumentAccess(ctx.user.id, input.documentId);
-        return queries.getDocumentSummary(input.documentId);
+        // React Query rejects `undefined` as query data; "no summary yet" must be null.
+        return (await queries.getDocumentSummary(input.documentId)) ?? null;
       }),
     generate: protectedProcedure
       .input(
@@ -911,7 +869,7 @@ export const appRouter = router({
          * Per-question answers: { [questionId]: selectedOptionText }
          * Optional for backward-compat — older clients may not send this.
          */
-        answers: z.record(z.string(), z.string()).optional(),
+        answers: z.record(z.string().max(40), z.string().max(2000)).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const existingQuiz = await queries.getQuizById(input.quizId);
@@ -1042,10 +1000,10 @@ export const appRouter = router({
       }),
     createEvent: studentProcedure
       .input(z.object({
-        title: z.string().min(2).max(160),
+        title: zText("Title", { min: 2, max: 160 }),
         type: z.enum(["exam", "test", "quiz", "study", "other"]),
-        startsAt: z.number().int(),
-        notes: z.string().max(500).optional(),
+        startsAt: z.number().int().refine(value => value > Date.now() - 24 * 60 * 60 * 1000, "Choose a date and time that is not in the past."),
+        notes: zOptionalText("Notes", 500).optional(),
         reminderMinutes: z.number().int().min(5).max(10080).optional(),
         courseId: z.number().int().positive().optional(),
       }))
@@ -1069,7 +1027,7 @@ export const appRouter = router({
         return { success: true };
       }),
     generatePlan: studentProcedure
-      .input(z.object({ message: z.string().min(8).max(500) }))
+      .input(z.object({ message: zText("Plan request", { min: 8, max: 500 }) }))
       .mutation(async ({ ctx, input }) => {
         const drafts = await calendar.proposeCalendarDrafts(input.message);
         const events = await calendar.insertCalendarEvents(ctx.user.id, drafts, "agent");
@@ -1123,18 +1081,34 @@ export const appRouter = router({
 
   admin: router({
     settings: settingsRouter,
+    autonomousAgent: autonomousAgentRouter,
 
-    createLecturer: adminProcedure
+    /** Accounts are provisioned by administrators only; there is no public sign-up. */
+    createUser: adminProcedure
       .input(
         z.object({
-          name: z.string().min(1).max(100),
-          email: z.string().email(),
-          password: z.string().min(8).max(200),
-          department: z.string().max(120).optional(),
+          name: zPersonName("Full name"),
+          email: zEmail,
+          password: zNewPassword,
+          role: z.enum(["user", "lecturer"]),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        const { userHasPermission } = await import("./settings");
+        if (!(await userHasPermission(ctx.user, "users.create"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to create users." });
+        }
+        const minLen = await getPasswordMinLength();
+        if (input.password.length < minLen) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Password must be at least ${minLen} characters.`,
+          });
+        }
         const email = normalizeEmail(input.email);
+        if (!isAllowedEmail(email)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: EMAIL_DOMAIN_ERROR });
+        }
         const existing = await db.getUserByEmail(email);
         if (existing) {
           throw new TRPCError({
@@ -1142,23 +1116,25 @@ export const appRouter = router({
             message: "An account with this email already exists.",
           });
         }
-        const passwordHash = await hashPassword(input.password);
-        const openId = localOpenIdForEmail(email);
         const user = await db.createUser({
-          openId,
-          name: input.name,
+          openId: localOpenIdForEmail(email),
+          name: input.name.trim(),
           email,
           loginMethod: "local",
-          passwordHash,
-          role: "lecturer",
-          lastSignedIn: new Date(),
+          passwordHash: await hashPassword(input.password),
+          role: input.role,
         });
         if (!user) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to create lecturer account.",
+            message: "Failed to create account.",
           });
         }
+        if (input.role === "user") {
+          const { beginStudentOnboarding } = await import("./studentLearningRouter");
+          await beginStudentOnboarding(user.id);
+        }
+        await writeAdminAudit(ctx.user.id, "user.created", "user", user.id, undefined, { role: input.role, email });
         return stripSensitiveUser(user);
       }),
 
@@ -1260,24 +1236,55 @@ export const appRouter = router({
       return { jobs: { pending: pending.count, ready: ready.count, failed: failed.count }, storageBytes: storage.bytes, recentErrors };
     }),
 
-    listAuditLogs: adminProcedure.input(z.object({ search: z.string().max(100).default(""), action: z.string().max(100).optional(), from: z.date().optional(), to: z.date().optional(), limit: z.number().int().min(1).max(100).default(50) })).query(async ({ input }) => {
+    listAuditLogs: adminProcedure.input(z.object({
+      search: z.string().max(100).default(""),
+      action: z.string().max(100).optional(),
+      adminId: z.number().int().positive().optional(),
+      from: z.date().optional(),
+      to: z.date().optional(),
+      limit: z.number().int().min(1).max(200).default(100),
+    })).query(async ({ input }) => {
       const dbConn = await db.getDb(); if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const where = [] as any[];
       if (input.action) where.push(eq(adminAuditLogs.action, input.action));
+      if (input.adminId) where.push(eq(adminAuditLogs.adminId, input.adminId));
       if (input.from) where.push(gte(adminAuditLogs.createdAt, input.from));
       if (input.to) where.push(sql`${adminAuditLogs.createdAt} <= ${input.to}`);
-      if (input.search) where.push(or(like(adminAuditLogs.action, `%${input.search}%`), like(adminAuditLogs.reason, `%${input.search}%`)));
-      return dbConn.select({ id: adminAuditLogs.id, action: adminAuditLogs.action, targetType: adminAuditLogs.targetType, targetId: adminAuditLogs.targetId, reason: adminAuditLogs.reason, metadata: adminAuditLogs.metadata, createdAt: adminAuditLogs.createdAt, adminName: users.name }).from(adminAuditLogs).leftJoin(users, eq(adminAuditLogs.adminId, users.id)).where(where.length ? and(...where) : undefined).orderBy(desc(adminAuditLogs.createdAt)).limit(input.limit);
+      if (input.search) {
+        where.push(or(
+          like(adminAuditLogs.action, `%${input.search}%`),
+          like(adminAuditLogs.reason, `%${input.search}%`),
+          like(adminAuditLogs.targetType, `%${input.search}%`),
+          like(users.name, `%${input.search}%`),
+        ));
+      }
+      return dbConn
+        .select({
+          id: adminAuditLogs.id,
+          action: adminAuditLogs.action,
+          targetType: adminAuditLogs.targetType,
+          targetId: adminAuditLogs.targetId,
+          reason: adminAuditLogs.reason,
+          metadata: adminAuditLogs.metadata,
+          createdAt: adminAuditLogs.createdAt,
+          adminId: adminAuditLogs.adminId,
+          adminName: users.name,
+        })
+        .from(adminAuditLogs)
+        .leftJoin(users, eq(adminAuditLogs.adminId, users.id))
+        .where(where.length ? and(...where) : undefined)
+        .orderBy(desc(adminAuditLogs.createdAt))
+        .limit(input.limit);
     }),
 
     createCourse: adminProcedure
       .input(
         z.object({
-          title: z.string().min(1).max(200),
-          subject: z.string().max(100).optional(),
-          description: z.string().max(2000).optional(),
+          title: zText("Course title", LIMITS.title),
+          subject: zOptionalText("Subject", 100).optional(),
+          description: zOptionalText("Description", LIMITS.description).optional(),
           lecturerId: z.number().int().positive(),
-          reason: z.string().min(3).max(500),
+          reason: zReason,
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -1306,7 +1313,7 @@ export const appRouter = router({
         return course;
       }),
 
-    assignLecturerToCourse: adminProcedure.input(z.object({ courseId: z.number(), lecturerId: z.number(), reason: z.string().min(3).max(500) })).mutation(async ({ ctx, input }) => {
+    assignLecturerToCourse: adminProcedure.input(z.object({ courseId: z.number(), lecturerId: z.number(), reason: zReason })).mutation(async ({ ctx, input }) => {
       const lecturer = await db.getUserById(input.lecturerId);
       if (!lecturer || lecturer.role !== "lecturer" || lecturer.isBanned) throw new TRPCError({ code: "BAD_REQUEST", message: "Select an active lecturer account." });
       const dbConn = await db.getDb(); if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -1323,7 +1330,7 @@ export const appRouter = router({
       return { success: true };
     }),
 
-    retryDocumentProcessing: adminProcedure.input(z.object({ documentId: z.number(), reason: z.string().min(3).max(500) })).mutation(async ({ ctx, input }) => {
+    retryDocumentProcessing: adminProcedure.input(z.object({ documentId: z.number(), reason: zReason })).mutation(async ({ ctx, input }) => {
       const doc = await queries.getDocumentById(input.documentId); if (!doc) throw new TRPCError({ code: "NOT_FOUND" });
       await queries.updateDocument(doc.id, { processingStatus: "pending", processingError: null });
       await writeAdminAudit(ctx.user.id, "document.processing_retried", "document", doc.id, input.reason);
@@ -1343,7 +1350,12 @@ export const appRouter = router({
       return { success: true };
     }),
 
-    sendAnnouncement: adminProcedure.input(z.object({ audience: z.enum(["all", "inactive", "course"]), courseId: z.number().optional(), title: z.string().min(1).max(160), body: z.string().min(1).max(2000) })).mutation(async ({ ctx, input }) => {
+    sendAnnouncement: adminProcedure.input(z.object({
+      audience: z.enum(["all", "inactive", "course", "lecturers"]),
+      courseId: z.number().optional(),
+      title: zText("Title", { min: 2, max: 160 }),
+      body: zText("Message", { min: 5, max: LIMITS.description }),
+    })).mutation(async ({ ctx, input }) => {
       const dbConn = await db.getDb(); if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       let recipientRows: Array<{ id: number }>;
       if (input.audience === "course") {
@@ -1352,20 +1364,89 @@ export const appRouter = router({
       } else if (input.audience === "inactive") {
         const cutoff = new Date(Date.now() - 14 * 86_400_000);
         recipientRows = await dbConn.select({ id: users.id }).from(users).where(and(eq(users.role, "user"), sql`${users.lastSignedIn} < ${cutoff}`));
-      } else recipientRows = await dbConn.select({ id: users.id }).from(users).where(eq(users.role, "user"));
-      if (recipientRows.length) await dbConn.insert(notifications).values(recipientRows.map(({ id }) => ({ userId: id, title: input.title, body: input.body, data: { type: "admin_announcement", audience: input.audience, courseId: input.courseId } })));
-      await writeAdminAudit(ctx.user.id, "announcement.sent", "announcement", 0, undefined, { audience: input.audience, recipients: recipientRows.length });
+      } else if (input.audience === "lecturers") {
+        recipientRows = await dbConn.select({ id: users.id }).from(users).where(eq(users.role, "lecturer"));
+      } else {
+        recipientRows = await dbConn.select({ id: users.id }).from(users).where(eq(users.role, "user"));
+      }
+      if (recipientRows.length) {
+        await dbConn.insert(notifications).values(
+          recipientRows.map(({ id }) => ({
+            userId: id,
+            title: input.title,
+            body: input.body,
+            data: { type: "admin_announcement", audience: input.audience, courseId: input.courseId },
+          }))
+        );
+      }
+      await writeAdminAudit(ctx.user.id, "announcement.sent", "announcement", 0, undefined, {
+        audience: input.audience,
+        recipients: recipientRows.length,
+        title: input.title,
+      });
       return { recipients: recipientRows.length };
     }),
 
     getCommunicationStats: adminProcedure.query(async () => {
       const dbConn = await db.getDb(); if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const [[sent], [read], recent] = await Promise.all([
+      const [[sent], [read], recentRows] = await Promise.all([
         dbConn.select({ count: sql<number>`cast(count(*) as integer)` }).from(notifications).where(sql`${notifications.data} like '%admin_announcement%'`),
         dbConn.select({ count: sql<number>`cast(count(*) as integer)` }).from(notifications).where(and(eq(notifications.isRead, true), sql`${notifications.data} like '%admin_announcement%'`)),
-        dbConn.select({ id: notifications.id, title: notifications.title, body: notifications.body, isRead: notifications.isRead, createdAt: notifications.createdAt }).from(notifications).where(sql`${notifications.data} like '%admin_announcement%'`).orderBy(desc(notifications.createdAt)).limit(10),
+        dbConn
+          .select({
+            id: notifications.id,
+            title: notifications.title,
+            body: notifications.body,
+            isRead: notifications.isRead,
+            createdAt: notifications.createdAt,
+            data: notifications.data,
+          })
+          .from(notifications)
+          .where(sql`${notifications.data} like '%admin_announcement%'`)
+          .orderBy(desc(notifications.createdAt))
+          .limit(80),
       ]);
-      return { sent: sent.count, read: read.count, readRate: sent.count ? Math.round((read.count / sent.count) * 100) : 0, recent };
+
+      // Collapse per-recipient rows into one history entry per send batch (title + minute).
+      const seen = new Set<string>();
+      const recent: Array<{
+        id: number;
+        title: string;
+        body: string;
+        isRead: boolean;
+        createdAt: Date;
+        audience: string | null;
+        delivered: number;
+        readCount: number;
+      }> = [];
+      for (const row of recentRows) {
+        const minute = new Date(row.createdAt).toISOString().slice(0, 16);
+        const key = `${row.title}::${minute}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const batch = recentRows.filter(
+          (r) => r.title === row.title && new Date(r.createdAt).toISOString().slice(0, 16) === minute
+        );
+        const data = (row.data ?? {}) as { audience?: string };
+        recent.push({
+          id: row.id,
+          title: row.title,
+          body: row.body,
+          isRead: batch.every((b) => b.isRead),
+          createdAt: row.createdAt,
+          audience: data.audience ?? null,
+          delivered: batch.length,
+          readCount: batch.filter((b) => b.isRead).length,
+        });
+        if (recent.length >= 12) break;
+      }
+
+      return {
+        sent: sent.count,
+        read: read.count,
+        readRate: sent.count ? Math.round((read.count / sent.count) * 100) : 0,
+        recent,
+      };
     }),
 
     getAnalytics: adminProcedure.query(async () => {
@@ -1512,7 +1593,7 @@ export const appRouter = router({
 
 
     deleteUser: adminProcedure
-      .input(z.object({ userId: z.number(), reason: z.string().min(3).max(500) }))
+      .input(z.object({ userId: z.number(), reason: zReason }))
       .mutation(async ({ ctx, input }) => {
         const { userHasPermission } = await import("./settings");
         if (!(await userHasPermission(ctx.user, "users.delete"))) {
@@ -1525,7 +1606,7 @@ export const appRouter = router({
       }),
 
     toggleUserBan: adminProcedure
-      .input(z.object({ userId: z.number(), reason: z.string().min(3).max(500) }))
+      .input(z.object({ userId: z.number(), reason: zReason }))
       .mutation(async ({ ctx, input }) => {
         const { userHasPermission } = await import("./settings");
         if (!(await userHasPermission(ctx.user, "users.edit"))) {
@@ -1539,7 +1620,7 @@ export const appRouter = router({
       }),
 
     updateUserRole: adminProcedure
-      .input(z.object({ userId: z.number(), role: z.enum(["user", "lecturer"]), reason: z.string().min(3).max(500) }))
+      .input(z.object({ userId: z.number(), role: z.enum(["user", "lecturer"]), reason: zReason }))
       .mutation(async ({ ctx, input }) => {
         forbidSelfAction(ctx.user.id, input.userId);
         const updated = await db.updateUserById(input.userId, { role: input.role });
@@ -1556,7 +1637,7 @@ export const appRouter = router({
       return { user, stats };
     }),
 
-    requestPasswordReset: adminProcedure.input(z.object({ userId: z.number(), reason: z.string().min(3).max(500) })).mutation(async ({ ctx, input }) => {
+    requestPasswordReset: adminProcedure.input(z.object({ userId: z.number(), reason: zReason })).mutation(async ({ ctx, input }) => {
       forbidSelfAction(ctx.user.id, input.userId);
       const target = await db.getUserById(input.userId);
       if (!target || target.loginMethod !== "local") throw new TRPCError({ code: "BAD_REQUEST", message: "Password reset is only available for local accounts." });
@@ -1570,7 +1651,7 @@ export const appRouter = router({
     }),
 
     deleteDocument: adminProcedure
-      .input(z.object({ documentId: z.number(), reason: z.string().min(3).max(500) }))
+      .input(z.object({ documentId: z.number(), reason: zReason }))
       .mutation(async ({ ctx, input }) => {
         await queries.deleteDocument(input.documentId);
         await writeAdminAudit(ctx.user.id, "document.deleted", "document", input.documentId, input.reason);
@@ -1578,7 +1659,7 @@ export const appRouter = router({
       }),
 
     toggleDocumentPublic: adminProcedure
-      .input(z.object({ documentId: z.number(), reason: z.string().min(3).max(500) }))
+      .input(z.object({ documentId: z.number(), reason: zReason }))
       .mutation(async ({ ctx, input }) => {
         const doc = await queries.getDocumentById(input.documentId);
         if (!doc) throw new TRPCError({ code: "NOT_FOUND" });
@@ -1587,7 +1668,7 @@ export const appRouter = router({
         return updated;
       }),
 
-    reportDocument: adminProcedure.input(z.object({ documentId: z.number(), reason: z.string().min(3).max(500) })).mutation(async ({ ctx, input }) => {
+    reportDocument: adminProcedure.input(z.object({ documentId: z.number(), reason: zReason })).mutation(async ({ ctx, input }) => {
       const doc = await queries.getDocumentById(input.documentId); if (!doc) throw new TRPCError({ code: "NOT_FOUND" });
       const updated = await queries.updateDocument(input.documentId, { reportCount: doc.reportCount + 1, moderationNote: input.reason });
       await writeAdminAudit(ctx.user.id, "document.flagged", "document", input.documentId, input.reason);
@@ -1621,12 +1702,15 @@ export const appRouter = router({
       .input(z.object({
         assignmentId: z.number(),
         courseId: z.number(),
-        note: z.string().max(2000).optional(),
-        fileUrl: z.string().optional(),
-        fileKey: z.string().optional(),
-        fileName: z.string().optional(),
-        fileSize: z.number().optional(),
-        mimeType: z.string().optional(),
+        note: zOptionalText("Note", LIMITS.description).optional(),
+        fileUrl: z.string().trim().max(2048).optional(),
+        fileKey: z.string().trim().max(500).optional(),
+        fileName: z.string().trim().max(300).optional(),
+        fileSize: z.number().int().nonnegative().optional(),
+        mimeType: z.string().trim().max(200).optional(),
+      }).refine(value => Boolean(value.note || value.fileUrl), {
+        message: "Add a note or attach a file before submitting.",
+        path: ["note"],
       }))
       .mutation(async ({ ctx, input }) => {
         // Verify student is enrolled in the course
@@ -1684,8 +1768,9 @@ export const appRouter = router({
     /** Student: get their own submission for a given assignment */
     mySubmission: studentProcedure
       .input(z.object({ assignmentId: z.number() }))
-      .query(({ ctx, input }) =>
-        queries.getSubmissionByStudentAndAssignment(ctx.user.id, input.assignmentId)
+      .query(
+        async ({ ctx, input }) =>
+          (await queries.getSubmissionByStudentAndAssignment(ctx.user.id, input.assignmentId)) ?? null
       ),
 
     /** Student: all submissions for a course (to show status per assignment) */

@@ -14,12 +14,18 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
-          "border border-emerald-300 bg-white text-emerald-700 shadow-xs hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-800 dark:border-emerald-700 dark:bg-transparent dark:text-emerald-300 dark:hover:bg-emerald-950",
+          "border border-burgundy-border bg-white text-burgundy shadow-xs hover:bg-burgundy-soft hover:text-burgundy-hover dark:bg-transparent dark:text-burgundy-foreground dark:hover:bg-burgundy-soft",
         secondary:
-          "bg-emerald-50 text-emerald-900 border border-emerald-100/90 hover:bg-emerald-100/90 dark:bg-emerald-950/60 dark:text-emerald-50 dark:border-emerald-800 dark:hover:bg-emerald-900/80",
+          "border border-neutral-gray-border bg-neutral-gray-soft text-slate-700 hover:bg-slate-200/70 dark:text-slate-100 dark:hover:bg-slate-700/60",
         ghost:
-          "text-emerald-900 hover:bg-emerald-50 hover:text-emerald-950 dark:text-emerald-100 dark:hover:bg-emerald-950/50",
+          "text-neutral-gray hover:bg-neutral-gray-soft hover:text-slate-800 dark:hover:text-slate-100",
         link: "text-emerald-600 underline-offset-4 hover:underline hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300",
+        accent:
+          "bg-burgundy text-white shadow-sm hover:bg-burgundy-hover active:bg-burgundy-hover",
+        "accent-outline":
+          "border border-burgundy-border bg-white text-burgundy shadow-xs hover:bg-burgundy-soft hover:text-burgundy-hover dark:bg-transparent dark:text-burgundy-foreground",
+        neutral:
+          "border border-neutral-gray-border bg-white text-neutral-gray shadow-xs hover:bg-neutral-gray-soft hover:text-slate-700 dark:bg-transparent dark:hover:text-slate-200",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -52,6 +58,7 @@ function Button({
   return (
     <Comp
       data-slot="button"
+      data-variant={variant ?? "default"}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

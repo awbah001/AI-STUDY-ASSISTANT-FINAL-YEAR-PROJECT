@@ -21,6 +21,9 @@ import { ADMIN_PERMISSIONS } from "../shared/adminSettings";
 import { stripSensitiveUser } from "./userSafe";
 import { sdk } from "./_core/sdk";
 import { ONE_YEAR_MS } from "../shared/const";
+import { EMAIL_DOMAIN_ERROR, isAllowedEmail } from "../shared/emailDomain";
+import { LIMITS, zEmail, zOptionalText, zPersonName, zPhone } from "../shared/validation";
+import { getAiService, getAiMetrics } from "./ai";
 
 async function audit(adminId: number, action: string, targetType: string, targetId: number, reason?: string, metadata?: Record<string, unknown>) {
   const dbConn = await getDb();
@@ -104,13 +107,16 @@ export const settingsRouter = router({
   updateAccount: adminProcedure
     .input(
       z.object({
-        name: z.string().min(1).max(100).optional(),
-        phone: z.string().max(40).optional(),
-        jobTitle: z.string().max(120).optional(),
-        email: z.string().email().optional(),
+        name: zPersonName().optional(),
+        phone: zPhone.optional(),
+        jobTitle: zOptionalText("Job title", LIMITS.shortText).optional(),
+        email: zEmail.optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.email && !isAllowedEmail(input.email)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: EMAIL_DOMAIN_ERROR });
+      }
       const dbConn = await getDb();
       if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await dbConn
@@ -190,7 +196,7 @@ export const settingsRouter = router({
       lastActive: ctx.user.lastSignedIn,
       createdAt: ctx.user.createdAt,
     },
-    note: "Cognify uses JWT sessions. Other devices are not listed until they call the API. Signing out others invalidates every existing token for this account.",
+    note: "The platform uses JWT sessions. Other devices are not listed until they call the API. Signing out others invalidates every existing token for this account.",
   })),
 
   revokeOtherSessions: adminProcedure.mutation(async ({ ctx }) => {
@@ -250,10 +256,12 @@ export const settingsRouter = router({
     }
     let ai: "operational" | "warning" | "unavailable" = "unavailable";
     try {
-      const res = await fetch(`${ENV.lmStudioBaseUrl}/models`, { signal: AbortSignal.timeout(2500) });
-      ai = res.ok ? "operational" : "warning";
+      const health = await getAiService().healthCheck();
+      if (health.status === "connected") ai = "operational";
+      else if (health.status === "misconfigured") ai = "unavailable";
+      else ai = "warning";
     } catch {
-      ai = ENV.useLocalLlm ? "unavailable" : "warning";
+      ai = ENV.groqApiKey ? "warning" : "unavailable";
     }
     const [storage] = dbConn
       ? await dbConn.select({ bytes: sql<number>`coalesce(sum(${documents.fileSize}), 0)`, count: sql<number>`cast(count(*) as integer)` }).from(documents)
@@ -264,10 +272,20 @@ export const settingsRouter = router({
       authentication: ENV.cookieSecret.length >= 16 ? ("operational" as const) : ("warning" as const),
       ai,
       storage,
-      geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
       googleAuth: ENV.googleClientIds.length > 0,
       email: Boolean(process.env.RESEND_API_KEY),
     };
+  }),
+
+  aiHealth: adminProcedure.query(async ({ ctx }) => {
+    await assertPerm(ctx.user, "ai.configure");
+    const health = await getAiService().healthCheck();
+    return [health];
+  }),
+
+  aiMetrics: adminProcedure.query(async ({ ctx }) => {
+    await assertPerm(ctx.user, "ai.configure");
+    return [getAiMetrics()];
   }),
 
   activity: adminProcedure.query(async () => {
@@ -276,23 +294,43 @@ export const settingsRouter = router({
     return dbConn.select().from(adminAuditLogs).orderBy(desc(adminAuditLogs.createdAt)).limit(25);
   }),
 
-  integrations: adminProcedure.query(async () => ({
-    jwt: { status: ENV.cookieSecret.length >= 16 ? "connected" : "error", detail: "HS256 Bearer sessions" },
-    google: { status: ENV.googleClientIds.length ? "connected" : "not_connected", detail: "Web / iOS client IDs" },
-    email: { status: process.env.RESEND_API_KEY ? "connected" : "not_connected", detail: "Resend transactional email" },
-    lmStudio: { status: ENV.useLocalLlm ? "connected" : "not_connected", detail: ENV.lmStudioBaseUrl },
-    gemini: { status: process.env.GEMINI_API_KEY ? "connected" : "not_connected", detail: "Server-side GEMINI_API_KEY" },
-    storage: { status: "connected" as const, detail: "Local data/uploads" },
-  })),
-
-  testLmStudio: adminProcedure.mutation(async ({ ctx }) => {
-    await assertPerm(ctx.user, "ai.configure");
+  integrations: adminProcedure.query(async () => {
+    let groqStatus = "not_connected";
+    let groqDetail = ENV.groqApiKey ? `${ENV.groqModel} (configured)` : "Set GROQ_API_KEY";
     try {
-      const res = await fetch(`${ENV.lmStudioBaseUrl}/models`, { signal: AbortSignal.timeout(4000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return { ok: true as const, message: "LM Studio responded." };
+      const health = await getAiService().healthCheck();
+      groqStatus =
+        health.status === "connected"
+          ? "connected"
+          : health.status === "misconfigured"
+            ? "error"
+            : "not_connected";
+      groqDetail = `${health.detail}${health.latencyMs != null ? ` · ${health.latencyMs}ms` : ""}`;
+    } catch {
+      /* keep defaults */
+    }
+    return {
+      jwt: { status: ENV.cookieSecret.length >= 16 ? "connected" : "error", detail: "HS256 Bearer sessions" },
+      google: { status: ENV.googleClientIds.length ? "connected" : "not_connected", detail: "Web / iOS client IDs" },
+      email: { status: process.env.RESEND_API_KEY ? "connected" : "not_connected", detail: "Resend transactional email" },
+      groq: { status: groqStatus, detail: groqDetail },
+      storage: { status: "connected" as const, detail: "Local data/uploads" },
+    };
+  }),
+
+  testGroq: adminProcedure.mutation(async ({ ctx }) => {
+    await assertPerm(ctx.user, "ai.configure");
+    if (!ENV.groqApiKey) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "GROQ_API_KEY is not set on the server." });
+    }
+    try {
+      const health = await getAiService().healthCheck();
+      if (health.status !== "connected") {
+        throw new Error(health.detail || `Status: ${health.status}`);
+      }
+      return { ok: true as const, message: `Groq responded (${health.model}).` };
     } catch (error) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "LM Studio unreachable." });
+      throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Groq unreachable." });
     }
   }),
 
@@ -306,7 +344,7 @@ export const settingsRouter = router({
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [input.to], subject: "Cognify test email", html: "<p>This is a Cognify settings test email.</p>" }),
+      body: JSON.stringify({ from, to: [input.to], subject: "Course-Specific AI Learning Assistant test email", html: "<p>This is a Course-Specific AI Learning Assistant settings test email.</p>" }),
     });
     if (!response.ok) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "Email provider rejected the test message." });
@@ -325,7 +363,7 @@ export const settingsRouter = router({
   createBackup: adminProcedure.mutation(async ({ ctx }) => {
     await assertPerm(ctx.user, "backup.manage");
     await mkdir(backupsDir(), { recursive: true });
-    const fileName = `cognify-${new Date().toISOString().replace(/[:.]/g, "-")}.db`;
+    const fileName = `ai-learning-assistant-${new Date().toISOString().replace(/[:.]/g, "-")}.db`;
     const dest = path.join(backupsDir(), fileName);
     await copyFile(dbFilePath(), dest);
     const info = await stat(dest);

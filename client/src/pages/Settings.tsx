@@ -1,3 +1,5 @@
+import StudentAccount from "@/pages/student/StudentAccount";
+import LecturerSettings from "@/pages/lecturer/LecturerSettings";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -16,6 +18,10 @@ import {
 export default function Settings() {
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
+
+  if (user?.role === "user") return <StudentAccount settings />;
+
+  if (user?.role === "lecturer") return <LecturerSettings />;
 
   return (
     <DashboardLayout>
@@ -125,7 +131,7 @@ export default function Settings() {
           description="Application information"
         >
           <div className="divide-y divide-slate-50">
-            <AboutRow label="Version" value="Cognify v1.0" />
+            <AboutRow label="Version" value="Course-Specific AI Learning Assistant v1.0" />
             <AboutRow label="AI Engine" value="Google Gemini" />
             <AboutRow label="Platform" value="React · Express · SQLite" />
             <AboutRow label="Account" value={user?.email ?? "—"} last />

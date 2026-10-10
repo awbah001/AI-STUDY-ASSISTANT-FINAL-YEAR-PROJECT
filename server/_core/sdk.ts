@@ -1,5 +1,6 @@
 import { AXIOS_TIMEOUT_MS, ONE_YEAR_MS } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
+import { EMAIL_DOMAIN_ERROR, isAllowedEmail } from "../../shared/emailDomain";
 import axios, { type AxiosInstance } from "axios";
 import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
@@ -274,6 +275,10 @@ class SDKServer {
 
     if (user.isBanned) {
       throw ForbiddenError("Account is banned");
+    }
+
+    if (!isAllowedEmail(user.email)) {
+      throw ForbiddenError(EMAIL_DOMAIN_ERROR);
     }
 
     const currentVersion = user.tokenVersion ?? 0;

@@ -13,6 +13,7 @@ import { ENV } from "./env";
 import { HttpError } from "../../shared/_core/errors";
 import { UPLOADS_ROOT, resolveUploadPath, sanitizeUploadKey } from "./uploads";
 import { transcribeStudentAudio } from "../voice";
+import { startAutonomousAgentScheduler } from "../agent/autonomous";
 
 function assertJwtSecret() {
   if ((ENV.cookieSecret ?? "").length < 16) {
@@ -152,6 +153,7 @@ async function startServer() {
   server.listen(port, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${port}/`);
     console.log(`Mobile/LAN: use http://<your-pc-ip>:${port} as VITE_API_URL when building the app`);
+    startAutonomousAgentScheduler();
   });
 }
 

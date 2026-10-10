@@ -1,135 +1,321 @@
+import { design } from "../../src/theme/design";
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { trpc } from "../../src/lib/api";
-import { colors } from "../../src/theme/colors";
+import { colors, gradients } from "../../src/theme/colors";
+import { friendlyError } from "../../src/lib/friendlyError";
+import { LIMITS, validateEmail } from "../../src/lib/validation";
+import { FieldError, FIELD_ERROR_COLOR } from "../../src/components/FieldError";
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [focused, setFocused] = useState(false);
   const [sent, setSent] = useState(false);
   const [devToken, setDevToken] = useState<string | null>(null);
 
   const mutation = trpc.auth.forgotPassword.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       setSent(true);
       // In development the server returns the token directly — show it so
       // you can test the flow without an email server
       if ((data as any).token) setDevToken((data as any).token);
     },
-    onError: (err) => Alert.alert("Error", err.message),
+    onError: err =>
+      Alert.alert("Something went wrong", friendlyError(err.message, "Please try again.")),
   });
+
+  const back = (
+    <TouchableOpacity
+      style={s.backBtn}
+      onPress={() => router.back()}
+      accessibilityLabel="Back to sign in"
+    >
+      <Ionicons name="chevron-back" size={20} color={colors.text} />
+    </TouchableOpacity>
+  );
 
   if (sent) {
     return (
-      <KeyboardAvoidingView style={s.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <SafeAreaView style={s.container} edges={["top", "bottom"]}>
         <ScrollView contentContainerStyle={s.scroll}>
-          <TouchableOpacity style={s.backRow} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={20} color={colors.primary} />
-            <Text style={s.backText}>Back to sign in</Text>
-          </TouchableOpacity>
-
-          <View style={s.iconWrap}>
-            <Ionicons name="mail-open-outline" size={48} color={colors.primary} />
-          </View>
+          {back}
+          <Badge icon="mail-open-outline" />
           <Text style={s.title}>Check your email</Text>
           <Text style={s.sub}>
-            If an account exists for <Text style={{ fontWeight: "700" }}>{email}</Text>, a
-            password reset link has been sent.
+            If an account exists for{" "}
+            <Text style={s.subStrong}>{email}</Text>, a password reset link
+            has been sent.
           </Text>
+
+          <View style={s.tipCard}>
+            <Ionicons name="time-outline" size={16} color={colors.primary} />
+            <Text style={s.tipText}>
+              The link may take a minute to arrive. Check your spam folder too.
+            </Text>
+          </View>
 
           {/* Dev convenience: show the reset token directly */}
           {devToken && (
             <View style={s.devBox}>
-              <Text style={s.devLabel}>Dev mode — reset token:</Text>
-              <Text style={s.devToken} selectable>{devToken}</Text>
+              <View style={s.devHead}>
+                <Ionicons name="construct-outline" size={14} color="#92400e" />
+                <Text style={s.devLabel}>Dev mode — reset token</Text>
+              </View>
+              <Text style={s.devToken} selectable>
+                {devToken}
+              </Text>
               <TouchableOpacity
                 style={s.devBtn}
                 onPress={() =>
-                  router.push({ pathname: "/(auth)/reset-password", params: { token: devToken } })
+                  router.push({
+                    pathname: "/(auth)/reset-password",
+                    params: { token: devToken },
+                  })
                 }
               >
-                <Text style={s.devBtnText}>Open reset screen →</Text>
+                <Text style={s.devBtnText}>Open reset screen</Text>
+                <Ionicons name="arrow-forward" size={14} color={colors.white} />
               </TouchableOpacity>
             </View>
           )}
 
-          <TouchableOpacity style={s.btn} onPress={() => router.replace("/(auth)/login")}>
-            <Text style={s.btnText}>Back to Sign In</Text>
-          </TouchableOpacity>
+          <PrimaryButton
+            label="Back to sign in"
+            onPress={() => router.replace("/(auth)/login")}
+          />
         </ScrollView>
-      </KeyboardAvoidingView>
+      </SafeAreaView>
     );
   }
 
+  const disabled = mutation.isPending;
+  const submit = () => {
+    const error = validateEmail(email);
+    setEmailError(error);
+    if (!error) mutation.mutate({ email: email.trim() });
+  };
+
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity style={s.backRow} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={20} color={colors.primary} />
-          <Text style={s.backText}>Back to sign in</Text>
-        </TouchableOpacity>
+    <SafeAreaView style={s.container} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          contentContainerStyle={s.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          {back}
+          <Badge icon="lock-open-outline" />
+          <Text style={s.title}>Forgot password?</Text>
+          <Text style={s.sub}>
+            Enter your email and we'll send you a reset link.
+          </Text>
 
-        <View style={s.iconWrap}>
-          <Ionicons name="lock-open-outline" size={48} color={colors.primary} />
-        </View>
-        <Text style={s.title}>Forgot password?</Text>
-        <Text style={s.sub}>Enter your email and we'll send you a reset link.</Text>
-
-        <View style={s.card}>
           <Text style={s.label}>Email address</Text>
-          <View style={s.inputWrap}>
-            <Ionicons name="mail-outline" size={18} color={colors.textLight} style={s.inputIcon} />
-            <TextInput
-              style={s.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="name@example.com"
-              placeholderTextColor={colors.textLight}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+          <View style={s.fieldGroup}>
+            <View style={[s.inputWrap, focused && s.inputFocused, !!emailError && s.inputError]}>
+              <Ionicons
+                name="mail-outline"
+                size={18}
+                color={emailError ? FIELD_ERROR_COLOR : focused ? colors.primary : colors.textLight}
+                style={s.inputIcon}
+              />
+              <TextInput
+                style={s.input}
+                value={email}
+                onChangeText={value => {
+                  setEmail(value);
+                  setEmailError(null);
+                }}
+                placeholder="name@central.edu.sl"
+                placeholderTextColor={colors.textLight}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                maxLength={LIMITS.email}
+                returnKeyType="send"
+                onSubmitEditing={submit}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+              />
+            </View>
+            <FieldError message={emailError} />
           </View>
 
-          <TouchableOpacity
-            style={[s.btn, (!email.trim() || mutation.isPending) && s.btnOff]}
-            disabled={!email.trim() || mutation.isPending}
-            onPress={() => mutation.mutate({ email: email.trim() })}
-          >
-            {mutation.isPending
-              ? <ActivityIndicator color={colors.white} />
-              : <Text style={s.btnText}>Send reset link</Text>}
-          </TouchableOpacity>
+          <PrimaryButton
+            label="Send reset link"
+            icon="paper-plane-outline"
+            disabled={disabled}
+            pending={mutation.isPending}
+            onPress={submit}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+function Badge({ icon }: { icon: React.ComponentProps<typeof Ionicons>["name"] }) {
+  return (
+    <View style={s.badgeHalo}>
+      <LinearGradient
+        colors={gradients.hero}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={s.badge}
+      >
+        <Ionicons name={icon} size={30} color={colors.white} />
+      </LinearGradient>
+    </View>
+  );
+}
+
+function PrimaryButton({
+  label,
+  icon,
+  onPress,
+  disabled,
+  pending,
+}: {
+  label: string;
+  icon?: React.ComponentProps<typeof Ionicons>["name"];
+  onPress: () => void;
+  disabled?: boolean;
+  pending?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[s.btn, disabled && s.btnOff]}
+      disabled={disabled}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      {pending ? (
+        <ActivityIndicator color={colors.white} />
+      ) : (
+        <View style={s.btnRow}>
+          <Text style={s.btnText}>{label}</Text>
+          {icon ? <Ionicons name={icon} size={17} color={colors.white} /> : null}
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      )}
+    </TouchableOpacity>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f6fa" },
-  scroll: { flexGrow: 1, paddingHorizontal: 24, paddingVertical: 32 },
-  backRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 32 },
-  backText: { fontSize: 14, color: colors.primary, fontWeight: "600" },
-  iconWrap: { width: 80, height: 80, borderRadius: 28, backgroundColor: colors.primaryLight, alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: "900", color: colors.text, textAlign: "center", marginBottom: 8 },
-  sub: { fontSize: 14, color: colors.textMuted, textAlign: "center", lineHeight: 22, marginBottom: 28 },
-  card: { backgroundColor: colors.surface, borderRadius: 24, padding: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.07, shadowRadius: 14, elevation: 3 },
-  label: { fontSize: 13, fontWeight: "600", color: colors.textSub, marginBottom: 8 },
-  inputWrap: { flexDirection: "row", alignItems: "center", backgroundColor: "#f8fafc", borderRadius: 14, borderWidth: 1.5, borderColor: colors.border, marginBottom: 16 },
-  inputIcon: { marginLeft: 13 },
-  input: { flex: 1, paddingHorizontal: 10, paddingVertical: 13, fontSize: 15, color: colors.text },
-  btn: { backgroundColor: colors.primary, borderRadius: 16, paddingVertical: 15, alignItems: "center", shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 },
+  container: { flex: 1, ...design.page },
+  scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 12, paddingBottom: 32 },
+  backBtn: { ...design.iconButton, borderRadius: 22, marginBottom: 28 },
+  badgeHalo: {
+    alignSelf: "center",
+    padding: 8,
+    borderRadius: 36,
+    backgroundColor: colors.primaryLight,
+    marginBottom: 22,
+  },
+  badge: {
+    width: 72,
+    height: 72,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: { textAlign: "center", marginBottom: 8, ...design.screenTitle },
+  sub: {
+    textAlign: "center",
+    marginBottom: 28,
+    paddingHorizontal: 12,
+    ...design.body,
+    color: colors.textMuted,
+  },
+  subStrong: { fontWeight: "700", color: colors.text },
+  label: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: colors.textSub,
+    marginBottom: 7,
+    marginLeft: 2,
+  },
+  fieldGroup: { marginBottom: 18 },
+  inputError: { borderColor: FIELD_ERROR_COLOR },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1.2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  inputFocused: { borderColor: colors.primary },
+  inputIcon: { marginLeft: 15 },
+  input: {
+    flex: 1,
+    height: "100%",
+    paddingHorizontal: 11,
+    fontSize: 15,
+    color: colors.text,
+  },
+  btn: { ...design.action, minHeight: 54, borderRadius: 16 },
+  btnRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   btnOff: { opacity: 0.5 },
-  btnText: { fontSize: 16, fontWeight: "800", color: colors.white },
-  devBox: { backgroundColor: "#fffbeb", borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: "#fde68a", gap: 8 },
+  btnText: { ...design.actionText },
+  tipCard: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: colors.primaryLight,
+    marginBottom: 20,
+  },
+  tipText: { flex: 1, fontSize: 13, lineHeight: 19, color: colors.primaryDark },
+  devBox: {
+    backgroundColor: "#fffbeb",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#fde68a",
+    gap: 10,
+  },
+  devHead: { flexDirection: "row", alignItems: "center", gap: 6 },
   devLabel: { fontSize: 12, fontWeight: "700", color: "#92400e" },
-  devToken: { fontSize: 11, color: "#78350f", fontFamily: "monospace", backgroundColor: "#fef3c7", padding: 8, borderRadius: 8 },
-  devBtn: { backgroundColor: "#f59e0b", borderRadius: 10, paddingVertical: 8, alignItems: "center" },
+  devToken: {
+    fontSize: 11,
+    color: "#78350f",
+    fontFamily: "monospace",
+    backgroundColor: "#fef3c7",
+    padding: 10,
+    borderRadius: 10,
+  },
+  devBtn: {
+    flexDirection: "row",
+    gap: 6,
+    backgroundColor: "#d97706",
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   devBtnText: { fontSize: 13, fontWeight: "700", color: colors.white },
 });

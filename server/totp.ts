@@ -50,7 +50,7 @@ export function generateTotpSecret(): string {
   return base32Encode(randomBytes(20));
 }
 
-export function totpUri(secret: string, email: string, issuer = "Cognify"): string {
+export function totpUri(secret: string, email: string, issuer = "Course-Specific AI Learning Assistant"): string {
   return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(email)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
 }
 

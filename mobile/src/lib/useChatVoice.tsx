@@ -106,7 +106,7 @@ async function listenWithAndroidSpeech(): Promise<"unavailable" | string | null>
     const result = await IntentLauncher.startActivityAsync("android.speech.action.RECOGNIZE_SPEECH", {
       extra: {
         "android.speech.extra.LANGUAGE_MODEL": "free_form",
-        "android.speech.extra.PROMPT": "Ask Cognify",
+        "android.speech.extra.PROMPT": "Ask the AI assistant",
         "android.speech.extra.LANGUAGE": "en-US",
         "android.speech.extra.MAX_RESULTS": 1,
       },
@@ -126,8 +126,12 @@ async function listenWithAndroidSpeech(): Promise<"unavailable" | string | null>
 export function useChatVoice(onTranscript: (text: string) => void) {
   const recorder = useAudioRecorder(RECORDING_OPTIONS);
   const [listening, setListening] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [speaking, setSpeakingState] = useState(false);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const setSpeaking = useCallback((value: boolean) => {
+    setSpeakingState(value);
+    if (!value) setSpeakingId(null);
+  }, []);
   const onTranscriptRef = useRef(onTranscript);
   onTranscriptRef.current = onTranscript;
   const cancelledSpeakRef = useRef(false);
@@ -152,15 +156,15 @@ export function useChatVoice(onTranscript: (text: string) => void) {
       }
       await new Promise((resolve) => setTimeout(resolve, 40));
     }
-  }, []);
+  }, [setSpeaking]);
 
   const stopSpeaking = useCallback(() => {
     void haltSpeechEngine();
   }, [haltSpeechEngine]);
 
+  /** Only ever called from an explicit tap; replies are never read aloud automatically. */
   const speak = useCallback(
-    async (text: string, opts?: { ignoreMute?: boolean }) => {
-      if (muted && !opts?.ignoreMute) return;
+    async (text: string, id?: string) => {
       const chunks = speechChunks(text);
       if (!chunks.length) return;
       await haltSpeechEngine();
@@ -172,6 +176,7 @@ export function useChatVoice(onTranscript: (text: string) => void) {
         const english = voices.find((voice) => voice.language?.toLowerCase().startsWith("en"));
         if (cancelledSpeakRef.current || speakGenerationRef.current !== generation) return;
         setSpeaking(true);
+        setSpeakingId(id ?? null);
         const play = (index: number) => {
           if (cancelledSpeakRef.current || speakGenerationRef.current !== generation) {
             setSpeaking(false);
@@ -216,24 +221,19 @@ export function useChatVoice(onTranscript: (text: string) => void) {
         );
       }
     },
-    [haltSpeechEngine, muted]
+    [haltSpeechEngine, setSpeaking]
   );
 
-  const toggleMute = useCallback(() => {
-    setMuted((current) => {
-      const next = !current;
-      if (next) void haltSpeechEngine();
-      return next;
-    });
-  }, [haltSpeechEngine]);
-
-  const togglePlayback = useCallback(() => {
-    if (speaking) {
-      void haltSpeechEngine();
-      return;
-    }
-    toggleMute();
-  }, [haltSpeechEngine, speaking, toggleMute]);
+  const toggleSpeak = useCallback(
+    (text: string, id: string) => {
+      if (speaking && speakingId === id) {
+        void haltSpeechEngine();
+        return;
+      }
+      void speak(text, id);
+    },
+    [haltSpeechEngine, speak, speaking, speakingId]
+  );
 
   const finishRecording = useCallback(async () => {
     try {
@@ -320,12 +320,11 @@ export function useChatVoice(onTranscript: (text: string) => void) {
   return {
     listening,
     speaking,
-    muted,
+    speakingId,
     usingWebSpeech: false,
     speak,
+    toggleSpeak,
     stopSpeaking,
-    toggleMute,
-    togglePlayback,
     toggleListening,
     stopListening,
     handleWebMessage: (_raw: string) => undefined,

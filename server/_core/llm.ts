@@ -1,5 +1,10 @@
 import { ENV } from "./env";
-import { getAiSettings } from "../settings";
+import {
+  getAiService,
+  ProviderError,
+  type AiChatMessage,
+  type AiTaskType,
+} from "../ai";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -20,7 +25,7 @@ export type FileContent = {
   type: "file_url";
   file_url: {
     url: string;
-    mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4" ;
+    mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4";
   };
 };
 
@@ -68,6 +73,9 @@ export type InvokeParams = {
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
+  /** Task label for logging / metrics (does not change provider — Groq only). */
+  taskType?: AiTaskType;
+  requestId?: string;
 };
 
 export type ToolCall = {
@@ -119,7 +127,7 @@ const ensureArray = (
 const flattenMessageContent = (message: Message): string => {
   const parts = ensureArray(message.content);
   return parts
-    .map(part => {
+    .map((part) => {
       if (typeof part === "string") return part;
       if (part.type === "text") return part.text;
       if (part.type === "file_url") {
@@ -134,309 +142,76 @@ const flattenMessageContent = (message: Message): string => {
     .join("\n");
 };
 
-const normalizeContentPart = (
-  part: MessageContent
-): TextContent | ImageContent | FileContent => {
-  if (typeof part === "string") {
-    return { type: "text", text: part };
-  }
-
-  if (part.type === "text") {
-    return part;
-  }
-
-  if (part.type === "image_url") {
-    return part;
-  }
-
-  if (part.type === "file_url") {
-    return part;
-  }
-
-  throw new Error("Unsupported message content part");
-};
-
-const normalizeMessage = (message: Message) => {
-  const { role, name, tool_call_id } = message;
-
-  if (role === "tool" || role === "function") {
-    const content = ensureArray(message.content)
-      .map(part => (typeof part === "string" ? part : JSON.stringify(part)))
-      .join("\n");
-
-    return {
-      role,
-      name,
-      tool_call_id,
-      content,
-    };
-  }
-
-  const contentParts = ensureArray(message.content).map(normalizeContentPart);
-
-  // If there's only text content, collapse to a single string for compatibility
-  if (contentParts.length === 1 && contentParts[0].type === "text") {
-    return {
-      role,
-      name,
-      content: contentParts[0].text,
-    };
-  }
-
-  return {
-    role,
-    name,
-    content: contentParts,
-  };
-};
-
-const normalizeToolChoice = (
-  toolChoice: ToolChoice | undefined,
-  tools: Tool[] | undefined
-): "none" | "auto" | ToolChoiceExplicit | undefined => {
-  if (!toolChoice) return undefined;
-
-  if (toolChoice === "none" || toolChoice === "auto") {
-    return toolChoice;
-  }
-
-  if (toolChoice === "required") {
-    if (!tools || tools.length === 0) {
-      throw new Error(
-        "tool_choice 'required' was provided but no tools were configured"
-      );
-    }
-
-    if (tools.length > 1) {
-      throw new Error(
-        "tool_choice 'required' needs a single tool or specify the tool name explicitly"
-      );
-    }
-
-    return {
-      type: "function",
-      function: { name: tools[0].function.name },
-    };
-  }
-
-  if ("name" in toolChoice) {
-    return {
-      type: "function",
-      function: { name: toolChoice.name },
-    };
-  }
-
-  return toolChoice;
-};
-
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
-
-const assertForgeApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error(
-      "BUILT_IN_FORGE_API_KEY is not configured. Set USE_LOCAL_LLM=true (default) and run LM Studio, or configure Forge."
-    );
-  }
-};
-
-// ── LM Studio health check with auto-fallback ─────────────────────────────────
-let localLLMAvailable: boolean | null = null;
-let lastHealthCheckAt = 0;
-const HEALTH_CHECK_TTL = 30_000; // recheck every 30 s
-
-async function isLocalLLMHealthy(): Promise<boolean> {
-  const now = Date.now();
-  if (localLLMAvailable !== null && now - lastHealthCheckAt < HEALTH_CHECK_TTL) {
-    return localLLMAvailable;
-  }
-  try {
-    const res = await fetch(`${ENV.lmStudioBaseUrl}/models`, {
-      signal: AbortSignal.timeout(2000),
-    });
-    localLLMAvailable = res.ok;
-  } catch {
-    localLLMAvailable = false;
-  }
-  lastHealthCheckAt = Date.now();
-  if (!localLLMAvailable) {
-    console.warn("[LLM] LM Studio is not reachable at", ENV.lmStudioBaseUrl);
-  }
-  return localLLMAvailable;
+export function isGroqConfigured(): boolean {
+  return Boolean(ENV.groqApiKey);
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
-async function invokeLocalChatCompletion(
-  params: InvokeParams
-): Promise<InvokeResult> {
-  const ai = await getAiSettings().catch(() => null);
-  const url = `${ENV.lmStudioBaseUrl}/chat/completions`;
-  const maxTokens = params.max_tokens ?? params.maxTokens ?? ai?.maxTokens ?? 1024;
-  const body: Record<string, unknown> = {
-    model: (ai?.model && ai.model.trim()) || ENV.lmStudioModel,
-    messages: params.messages.map(m => {
-      const role =
-        m.role === "system" || m.role === "user" || m.role === "assistant"
-          ? m.role
-          : "user";
-      return { role, content: flattenMessageContent(m) };
-    }),
-    max_tokens: maxTokens,
-    temperature: params.temperature ?? ai?.temperature ?? 0.3,
-    stream: false,
+/** @deprecated Use isGroqConfigured — kept for older imports. */
+export function hasGroqFallback(): boolean {
+  return isGroqConfigured();
+}
+
+export function lastLlmProviderName(): "groq" | null {
+  return "groq";
+}
+
+export function preferredLlmProviderName(): "groq" {
+  return "groq";
+}
+
+function toAiMessages(messages: Message[]): AiChatMessage[] {
+  return messages.map((m) => {
+    const role: AiChatMessage["role"] =
+      m.role === "system" || m.role === "user" || m.role === "assistant" ? m.role : "user";
+    return { role, content: flattenMessageContent(m) };
+  });
+}
+
+function toInvokeResult(
+  content: string,
+  model: string,
+  usage: { promptTokens: number | null; completionTokens: number | null; totalTokens: number | null }
+): InvokeResult {
+  return {
+    id: `groq-${Date.now()}`,
+    created: Math.floor(Date.now() / 1000),
+    model,
+    choices: [
+      {
+        index: 0,
+        message: { role: "assistant", content },
+        finish_reason: "stop",
+      },
+    ],
+    usage:
+      usage.promptTokens != null || usage.completionTokens != null || usage.totalTokens != null
+        ? {
+            prompt_tokens: usage.promptTokens ?? 0,
+            completion_tokens: usage.completionTokens ?? 0,
+            total_tokens: usage.totalTokens ?? 0,
+          }
+        : undefined,
   };
+}
 
-  console.log(`[LLM] Invoking local model "${body.model}" with ${params.messages.length} messages (max_tokens=${maxTokens}).`);
-
-  // 120-second timeout — increased for slower hardware / larger prompts
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 120_000);
-
+/**
+ * LLM entry point — always Groq.
+ * RAG / prompt construction happen in callers (llmUtils, agent, etc.).
+ */
+export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      signal: controller.signal,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
+    const result = await getAiService().generate({
+      messages: toAiMessages(params.messages),
+      maxTokens: params.max_tokens ?? params.maxTokens,
+      temperature: params.temperature,
+      taskType: params.taskType ?? "general",
+      requestId: params.requestId,
     });
-    clearTimeout(timer);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `Local LLM request failed (${response.status}): ${errorText}. Start LM Studio, load a model, and enable the local server.`
-      );
-    }
-
-    return (await response.json()) as InvokeResult;
-  } catch (err: any) {
-    clearTimeout(timer);
-    if (err.name === "AbortError") {
-      throw new Error("Local LLM timed out after 120 seconds. Check LM Studio.");
+    return toInvokeResult(result.content, result.model, result.usage);
+  } catch (err) {
+    if (err instanceof ProviderError) {
+      throw new Error(err.message);
     }
     throw err;
   }
-}
-
-const normalizeResponseFormat = ({
-  responseFormat,
-  response_format,
-  outputSchema,
-  output_schema,
-}: {
-  responseFormat?: ResponseFormat;
-  response_format?: ResponseFormat;
-  outputSchema?: OutputSchema;
-  output_schema?: OutputSchema;
-}):
-  | { type: "json_schema"; json_schema: JsonSchema }
-  | { type: "text" }
-  | { type: "json_object" }
-  | undefined => {
-  const explicitFormat = responseFormat || response_format;
-  if (explicitFormat) {
-    if (
-      explicitFormat.type === "json_schema" &&
-      !explicitFormat.json_schema?.schema
-    ) {
-      throw new Error(
-        "responseFormat json_schema requires a defined schema object"
-      );
-    }
-    return explicitFormat;
-  }
-
-  const schema = outputSchema || output_schema;
-  if (!schema) return undefined;
-
-  if (!schema.name || !schema.schema) {
-    throw new Error("outputSchema requires both name and schema");
-  }
-
-  return {
-    type: "json_schema",
-    json_schema: {
-      name: schema.name,
-      schema: schema.schema,
-      ...(typeof schema.strict === "boolean" ? { strict: schema.strict } : {}),
-    },
-  };
-};
-
-export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  if (ENV.useLocalLlm) {
-    const healthy = await isLocalLLMHealthy();
-    if (!healthy) {
-      throw new Error(
-        "LM Studio is not running. Start LM Studio, load a model, and enable the local server (default http://127.0.0.1:1234)."
-      );
-    }
-    return invokeLocalChatCompletion(params);
-  }
-
-  assertForgeApiKey();
-
-  const {
-    messages,
-    tools,
-    toolChoice,
-    tool_choice,
-    outputSchema,
-    output_schema,
-    responseFormat,
-    response_format,
-  } = params;
-
-  const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
-    messages: messages.map(normalizeMessage),
-  };
-
-  if (tools && tools.length > 0) {
-    payload.tools = tools;
-  }
-
-  const normalizedToolChoice = normalizeToolChoice(
-    toolChoice || tool_choice,
-    tools
-  );
-  if (normalizedToolChoice) {
-    payload.tool_choice = normalizedToolChoice;
-  }
-
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
-
-  const normalizedResponseFormat = normalizeResponseFormat({
-    responseFormat,
-    response_format,
-    outputSchema,
-    output_schema,
-  });
-
-  if (normalizedResponseFormat) {
-    payload.response_format = normalizedResponseFormat;
-  }
-
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
-  }
-
-  return (await response.json()) as InvokeResult;
 }

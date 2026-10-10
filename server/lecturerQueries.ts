@@ -1,3 +1,4 @@
+import { documentProgressPct } from "./recommendations";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import {
   announcements,
@@ -11,6 +12,7 @@ import {
   progressTracking,
   quizzes,
   studySessions,
+  studentActivities,
   users,
   type Course,
   type Document,
@@ -674,7 +676,7 @@ export async function getStudentEnrolledCourses(studentId: number) {
   const db = await getDb();
   if (!db) return [];
 
-  return db
+  const enrolled = await db
     .select({
       id: courses.id,
       title: courses.title,
@@ -689,6 +691,13 @@ export async function getStudentEnrolledCourses(studentId: number) {
     .innerJoin(users, eq(courses.lecturerId, users.id))
     .where(eq(courseEnrollments.studentId, studentId))
     .orderBy(desc(courseEnrollments.enrolledAt));
+  if (!enrolled.length) return [];
+  const materials = await db.select({ courseId: documents.courseId, reviews: progressTracking.flashcardsReviewed, attempts: progressTracking.quizzesAttempted, minutes: progressTracking.totalStudyTimeMinutes }).from(documents).leftJoin(progressTracking, and(eq(progressTracking.documentId, documents.id), eq(progressTracking.userId, studentId))).where(inArray(documents.courseId, enrolled.map(c => c.id)));
+  return enrolled.map(course => {
+    const rows = materials.filter(d => d.courseId === course.id);
+    const progressPct = rows.length ? Math.round(rows.reduce((sum, d) => sum + documentProgressPct({ flashcardsReviewed: d.reviews || 0, quizzesAttempted: d.attempts || 0, totalStudyTimeMinutes: d.minutes || 0 }), 0) / rows.length) : 0;
+    return { ...course, progressPct };
+  });
 }
 
 export async function getStudentCourseDocuments(studentId: number, courseId: number) {
@@ -854,7 +863,7 @@ export async function getStudentEnrolledCourseQuizzes(studentId: number) {
   const courseIds = enrolledCourses.map((enrollment) => enrollment.courseId);
   if (courseIds.length === 0) return [];
 
-  return db
+  const rows = await db
     .select({
       id: quizzes.id,
       title: quizzes.title,
@@ -874,6 +883,12 @@ export async function getStudentEnrolledCourseQuizzes(studentId: number) {
       )
     )
     .orderBy(desc(quizzes.createdAt));
+  const attempts = await db.select({ metadata: studentActivities.metadata, createdAt: studentActivities.createdAt }).from(studentActivities).where(and(eq(studentActivities.userId, studentId), eq(studentActivities.type, "QUIZ_COMPLETED"))).orderBy(desc(studentActivities.createdAt));
+  return rows.map(quiz => {
+    const attempt = attempts.find(a => Number(a.metadata?.quizId) === quiz.id);
+    const score = attempt?.metadata?.score;
+    return { ...quiz, completedAt: attempt?.createdAt ?? null, score: typeof score === "number" ? score : null };
+  });
 }
 
 // ── Quiz attempts per quiz for lecturer view ───────────────────────────────────

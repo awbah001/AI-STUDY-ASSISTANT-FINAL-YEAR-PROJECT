@@ -111,7 +111,20 @@ export function extractEventDateFromMessage(message: string, now = Date.now()): 
 
 export function extractPlanSubject(message: string): string {
   let text = message.replace(/\s+/g, " ").trim();
-  text = text.replace(/^(please\s+)?(create|make|build|generate|set up|plan)\b[\w\s]{0,20}\b(for\s+)?/i, "");
+
+  // Prefer "for my GIS exam/course" / "for Artificial Intelligence"
+  const forSubject = text.match(
+    /\bfor\s+(?:my\s+)?(.+?)(?:\s+(?:exam|test|quiz|course|class|module|assessment|paper))?(?:\s+on\b|\s+at\b|\s+which\b|\s+due\b|$)/i
+  );
+  if (forSubject?.[1]) {
+    let subject = forSubject[1]
+      .replace(/\b(upcoming|the|a|an|study|timetable|schedule|plan|revision)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (subject.length >= 2) return subject.slice(0, 80);
+  }
+
+  text = text.replace(/^(please\s+)?(create|make|build|generate|set up|plan)\b[\w\s]{0,40}\b(for\s+)?/i, "");
   text = text.replace(/\b(which|that)\b/gi, " ");
   text = text.replace(/\bon the\b/gi, " ");
   text = text.replace(
@@ -120,7 +133,7 @@ export function extractPlanSubject(message: string): string {
   );
   text = text.replace(/\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?\b/gi, " ");
   text = text.replace(/\b(\d{1,2})\s*-?\s*days?\b/gi, " ");
-  text = text.replace(/\b(upcoming|my|the|study plan|timetable|schedule)\b/gi, " ");
+  text = text.replace(/\b(upcoming|my|the|a|an|study plan|timetable|schedule|course|exam|test|quiz)\b/gi, " ");
   text = text.replace(/\s+/g, " ").trim();
   return text.slice(0, 80) || "Upcoming assessment";
 }

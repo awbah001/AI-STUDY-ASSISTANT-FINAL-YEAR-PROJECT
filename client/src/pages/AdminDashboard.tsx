@@ -43,7 +43,7 @@ export default function AdminDashboard() {
 
         <StaffWelcomeBanner
           name={user.name?.split(" ")[0] ?? "Admin"}
-          body="Oversee users, moderate content, and keep Cognify running with live platform health and academic insights."
+          body="Oversee users, moderate content, and keep the platform running with live platform health and academic insights."
           actionLabel="Manage users"
           onAction={() => setLocation("/admin/users")}
         />
@@ -87,7 +87,7 @@ export default function AdminDashboard() {
                     />
                     <Line type="monotone" dataKey="Signups" stroke="#10b981" strokeWidth={2.5} dot={false} />
                     <Line type="monotone" dataKey="Uploads" stroke="#0ea5e9" strokeWidth={2.5} dot={false} />
-                    <Line type="monotone" dataKey="Active" stroke="#8b5cf6" strokeWidth={2.5} dot={false} />
+                    <Line type="monotone" dataKey="Active" stroke="#800020" strokeWidth={2.5} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>

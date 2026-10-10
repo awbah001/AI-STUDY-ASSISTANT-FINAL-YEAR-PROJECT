@@ -1,7 +1,14 @@
-# Cognify Mobile — Student App
+# Course-Specific AI Learning Assistant Mobile
 
-React Native (Expo SDK 54) student-only app for Cognify.  
-The web portal (`/client`) is for **lecturers and admins** only.
+React Native (Expo) app for the Course-Specific AI Learning Assistant. Students, lecturers and admins all sign in from the same login screen and land in their own workspace:
+
+| Role | Mobile tabs | Routes |
+|------|-------------|--------|
+| Student | Home, Courses, Ask AI, Planner, Profile | `app/(tabs)/` |
+| Lecturer | Home, Courses (with course detail), Grading, Announcements, Profile | `app/lecturer/`, `app/lecturer-course/[id].tsx` |
+| Admin | Overview, Users, Announcements, Profile | `app/admin/` |
+
+Admins with two-factor authentication enabled are asked for their 6-digit code after entering their password. Advanced management (uploads, quiz generation, audit logs, backups, system settings) stays in the web portal (`/client`).
 
 ---
 
@@ -80,8 +87,7 @@ mobile/
 │   ├── upload-document.tsx       # Student document upload screen
 │   ├── profile.tsx               # Profile (standalone, pushed from dashboard)
 │   ├── (auth)/
-│   │   ├── login.tsx             # Student login
-│   │   └── signup.tsx            # Student registration
+│   │   └── login.tsx             # Login for all roles (accounts are created by admins)
 │   ├── (tabs)/                   # Bottom tab navigator (5 tabs)
 │   │   ├── _layout.tsx           # Tab bar config — center Ask AI FAB
 │   │   ├── dashboard.tsx         # Home: daily goal, stats, continue learning

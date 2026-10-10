@@ -16,8 +16,8 @@ export const systemRouter = router({
   notifyOwner: adminProcedure
     .input(
       z.object({
-        title: z.string().min(1, "title is required"),
-        content: z.string().min(1, "content is required"),
+        title: z.string().trim().min(1, "Title is required.").max(200),
+        content: z.string().trim().min(1, "Content is required.").max(5000),
       })
     )
     .mutation(async ({ input }) => {

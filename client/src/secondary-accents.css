@@ -1,0 +1,206 @@
+/* Supporting accents: burgundy (#800020) and slate gray (#6B7280).
+   Primary branding stays green; semantic success/danger colors are unchanged. */
+
+/* Section labels above page titles */
+.student-eyebrow,
+.lecturer-eyebrow,
+.admin-eyebrow {
+  color: var(--burgundy);
+}
+.dark .student-shell .student-eyebrow,
+.dark .lecturer-eyebrow,
+.dark .admin-eyebrow {
+  color: var(--burgundy-foreground);
+}
+
+/* "View all" style links inside panels */
+.student-view {
+  color: var(--burgundy);
+}
+.student-view:hover {
+  color: var(--burgundy-hover);
+  text-decoration: underline;
+}
+
+/* Announcement cards get a burgundy leading edge */
+.lecturer-announcement-list > div,
+.admin-announcement-list > div {
+  border-left: 3px solid var(--burgundy) !important;
+}
+
+/* Admin stat card in the accent slot */
+.admin-stat-card:nth-child(3) > div:first-child > div {
+  color: var(--burgundy-foreground);
+  background: #f3dde3;
+}
+
+/* Secondary text in slate gray */
+.student-shell {
+  --student-muted: var(--secondary-text);
+}
+.student-description,
+.student-stat p,
+.student-stat small,
+.lecturer-stat p,
+.lecturer-stat small,
+.lecturer-table-footer,
+.lecturer-course-meta,
+.admin-hero-description,
+.admin-stat-card > p:first-of-type,
+.admin-stat-card > p:last-child {
+  color: var(--secondary-text);
+}
+.admin-users .admin-stat-card > p:first-of-type {
+  color: inherit;
+}
+.lecturer-table th {
+  color: var(--neutral-gray);
+}
+
+/* Student link-buttons: green is the default; burgundy and gray tones add variety */
+.student-content .student-go.student-go--accent,
+.student-go.student-go--accent {
+  background: var(--burgundy);
+  border: 1px solid var(--burgundy);
+  color: #fff;
+}
+.student-content .student-go.student-go--accent:hover,
+.student-go.student-go--accent:hover {
+  background: var(--burgundy-hover);
+}
+.student-content .student-go.student-go--neutral,
+.student-go.student-go--neutral {
+  background: #fff;
+  border: 1px solid var(--neutral-gray-border);
+  color: var(--neutral-gray);
+}
+.student-content .student-go.student-go--neutral:hover,
+.student-go.student-go--neutral:hover {
+  background: var(--neutral-gray-soft);
+  color: #374151;
+}
+.dark .student-go.student-go--neutral {
+  background: transparent;
+}
+
+/* Neutral pill actions in the student workspace */
+.student-content button[data-variant="neutral"] {
+  background: #fff;
+  color: var(--neutral-gray);
+  border: 1px solid var(--neutral-gray-border);
+}
+.student-content button[data-variant="neutral"]:hover {
+  background: var(--neutral-gray-soft);
+  color: #374151;
+}
+.student-content button[data-variant="accent"],
+.student-content a[data-variant="accent"] {
+  background: var(--burgundy);
+  color: #fff;
+}
+.student-content button[data-variant="accent"]:hover,
+.student-content a[data-variant="accent"]:hover {
+  background: var(--burgundy-hover);
+}
+
+/* ---------- Icon system ---------- */
+
+/* Icon colour flavours. --tone is the main colour, --tone-soft a light tile
+   background, --tone-light a bright variant for dark surfaces, --tone-deep for gradients. */
+[data-tone="emerald"] { --tone: #059669; --tone-soft: #e3f7ef; --tone-light: #6ee7b7; --tone-deep: #047857; }
+[data-tone="blue"]    { --tone: #2563eb; --tone-soft: #e8f0ff; --tone-light: #93c5fd; --tone-deep: #1d4ed8; }
+[data-tone="violet"]  { --tone: #7c3aed; --tone-soft: #f1ebff; --tone-light: #c4b5fd; --tone-deep: #6d28d9; }
+[data-tone="amber"]   { --tone: #d97706; --tone-soft: #fff4dd; --tone-light: #fcd34d; --tone-deep: #b45309; }
+[data-tone="pink"]    { --tone: #db2777; --tone-soft: #fdebf4; --tone-light: #f9a8d4; --tone-deep: #be185d; }
+[data-tone="sky"]     { --tone: #0284c7; --tone-soft: #e3f4fd; --tone-light: #7dd3fc; --tone-deep: #0369a1; }
+[data-tone="orange"]  { --tone: #ea580c; --tone-soft: #ffeee3; --tone-light: #fdba74; --tone-deep: #c2410c; }
+[data-tone="teal"]    { --tone: #0d9488; --tone-soft: #e0f6f3; --tone-light: #5eead4; --tone-deep: #0f766e; }
+[data-tone="indigo"]  { --tone: #4f46e5; --tone-soft: #ebebff; --tone-light: #a5b4fc; --tone-deep: #4338ca; }
+[data-tone="rose"]    { --tone: #a3264a; --tone-soft: var(--burgundy-soft); --tone-light: #f5b8c8; --tone-deep: var(--burgundy); }
+[data-tone="gray"]    { --tone: #6b7280; --tone-soft: #f3f4f6; --tone-light: #d1d5db; --tone-deep: #4b5563; }
+
+/* Sidebar icon tiles: every menu item has its own colour. */
+.dashboard-shell .sidebar-nav-item .sidebar-nav-icon[data-tone] {
+  background: color-mix(in srgb, var(--tone) 24%, transparent);
+  color: var(--tone-light);
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.dashboard-shell .sidebar-nav-item:hover .sidebar-nav-icon[data-tone] { transform: scale(1.06); }
+
+/* Active page: solid gradient tile in the item's colour with a white icon. */
+.dashboard-shell .sidebar-nav-item[aria-current="page"] .sidebar-nav-icon[data-tone] {
+  background: linear-gradient(140deg, var(--tone), var(--tone-deep));
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--tone-deep) 38%, transparent);
+  color: #fff;
+}
+
+/* Repeated student icons (tasks, materials, courses, notifications…) rotate through
+   the palette by position. Stat cards and quick actions keep their own colour slots. */
+.student-content :nth-child(8n+1):not(.student-stat, .student-quick-actions > a) > .student-icon { --tone: #059669; --tone-soft: #e3f7ef; }
+.student-content :nth-child(8n+2):not(.student-stat, .student-quick-actions > a) > .student-icon { --tone: #2563eb; --tone-soft: #e8f0ff; }
+.student-content :nth-child(8n+3):not(.student-stat, .student-quick-actions > a) > .student-icon { --tone: #7c3aed; --tone-soft: #f1ebff; }
+.student-content :nth-child(8n+4):not(.student-stat, .student-quick-actions > a) > .student-icon { --tone: #d97706; --tone-soft: #fff4dd; }
+.student-content :nth-child(8n+5):not(.student-stat, .student-quick-actions > a) > .student-icon { --tone: #db2777; --tone-soft: #fdebf4; }
+.student-content :nth-child(8n+6):not(.student-stat, .student-quick-actions > a) > .student-icon { --tone: #0284c7; --tone-soft: #e3f4fd; }
+.student-content :nth-child(8n+7):not(.student-stat, .student-quick-actions > a) > .student-icon { --tone: #ea580c; --tone-soft: #ffeee3; }
+.student-content :nth-child(8n+8):not(.student-stat, .student-quick-actions > a) > .student-icon { --tone: #4f46e5; --tone-soft: #ebebff; }
+.student-content :where(:not(.student-stat, .student-quick-actions > a)) > .student-icon {
+  background: var(--tone-soft, #e0f8ef);
+  color: var(--tone, #009b74);
+}
+.student-content .student-notification.is-read > .student-icon {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+.student-content .student-panel-title > .student-icon,
+.student-dashboard-grid .student-panel-title .student-icon {
+  background: none;
+}
+/* Panel headings take their colour from the panel's position instead. */
+.student-content :nth-child(4n+1) > .student-panel-title > .student-icon { color: #059669; }
+.student-content :nth-child(4n+2) > .student-panel-title > .student-icon { color: #2563eb; }
+.student-content :nth-child(4n+3) > .student-panel-title > .student-icon { color: #7c3aed; }
+.student-content :nth-child(4n+4) > .student-panel-title > .student-icon { color: #d97706; }
+
+/* Student quick actions: four distinct flavours. */
+.student-quick-actions > a:nth-child(1) .student-icon { background: #fff; color: #059669; }
+.student-quick-actions > a:nth-child(2) .student-icon { background: #fff; color: #2563eb; }
+.student-quick-actions > a:nth-child(4) .student-icon { background: #fff; color: #d97706; }
+
+/* Page header icons each get their own flavour. */
+.student-hero-courses .student-hero-leading { color: #2563eb; background: #e8f0ff; }
+.student-hero-library .student-hero-leading { color: #4f46e5; background: #ebebff; }
+.student-hero-planner .student-hero-leading { color: #0284c7; background: #e3f4fd; }
+.admin-hero--academic .admin-hero-icon { color: #7c3aed; background: linear-gradient(135deg, #e9e0ff, #f5f0ff); }
+.admin-hero--operations .admin-hero-icon { color: #ea580c; background: linear-gradient(135deg, #ffe4d1, #fff3ea); }
+.admin-hero--audit .admin-hero-icon { color: var(--burgundy); background: linear-gradient(135deg, #f3d6de, #fbeef2); }
+.lecturer-hero-icon[data-tone] { color: var(--tone); background: linear-gradient(140deg, color-mix(in srgb, var(--tone) 18%, white), var(--tone-soft)); }
+
+/* Two-tone icons: a soft fill inside icons that sit in tiles.
+   Line-only icons are excluded because filling an open path paints odd shapes. */
+:is(
+  .sidebar-nav-icon,
+  .student-icon,
+  .student-hero-leading,
+  .lecturer-stat-icon,
+  .lecturer-hero-icon,
+  .admin-hero-icon,
+  .admin-stat-card > div:first-child > div
+) svg.lucide:not(
+  [class*="lucide-trending"],
+  [class*="lucide-arrow"],
+  [class*="lucide-chevron"],
+  [class*="chart-line"],
+  [class*="line-chart"],
+  [class*="lucide-activity"],
+  .lucide-check,
+  .lucide-x,
+  .lucide-plus,
+  .lucide-minus
+) {
+  fill: currentColor;
+  fill-opacity: 0.16;
+}
+.sidebar-nav-item[aria-current="page"] .sidebar-nav-icon svg.lucide {
+  fill-opacity: 0.22;
+}
