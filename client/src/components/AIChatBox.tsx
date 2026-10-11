@@ -12,7 +12,7 @@ import {
   Volume2,
   Volume1,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
 import { toast } from "sonner";
 import { LIMITS } from "@shared/validation";
@@ -110,6 +110,11 @@ export type AIChatBoxProps = {
    * Click to send directly
    */
   suggestedPrompts?: string[];
+
+  /**
+   * Extra buttons shown under an assistant message, next to "Listen"
+   */
+  renderMessageActions?: (message: Message, index: number) => ReactNode;
 };
 
 /**
@@ -172,6 +177,7 @@ export function AIChatBox({
   height = "600px",
   emptyStateMessage = "Start a conversation with AI",
   suggestedPrompts,
+  renderMessageActions,
 }: AIChatBoxProps) {
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -608,6 +614,7 @@ export function AIChatBox({
                               Listen
                             </button>
                           )}
+                          {renderMessageActions?.(message, index)}
                         </div>
                       )}
                     </div>

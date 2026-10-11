@@ -98,7 +98,7 @@ function formatToolReply(
         }>)
       : [];
     if (events.length) return formatStudyPlanReply(events);
-    return `I've added **${data.created ?? 0} items** to your calendar. Open **Planner** to review the timetable.`;
+    return `I've added **${data.created ?? 0} items** to your study planner. Open **Planner** to review the timetable.`;
   }
   return null;
 }

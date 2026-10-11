@@ -23,6 +23,7 @@ import {
   openCourseFile,
   confirmCourseDelete,
 } from "./courseTools";
+import { SimilaritySheet } from "./SimilaritySheet";
 import { LIMITS, parseRubricText, useFieldErrors, validateText } from "../../../lib/validation";
 
 export function CourseAssignments({ courseId }: { courseId: number }) {
@@ -39,6 +40,7 @@ export function CourseAssignments({ courseId }: { courseId: number }) {
   const [templateId, setTemplateId] = useState<number | null>(null);
   const [file, setFile] = useState<PickedFile | null>(null);
   const [busy, setBusy] = useState(false);
+  const [similarityFor, setSimilarityFor] = useState<{ id: number; title: string } | null>(null);
   const { errors, check, clear, reset } = useFieldErrors<"title" | "description" | "due" | "rubric">();
   const create = trpc.lecturer.assignments.create.useMutation();
   const remove = trpc.lecturer.assignments.delete.useMutation({
@@ -260,6 +262,12 @@ export function CourseAssignments({ courseId }: { courseId: number }) {
                 />
               )}
               <PrimaryButton
+                label="Check similarity"
+                icon="git-compare-outline"
+                variant="outline"
+                onPress={() => setSimilarityFor({ id: a.id, title: a.title })}
+              />
+              <PrimaryButton
                 label="Delete assignment"
                 variant="danger"
                 disabled={remove.isPending}
@@ -273,6 +281,7 @@ export function CourseAssignments({ courseId }: { courseId: number }) {
           </Card>
         ))
       )}
+      <SimilaritySheet assignment={similarityFor} onClose={() => setSimilarityFor(null)} />
     </>
   );
 }

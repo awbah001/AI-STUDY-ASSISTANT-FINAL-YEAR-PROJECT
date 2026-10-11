@@ -8,6 +8,8 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { Quiz } from "@shared/types";
 import { motion } from "framer-motion";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { PracticeMistakes } from "@/components/PracticeMistakes";
 
 interface QuizComponentProps {
   quiz: Quiz;
@@ -19,6 +21,7 @@ interface AnswerState {
 }
 
 export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
+  const { user } = useAuth();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerState>({});
   const [showResults, setShowResults] = useState(false);
@@ -132,6 +135,13 @@ export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
                   : "Keep practicing! Review the material and try again."}
               </p>
             </div>
+
+            {user?.role === "user" && (
+              <PracticeMistakes
+                source={{ kind: "quiz", quizId: quiz.id, answers }}
+                mistakes={results.total - results.correct}
+              />
+            )}
 
             <Button onClick={() => { setCurrentQuestionIndex(0); setAnswers({}); setShowResults(false); setResults(null); onComplete?.(); }} className="w-full">
               Practice again

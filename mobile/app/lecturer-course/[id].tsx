@@ -3,6 +3,8 @@ import { useStaffStyles } from "../../src/contexts/StaffAppearance";
 import { CourseMaterials } from "../../src/components/staff/lecturer-workspace/CourseMaterials";
 import { CourseQuizzes } from "../../src/components/staff/lecturer-workspace/CourseQuizzes";
 import { CourseAssignments } from "../../src/components/staff/lecturer-workspace/CourseAssignments";
+import { DiscussionBoard } from "../../src/components/study/DiscussionBoard";
+import { ConfusionReport } from "../../src/components/staff/lecturer-workspace/ConfusionReport";
 import { useState } from "react";
 import {
   Alert,
@@ -34,7 +36,7 @@ import {
 } from "../../src/components/staff/StaffUi";
 
 type Section =
-  "quizzes" | "students" | "materials" | "assignments" | "announcements";
+  "quizzes" | "students" | "materials" | "assignments" | "announcements" | "discussion" | "insights";
 
 export default function LecturerCourseDetail() {
   const st = useStaffStyles(baseStyles);
@@ -89,6 +91,8 @@ export default function LecturerCourseDetail() {
               { value: "students", label: "Students" },
               { value: "assignments", label: "Assignments" },
               { value: "announcements", label: "Announcements" },
+              { value: "discussion", label: "Discussion" },
+              { value: "insights", label: "Class insights" },
             ]}
           />
           {section === "quizzes" && <CourseQuizzes courseId={courseId} />}
@@ -99,6 +103,13 @@ export default function LecturerCourseDetail() {
           )}
           {section === "announcements" && (
             <AnnouncementsSection courseId={courseId} />
+          )}
+          {section === "discussion" && <DiscussionBoard courseId={courseId} />}
+          {section === "insights" && (
+            <>
+              <SectionHeader title="What's confusing my class" />
+              <ConfusionReport courseId={courseId} />
+            </>
           )}
         </>
       )}

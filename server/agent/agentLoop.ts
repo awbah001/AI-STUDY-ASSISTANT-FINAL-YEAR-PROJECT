@@ -101,6 +101,7 @@ function buildSystemPrompt(input: AgenticLoopInput, systemSnapshotText?: string)
     "For quiz/flashcards/summary, a documentId is required (from snapshot or active context).",
     "For course-wide RAG search, a courseId is required (from snapshot or active context).",
     "For study timetable / revision plan / exam schedule / calendar plan requests, you MUST call createStudyTimetable (do not only describe a plan in text). Pass courseId from the snapshot when available.",
+    "If you describe a schedule in text without saving it (for example study habits or a sample week), format it as a markdown table with the columns Day | Time | Session | What to do, one row per session.",
   ];
   if (systemSnapshotText) {
     lines.push(systemSnapshotText);

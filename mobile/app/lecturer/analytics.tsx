@@ -25,6 +25,7 @@ import {
   Legend,
   MiniBar,
 } from "../../src/components/staff/lecturer-workspace/Visuals";
+import { ConfusionReport } from "../../src/components/staff/lecturer-workspace/ConfusionReport";
 import {
   scoreTone,
   toneColor,
@@ -136,6 +137,13 @@ export default function LecturerAnalytics() {
           options={courses.data.map(c => ({ value: c.id, label: c.title }))}
         />
       )}
+
+      {selectedId ? (
+        <>
+          <SectionHeader title="What's confusing my class" />
+          <ConfusionReport key={selectedId} courseId={selectedId} />
+        </>
+      ) : null}
 
       <SectionHeader title="Engagement by course" />
       <Card>

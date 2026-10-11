@@ -21,6 +21,7 @@ import { useAuth } from "../../src/contexts/AuthContext";
 import { useChatVoice, VoiceCapture } from "../../src/lib/useChatVoice";
 import { oldestFirstById } from "../../src/lib/chatHistory";
 import { AssistantMessage } from "../../src/components/AssistantMessage";
+import { AddPlanToPlanner } from "../../src/components/study/AddPlanToPlanner";
 import { useLocalSearchParams } from "expo-router";
 
 type Prompt = { text: string; icon: React.ComponentProps<typeof Ionicons>["name"] };
@@ -352,24 +353,27 @@ export default function AskAIScreen() {
                       {item.time}
                     </Text>
                     {item.role === "assistant" ? (
-                      <TouchableOpacity
-                        style={s.speakChip}
-                        onPress={() => voice.toggleSpeak(item.content, item.id)}
-                        hitSlop={8}
-                        accessibilityLabel={
-                          voice.speakingId === item.id ? "Stop reading aloud" : "Read aloud"
-                        }
-                      >
-                        <Ionicons
-                          name={
-                            voice.speakingId === item.id
-                              ? "stop-circle-outline"
-                              : "volume-medium-outline"
+                      <View style={s.metaActions}>
+                        <AddPlanToPlanner content={item.content} />
+                        <TouchableOpacity
+                          style={s.speakChip}
+                          onPress={() => voice.toggleSpeak(item.content, item.id)}
+                          hitSlop={8}
+                          accessibilityLabel={
+                            voice.speakingId === item.id ? "Stop reading aloud" : "Read aloud"
                           }
-                          size={13}
-                          color={colors.primary}
-                        />
-                      </TouchableOpacity>
+                        >
+                          <Ionicons
+                            name={
+                              voice.speakingId === item.id
+                                ? "stop-circle-outline"
+                                : "volume-medium-outline"
+                            }
+                            size={13}
+                            color={colors.primary}
+                          />
+                        </TouchableOpacity>
+                      </View>
                     ) : null}
                   </View>
                 </View>
@@ -566,6 +570,7 @@ const s = StyleSheet.create({
     marginTop: 6,
   },
   bubbleTimeUser: { textAlign: "right", color: "rgba(255,255,255,0.7)" },
+  metaActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   speakChip: {
     width: 24,
     height: 24,

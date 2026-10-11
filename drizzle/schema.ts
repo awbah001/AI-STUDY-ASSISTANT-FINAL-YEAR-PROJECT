@@ -1,4 +1,5 @@
 import { int, sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
+import type { ConfusionTopic, GradeDraft } from "../shared/lecturerInsights";
 
 /**
  * Core user table backing auth flow.
@@ -319,6 +320,11 @@ export const assignmentSubmissions = sqliteTable("assignmentSubmissions", {
   grade: text("grade"),
   feedback: text("feedback"),
   rubricScores: text("rubricScores", { mode: "json" }).$type<Array<{ criterion: string; score: number }>>(),
+  /** Readable text of the note plus attachment, cached for AI grading and similarity checks. */
+  submissionText: text("submissionText"),
+  /** Suggested marks from the AI; the lecturer edits and confirms before anything reaches the student. */
+  aiDraft: text("aiDraft", { mode: "json" }).$type<GradeDraft>(),
+  aiDraftedAt: integer("aiDraftedAt", { mode: "timestamp_ms" }),
   submittedAt: integer("submittedAt", { mode: "timestamp_ms" })
     .notNull()
     .default(new Date()),
@@ -348,6 +354,8 @@ export const generalChatMessages = sqliteTable("generalChatMessages", {
   userId: integer("userId").notNull(),
   role: text("role", { enum: ["user", "assistant"] }).notNull(),
   content: text("content").notNull(),
+  /** Set when the student asked from inside a course, so lecturers' class insights can use it. */
+  courseId: integer("courseId"),
   createdAt: integer("createdAt", { mode: "timestamp_ms" })
     .notNull()
     .default(new Date()),
@@ -567,3 +575,115 @@ export const studentActivities = sqliteTable("studentActivities", {
   userCreatedIdx: index("student_activity_user_created_idx").on(table.userId, table.createdAt),
   userCourseIdx: index("student_activity_user_course_idx").on(table.userId, table.courseId),
 }));
+
+/** Timed, course-wide practice exam built from every readable course material. */
+export const mockExams = sqliteTable("mockExams", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull(),
+  courseId: integer("courseId").notNull(),
+  title: text("title").notNull(),
+  durationMinutes: integer("durationMinutes").notNull(),
+  questionCount: integer("questionCount").notNull(),
+  status: text("status", { enum: ["in_progress", "submitted"] }).default("in_progress").notNull(),
+  startedAt: integer("startedAt", { mode: "timestamp_ms" }).notNull(),
+  deadlineAt: integer("deadlineAt", { mode: "timestamp_ms" }).notNull(),
+  submittedAt: integer("submittedAt", { mode: "timestamp_ms" }),
+  totalMarks: real("totalMarks").default(0).notNull(),
+  earnedMarks: real("earnedMarks"),
+  scorePercent: real("scorePercent"),
+  /** Set once the student turns their mistakes into practice, so it only happens once. */
+  practiceCreatedAt: integer("practiceCreatedAt", { mode: "timestamp_ms" }),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+}, (table) => ({
+  userCourseIdx: index("mock_exams_user_course_idx").on(table.userId, table.courseId),
+}));
+
+export type MockExam = typeof mockExams.$inferSelect;
+
+export const mockExamQuestions = sqliteTable("mockExamQuestions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  examId: integer("examId").notNull(),
+  position: integer("position").notNull(),
+  type: text("type", { enum: ["mcq", "short"] }).notNull(),
+  question: text("question").notNull(),
+  options: text("options", { mode: "json" }).$type<string[]>(),
+  /** MCQ: the correct option text. Short answer: the model answer. */
+  correctAnswer: text("correctAnswer").notNull(),
+  keyPoints: text("keyPoints", { mode: "json" }).$type<string[]>(),
+  explanation: text("explanation"),
+  documentId: integer("documentId"),
+  topic: text("topic"),
+  marks: real("marks").notNull(),
+  userAnswer: text("userAnswer"),
+  awardedMarks: real("awardedMarks"),
+  isCorrect: integer("isCorrect", { mode: "boolean" }),
+  feedback: text("feedback"),
+}, (table) => ({
+  examIdx: index("mock_exam_questions_exam_idx").on(table.examId),
+}));
+
+export type MockExamQuestion = typeof mockExamQuestions.$inferSelect;
+
+export const courseDiscussions = sqliteTable("courseDiscussions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  courseId: integer("courseId").notNull(),
+  authorId: integer("authorId").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  aiAnswer: text("aiAnswer"),
+  aiStatus: text("aiStatus", { enum: ["none", "pending", "ready", "failed"] }).default("none").notNull(),
+  aiSources: text("aiSources", { mode: "json" }).$type<string[]>(),
+  aiEndorsed: integer("aiEndorsed", { mode: "boolean" }).default(false).notNull(),
+  replyCount: integer("replyCount").default(0).notNull(),
+  lastActivityAt: integer("lastActivityAt", { mode: "timestamp_ms" }).notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+}, (table) => ({
+  courseActivityIdx: index("course_discussions_course_activity_idx").on(table.courseId, table.lastActivityAt),
+}));
+
+export type CourseDiscussion = typeof courseDiscussions.$inferSelect;
+
+export const courseDiscussionReplies = sqliteTable("courseDiscussionReplies", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  threadId: integer("threadId").notNull(),
+  authorId: integer("authorId").notNull(),
+  body: text("body").notNull(),
+  isEndorsed: integer("isEndorsed", { mode: "boolean" }).default(false).notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+}, (table) => ({
+  threadIdx: index("course_discussion_replies_thread_idx").on(table.threadId),
+}));
+
+/** One spoken recap per document, shared by everyone who can open that document. */
+export const audioRecaps = sqliteTable("audioRecaps", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  documentId: integer("documentId").notNull().unique(),
+  script: text("script").notNull(),
+  /** Null when server speech was unavailable; clients then read the script aloud on the device. */
+  audioUrl: text("audioUrl"),
+  audioBytes: integer("audioBytes"),
+  durationSeconds: integer("durationSeconds"),
+  voice: text("voice"),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull(),
+});
+
+export type AudioRecap = typeof audioRecaps.$inferSelect;
+
+/** Anonymised "what's confusing my class" report built from students' questions in a course. */
+export const courseInsightReports = sqliteTable("courseInsightReports", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  courseId: integer("courseId").notNull(),
+  lecturerId: integer("lecturerId").notNull(),
+  periodDays: integer("periodDays").notNull(),
+  periodStart: integer("periodStart", { mode: "timestamp_ms" }).notNull(),
+  periodEnd: integer("periodEnd", { mode: "timestamp_ms" }).notNull(),
+  questionCount: integer("questionCount").notNull(),
+  studentCount: integer("studentCount").notNull(),
+  topics: text("topics", { mode: "json" }).$type<ConfusionTopic[]>().notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+}, (table) => ({
+  courseCreatedIdx: index("course_insight_reports_course_created_idx").on(table.courseId, table.createdAt),
+}));
+
+export type CourseInsightReport = typeof courseInsightReports.$inferSelect;

@@ -1,5 +1,5 @@
 import { getStudentPreferences } from "@/lib/studentPreferences";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AIChatBox } from "@/components/AIChatBox";
+import { AddPlanToPlanner } from "@/components/AddPlanToPlanner";
 import { DocumentChatBox } from "@/components/DocumentChatBox";
 import { FlashcardComponent } from "@/components/FlashcardComponent";
 import { QuizComponent } from "@/components/QuizComponent";
@@ -28,6 +29,9 @@ import { FieldError } from "@/components/FieldError";
 import { useFieldErrors } from "@/lib/formValidation";
 
 import FlashcardReview from "./FlashcardReview";
+import { MockExamLauncher, MockExamPage } from "./MockExam";
+import { CourseDiscussion, DiscussionThread } from "@/components/CourseDiscussion";
+import { AudioRecap } from "@/components/AudioRecap";
 import { StudentHero, StudentRing } from "@/components/StudentUi";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
@@ -47,7 +51,9 @@ import {
   Plus,
   Search,
   Layers,
+  Maximize2,
   Megaphone,
+  Minimize2,
 } from "lucide-react";
 
 const panel =
@@ -165,12 +171,20 @@ function StudentWorkspace() {
   if (!onboarding.data.completed) return <Onboarding />;
   const course = location.match(/^\/course\/(\d+)$/);
   const document = location.match(/^\/document\/(\d+)$/);
+  const exam = location.match(/^\/exam\/(\d+)$/);
+  const discussion = location.match(/^\/discussion\/(\d+)$/);
   const page = location.split("/")[2] || "dashboard";
   let content: ReactNode;
   let title: string;
   if (course) {
     title = "My course";
     content = <Course key={course[1]} id={Number(course[1])} />;
+  } else if (exam) {
+    title = "Mock exam";
+    content = <MockExamPage key={exam[1]} id={Number(exam[1])} />;
+  } else if (discussion) {
+    title = "Course discussion";
+    content = <DiscussionPage key={discussion[1]} id={Number(discussion[1])} />;
   } else if (document) {
     title = "Study workspace";
     content = <Document key={document[1]} id={Number(document[1])} />;
@@ -540,7 +554,11 @@ function Courses() {
                 <span>Enrolled</span>
               </div>
               <div>
-                <h2>{c.title}</h2>
+                <h2>
+                  <Link href={`/course/${c.id}`} className="student-course-open">
+                    {c.title}
+                  </Link>
+                </h2>
                 <p>
                   {c.code} · {c.subject || c.lecturerName}
                 </p>
@@ -638,7 +656,21 @@ function Course({ id }: { id: number }) {
         ))}
         {quizzes.data?.length === 0 && <Empty>No quizzes published yet.</Empty>}
       </Box>
+      <MockExamLauncher courseId={id} />
+      <Box title="Course discussion">
+        <CourseDiscussion courseId={id} />
+      </Box>
     </>
+  );
+}
+function DiscussionPage({ id }: { id: number }) {
+  const [, navigate] = useLocation();
+  const thread = trpc.discussions.get.useQuery({ threadId: id });
+  return (
+    <DiscussionThread
+      threadId={id}
+      onBack={() => navigate(thread.data ? `/course/${thread.data.courseId}` : "/student/courses")}
+    />
   );
 }
 async function upload(file: File) {
@@ -934,8 +966,24 @@ function Notes({
   const url = fileHref(doc.fileUrl);
   const kind = noteKind(doc);
   const text = doc.extractedText?.trim();
+  const sectionRef = useRef<HTMLElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const sync = () => setFullscreen(document.fullscreenElement === sectionRef.current);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void sectionRef.current?.requestFullscreen?.().catch(() => window.open(url, "_blank", "noreferrer"));
+  };
   return (
-    <section className="student-panel flex h-[70vh] min-h-0 flex-col gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+    <section
+      ref={sectionRef}
+      className={`student-panel flex min-h-0 flex-col gap-3 border bg-card p-4 shadow-sm ${
+        fullscreen ? "h-screen rounded-none" : "h-[calc(100dvh-10rem)] min-h-[560px] rounded-2xl"
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="font-semibold">Notes</h3>
@@ -946,6 +994,10 @@ function Notes({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="default" size="sm" onClick={toggleFullscreen}>
+            {fullscreen ? <Minimize2 /> : <Maximize2 />}
+            {fullscreen ? "Exit full screen" : "Full screen"}
+          </Button>
           <Button asChild variant="neutral" size="sm">
             <a href={url} target="_blank" rel="noreferrer">
               Open in new tab
@@ -962,7 +1014,7 @@ function Notes({
         {kind === "pdf" ? (
           <iframe
             title={doc.title}
-            src={url}
+            src={`${url}#view=FitH&navpanes=0`}
             className="h-full w-full rounded-xl border bg-white"
           />
         ) : kind === "image" ? (
@@ -970,7 +1022,7 @@ function Notes({
             <img src={url} alt={doc.title} className="max-h-full max-w-full" />
           </div>
         ) : text ? (
-          <article className="h-full overflow-y-auto whitespace-pre-wrap rounded-xl border bg-white p-5 text-sm leading-7 text-slate-800">
+          <article className="mx-auto h-full max-w-4xl overflow-y-auto whitespace-pre-wrap rounded-xl border bg-white p-6 text-[15px] leading-8 text-slate-800">
             {text}
           </article>
         ) : (
@@ -1033,26 +1085,33 @@ function Document({ id }: { id: number }) {
   );
 }
 function Summary({ id }: { id: number }) {
+  const utils = trpc.useUtils();
   const query = trpc.summary.get.useQuery({ documentId: id });
   const generate = trpc.summary.generate.useMutation({
-    onSuccess: () => query.refetch(),
+    onSuccess: () => {
+      void query.refetch();
+      void utils.audioRecap.get.invalidate({ documentId: id });
+    },
     onError: fail,
   });
   return (
-    <Box title="Document summary">
-      <Button
-        disabled={generate.isPending}
-        onClick={() => generate.mutate({ documentId: id })}
-      >
-        {generate.isPending ? "Generating..." : "Generate summary"}
-      </Button>
-      <State query={query} />
-      {query.data ? (
-        <Streamdown>{query.data.summary}</Streamdown>
-      ) : (
-        <Empty>Generate a summary to review the key ideas.</Empty>
-      )}
-    </Box>
+    <>
+      <AudioRecap documentId={id} />
+      <Box title="Document summary">
+        <Button
+          disabled={generate.isPending}
+          onClick={() => generate.mutate({ documentId: id })}
+        >
+          {generate.isPending ? "Generating..." : "Generate summary"}
+        </Button>
+        <State query={query} />
+        {query.data ? (
+          <Streamdown>{query.data.summary}</Streamdown>
+        ) : (
+          <Empty>Generate a summary to review the key ideas.</Empty>
+        )}
+      </Box>
+    </>
   );
 }
 function Cards({ id }: { id: number }) {
@@ -1277,6 +1336,7 @@ function Quizzes() {
           ))}
         {query.data?.length === 0 && <Empty>No course quizzes yet.</Empty>}
       </div>
+      <MockExamLauncher />
       <div className="student-practice">
         <span className="student-icon">
           <BookOpen />
@@ -1380,6 +1440,7 @@ function AskAI() {
               setPending(message);
               send.mutate({ documentId: 0, message });
             }}
+            renderMessageActions={message => <AddPlanToPlanner content={message.content} />}
             emptyStateMessage="Your study companion is ready. Ask for an explanation or help planning your learning."
             suggestedPrompts={[
               "Help me plan my study week",

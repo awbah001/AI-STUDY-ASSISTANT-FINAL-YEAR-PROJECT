@@ -166,6 +166,11 @@ export default function NotificationsScreen() {
                   const coach = coachRoute(data);
                   if (coach) {
                     router.push(coach);
+                  } else if (data?.type === "discussion" && data?.threadId) {
+                    router.push({
+                      pathname: "/discussion/[id]",
+                      params: { id: String(data.threadId) },
+                    });
                   } else if (data?.type === "announcement" && data?.courseId) {
                     router.push({
                       pathname: "/course/[id]",

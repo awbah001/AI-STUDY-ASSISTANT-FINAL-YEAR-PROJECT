@@ -6,6 +6,7 @@ import * as queries from "./queries";
 import * as llmUtils from "./llmUtils";
 import * as documentAi from "./documentAiService";
 import * as db from "./db";
+import { lecturerAiRouter } from "./lecturerAiRouter";
 import { isAllowedStudyDocument, STUDY_DOC_ERROR } from "../shared/studyDocuments";
 import { COURSE_CODE_MESSAGE, COURSE_CODE_PATTERN, LIMITS, zEmail, zOptionalText, zText } from "../shared/validation";
 import { assessmentTemplates, assignmentSubmissions, assignments, courseEnrollments, notifications, progressTracking, users } from "../drizzle/schema";
@@ -18,6 +19,8 @@ const rubricCriterionSchema = z.object({
 });
 
 export const lecturerRouter = router({
+  ai: lecturerAiRouter,
+
   dashboardStats: lecturerProcedure.query(({ ctx }) =>
     lecturerQueries.getLecturerDashboardStats(ctx.user.id)
   ),
@@ -260,7 +263,7 @@ export const lecturerRouter = router({
         if (!ids.length) return [];
         const courseIds = input?.courseId ? [input.courseId] : ids;
         if (input?.courseId && !ids.includes(input.courseId)) throw new TRPCError({ code: "FORBIDDEN" });
-        return dbConn.select({ id: assignmentSubmissions.id, status: assignmentSubmissions.status, submittedAt: assignmentSubmissions.submittedAt, grade: assignmentSubmissions.grade, feedback: assignmentSubmissions.feedback, rubricScores: assignmentSubmissions.rubricScores, fileUrl: assignmentSubmissions.fileUrl, fileName: assignmentSubmissions.fileName, note: assignmentSubmissions.note, assignmentId: assignments.id, assignmentTitle: assignments.title, rubric: assignments.rubric, dueDate: assignments.dueDate, courseId: assignments.courseId, studentId: users.id, studentName: users.name, studentEmail: users.email }).from(assignmentSubmissions).innerJoin(assignments, eq(assignmentSubmissions.assignmentId, assignments.id)).innerJoin(users, eq(assignmentSubmissions.studentId, users.id)).where(inArray(assignments.courseId, courseIds)).orderBy(desc(assignmentSubmissions.submittedAt));
+        return dbConn.select({ id: assignmentSubmissions.id, status: assignmentSubmissions.status, submittedAt: assignmentSubmissions.submittedAt, grade: assignmentSubmissions.grade, feedback: assignmentSubmissions.feedback, rubricScores: assignmentSubmissions.rubricScores, aiDraft: assignmentSubmissions.aiDraft, aiDraftedAt: assignmentSubmissions.aiDraftedAt, fileUrl: assignmentSubmissions.fileUrl, fileName: assignmentSubmissions.fileName, note: assignmentSubmissions.note, assignmentId: assignments.id, assignmentTitle: assignments.title, rubric: assignments.rubric, dueDate: assignments.dueDate, courseId: assignments.courseId, studentId: users.id, studentName: users.name, studentEmail: users.email }).from(assignmentSubmissions).innerJoin(assignments, eq(assignmentSubmissions.assignmentId, assignments.id)).innerJoin(users, eq(assignmentSubmissions.studentId, users.id)).where(inArray(assignments.courseId, courseIds)).orderBy(desc(assignmentSubmissions.submittedAt));
       }),
     gradeSubmission: lecturerProcedure
       .input(z.object({ submissionId: z.number(), grade: z.number().min(0, "Grade cannot be negative.").max(1000, "Grade must be at most 1000."), feedback: zOptionalText("Feedback", 3000).optional(), rubricScores: z.array(z.object({ criterion: z.string().trim().max(LIMITS.shortText), score: z.number().min(0, "Scores cannot be negative.") })).max(12).optional() }))

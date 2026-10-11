@@ -23,11 +23,14 @@ import {
 } from "@shared/studyDocuments";
 import { LIMITS, parseRubricText, validateEmail, validateFutureDate, validateText } from "@shared/validation";
 import { FieldError } from "@/components/FieldError";
+import { CourseDiscussion } from "@/components/CourseDiscussion";
+import { SimilarityDialog } from "@/components/lecturer/SimilarityCheck";
+import { ConfusionReport } from "@/components/lecturer/ConfusionReport";
 import { useFieldErrors } from "@/lib/formValidation";
 import {
   Upload, Users, FileText, Megaphone, ClipboardList,
   Brain, Layers, Trash2, ArrowLeft, HelpCircle,
-  ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader2,
+  ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader2, ScanSearch,
 } from "lucide-react";
 
 type StudyFormat = "pdf" | "docx" | "pptx";
@@ -53,6 +56,7 @@ export default function LecturerCourseDetail() {
   const [assignFile, setAssignFile] = useState<File | null>(null);
   const [creatingAssignment, setCreatingAssignment] = useState(false);
   const [templateId, setTemplateId] = useState("");
+  const [similarityFor, setSimilarityFor] = useState<{ id: number; title: string } | null>(null);
 
   const [quizDocId, setQuizDocId] = useState<number | null>(null);
   const [quizTitle, setQuizTitle] = useState("");
@@ -326,6 +330,8 @@ export default function LecturerCourseDetail() {
             <TabsTrigger value="students" className="rounded-xl">Students</TabsTrigger>
             <TabsTrigger value="assignments" className="rounded-xl">Assignments</TabsTrigger>
             <TabsTrigger value="announcements" className="rounded-xl">Announcements</TabsTrigger>
+            <TabsTrigger value="discussion" className="rounded-xl">Discussion</TabsTrigger>
+            <TabsTrigger value="insights" className="rounded-xl">Class insights</TabsTrigger>
           </TabsList>
 
           <TabsContent value="materials" className="space-y-4 mt-4">
@@ -746,6 +752,16 @@ export default function LecturerCourseDetail() {
                             </p>
                           )}
                         </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1.5 rounded-lg border-slate-200 text-xs"
+                          onClick={() => setSimilarityFor({ id: a.id, title: a.title })}
+                        >
+                          <ScanSearch className="h-3.5 w-3.5" />
+                          Check similarity
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -759,12 +775,19 @@ export default function LecturerCourseDetail() {
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+            <SimilarityDialog
+              assignmentId={similarityFor?.id ?? null}
+              title={similarityFor?.title}
+              open={!!similarityFor}
+              onOpenChange={open => !open && setSimilarityFor(null)}
+            />
             {assignments?.length === 0 && (
               <div className="rounded-2xl border-2 border-dashed border-slate-200 py-12 text-center">
                 <ClipboardList className="mx-auto h-10 w-10 text-slate-300 mb-3" />
@@ -833,6 +856,17 @@ export default function LecturerCourseDetail() {
                 <p className="text-sm text-slate-500">No announcements posted yet.</p>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="discussion" className="mt-4 space-y-4">
+            <p className="text-sm text-slate-500">
+              Student questions about this course. The AI drafts an answer from your materials; endorse the ones that are right so students know they can rely on them.
+            </p>
+            <CourseDiscussion courseId={courseId} />
+          </TabsContent>
+
+          <TabsContent value="insights" className="mt-4 space-y-4">
+            <ConfusionReport courseId={courseId} />
           </TabsContent>
         </Tabs>
       </div>

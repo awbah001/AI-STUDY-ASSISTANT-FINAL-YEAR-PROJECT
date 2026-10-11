@@ -13,7 +13,7 @@ import { validateQuizQuestions } from "./agent/structured";
  * Small models sometimes respond with "I'm sorry, I can't..." on the first
  * attempt but succeed on a second identical request.
  */
-function llmMessageText(content: unknown): string {
+export function llmMessageText(content: unknown): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
     return content
@@ -63,7 +63,7 @@ function splitQuizPassages(text: string, count: number): string[] {
   });
 }
 
-function questionsAreSimilar(a: string, b: string): boolean {
+export function questionsAreSimilar(a: string, b: string): boolean {
   const norm = (s: string) =>
     s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
   const na = norm(a);
@@ -127,7 +127,7 @@ function tryParseJson(candidate: string): unknown | undefined {
   }
 }
 
-function parseJsonFromLlmContent(raw: string): unknown {
+export function parseJsonFromLlmContent(raw: string): unknown {
   const trimmed = raw.trim();
   const candidates: string[] = [];
 

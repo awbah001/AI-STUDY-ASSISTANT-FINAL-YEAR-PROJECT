@@ -68,6 +68,18 @@ export async function getDb() {
       } catch (migErr) {
         console.warn("[migration] Autonomous agent migration skipped:", migErr);
       }
+      try {
+        const { runStudentFeaturesMigration } = await import("./migrations/addStudentFeatures");
+        await runStudentFeaturesMigration(client);
+      } catch (migErr) {
+        console.warn("[migration] Student features migration skipped:", migErr);
+      }
+      try {
+        const { runLecturerInsightsMigration } = await import("./migrations/addLecturerInsights");
+        await runLecturerInsightsMigration(client);
+      } catch (migErr) {
+        console.warn("[migration] Lecturer insights migration skipped:", migErr);
+      }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;

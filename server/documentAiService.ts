@@ -4,7 +4,7 @@ import * as queries from "./queries";
 import * as llmUtils from "./llmUtils";
 import { getFeatureFlags } from "./settings";
 
-async function ensureDocumentText(documentId: number): Promise<Document> {
+export async function ensureDocumentText(documentId: number): Promise<Document> {
   const doc = await queries.getDocumentById(documentId);
   if (!doc) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Document not found." });

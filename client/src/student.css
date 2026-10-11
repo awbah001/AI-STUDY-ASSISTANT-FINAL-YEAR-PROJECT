@@ -480,6 +480,31 @@
   gap: 18.7px;
   overflow: hidden;
   min-height: 182.8px;
+  position: relative;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.student-course-card:hover,
+.student-course-card:focus-within {
+  box-shadow: 0 10px 24px rgba(0, 70, 57, 0.12);
+  transform: translateY(-1px);
+}
+/* The title link stretches over the whole card so any click opens the course. */
+.student-course-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.student-course-open:focus-visible {
+  outline: none;
+}
+.student-course-card:has(.student-course-open:focus-visible) {
+  outline: 2px solid #0a6e52;
+  outline-offset: 2px;
+}
+.student-course-card:hover .student-course-open {
+  color: #0a6e52;
 }
 .student-course-card > div:last-child {
   flex: 1;
@@ -543,6 +568,8 @@
   border-top: 1px solid #edf0f2;
 }
 .student-course-links a {
+  position: relative;
+  z-index: 2;
   display: flex;
   gap: 6px;
   align-items: center;

@@ -128,6 +128,14 @@ function AuthedNavigation() {
         options={{ headerShown: false, presentation: "card" }}
       />
       <Stack.Screen
+        name="mock-exam/[id]"
+        options={{ headerShown: false, presentation: "card", gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="discussion/[id]"
+        options={{ headerShown: false, presentation: "card" }}
+      />
+      <Stack.Screen
         name="upload-document"
         options={{ headerShown: false, presentation: "card" }}
       />

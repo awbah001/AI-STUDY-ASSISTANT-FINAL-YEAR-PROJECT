@@ -16,6 +16,8 @@ import { resolveFileUrl } from "../../../lib/uploadFile";
 import { colors } from "../../../theme/colors";
 import { Badge, formatDate, FormField, PrimaryButton } from "../StaffUi";
 import { BottomSheet } from "./Sheet";
+import { AiGradeAssist } from "./AiGradeAssist";
+import type { GradeDraft } from "../../../../../shared/lecturerInsights";
 import { submissionStatus, type ReviewSubmission } from "./helpers";
 import { FieldError } from "../../FieldError";
 import { useFieldErrors, validateNumber, validateText } from "../../../lib/validation";
@@ -130,6 +132,23 @@ function GradeForm({
     });
   };
 
+  const applyDraft = (draft: GradeDraft) => {
+    if (rubric.length) {
+      setScores(current => {
+        const next = { ...current };
+        for (const item of draft.criteria) {
+          if (rubric.some(r => r.criterion === item.criterion)) next[item.criterion] = String(item.score);
+        }
+        return next;
+      });
+    } else {
+      setGrade(String(draft.total));
+    }
+    if (draft.feedback) setFeedback(draft.feedback.slice(0, FEEDBACK_MAX));
+    clear("mark");
+    clear("feedback");
+  };
+
   const openFile = (url: string) =>
     void Linking.openURL(resolveFileUrl(url)).catch(() =>
       Alert.alert("Cannot open file", "No app is available to open this file.")
@@ -168,6 +187,12 @@ function GradeForm({
           </Text>
         </TouchableOpacity>
       ) : null}
+
+      <AiGradeAssist
+        submissionId={submission.id}
+        existing={{ draft: submission.aiDraft ?? null, draftedAt: submission.aiDraftedAt ?? null }}
+        onApply={applyDraft}
+      />
 
       {rubric.length ? (
         <View style={st.rubric}>

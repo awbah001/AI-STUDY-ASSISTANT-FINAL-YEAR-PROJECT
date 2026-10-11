@@ -19,13 +19,16 @@ import { IconTile, Pill, SectionHeader } from "../../src/components/ui/Kit";
 import { showLocalNotification } from "../../src/lib/notifications";
 import { studyFormatLabel } from "../../src/lib/studyDocuments";
 import { GreenAppBar, HEADER_GREEN } from "../../src/components/GreenAppBar";
+import { MockExamLauncher } from "../../src/components/study/MockExamLauncher";
+import { DiscussionBoard } from "../../src/components/study/DiscussionBoard";
 
-type TabKey = "overview" | "materials" | "quizzes" | "assignment";
+type TabKey = "overview" | "materials" | "quizzes" | "assignment" | "discussion";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "materials", label: "Materials" },
   { key: "quizzes", label: "Quizzes" },
   { key: "assignment", label: "Assignment" },
+  { key: "discussion", label: "Discussion" },
 ];
 
 function mediaUrl(url?: string | null) {
@@ -239,6 +242,7 @@ export default function CourseDetailScreen() {
     materials: materials?.length,
     quizzes: quizzes?.length,
     assignment: assignments?.length,
+    discussion: undefined,
   };
 
   return (
@@ -402,6 +406,10 @@ export default function CourseDetailScreen() {
               ))
             )
           ) : null}
+
+          {tab === "quizzes" ? <MockExamLauncher courseId={courseId} /> : null}
+
+          {tab === "discussion" ? <DiscussionBoard courseId={courseId} /> : null}
 
           {tab === "quizzes" ? (
             quizzesLoading ? (

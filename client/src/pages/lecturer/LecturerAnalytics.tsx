@@ -3,6 +3,7 @@ import { LecturerHero, LecturerStats } from "@/components/lecturer/LecturerUi";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { ConfusionReport } from "@/components/lecturer/ConfusionReport";
 import { trpc } from "@/lib/trpc";
 import { BarChart3, TrendingUp, Users, Brain, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
@@ -71,6 +72,8 @@ export default function LecturerAnalytics() {
             </SelectContent>
           </Select>
         </div>
+
+        {selectedId && <ConfusionReport key={selectedId} courseId={selectedId} />}
 
         {/* ── Engagement by course ── */}
         <div className="lecturer-analytics-grid">

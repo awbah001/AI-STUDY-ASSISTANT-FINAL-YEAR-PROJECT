@@ -5,6 +5,16 @@ import { getDb } from "./db";
 import { generateAgentText } from "./agent/llmProvider";
 import { createNotification } from "./queries";
 import { sendPushNotifications } from "./pushNotifications";
+import {
+  fromLocalParts,
+  pad2,
+  PLAN_LIMITS,
+  PLAN_SESSION_TYPES,
+  toLocalParts,
+  WEEKDAYS,
+  type PlanSessionDraft,
+  type PlanSessionType,
+} from "../shared/studyPlan";
 
 export const CALENDAR_EVENT_TYPES = ["exam", "test", "quiz", "study", "other"] as const;
 export type CalendarEventType = (typeof CALENDAR_EVENT_TYPES)[number];
@@ -248,35 +258,163 @@ export function numberPlanDays<
   });
 }
 
+function tableCell(value: string) {
+  return value.replace(/\|/g, "/").replace(/\s+/g, " ").trim() || "—";
+}
+
+/** Saved plans are shown as a markdown table: one row per session, in date order. */
 export function formatStudyPlanReply(
   events: Array<{ title: string; type: string; startsAt: string | number | Date; notes?: string | null }>
 ): string {
   if (!events.length) return "I could not build a study plan from that request.";
   const sorted = numberPlanDays(events);
   const focus = sorted.find((e) => e.type !== "study") ?? sorted[sorted.length - 1];
-  const lines = [`Here is your structured study plan for ${focus.title}:`, ""];
-  let studyIndex = 0;
   const studyTotal = sorted.filter((event) => event.type === "study").length;
-  sorted.forEach((event) => {
-    const when =
-      coerceCalendarDate(event.startsAt)?.toLocaleString(undefined, {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }) ?? "";
-    if (event.type === "study") {
-      studyIndex += 1;
-      lines.push(`Day ${studyIndex} of ${studyTotal} — ${event.title}`);
-    } else {
-      lines.push(`${event.type} — ${event.title}`);
-    }
-    lines.push(`${when}${stripDayPrefix(event.notes) ? `\n${stripDayPrefix(event.notes)}` : ""}`);
-    lines.push("");
+  let studyIndex = 0;
+  const rows = sorted.map((event) => {
+    const at = coerceCalendarDate(event.startsAt);
+    const date = at?.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) ?? "";
+    const time = at?.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) ?? "";
+    const label =
+      event.type === "study" ? `Day ${++studyIndex} of ${studyTotal}` : event.type[0].toUpperCase() + event.type.slice(1);
+    return `| ${tableCell(label)} | ${tableCell(date)} | ${tableCell(time)} | ${tableCell(event.title)} | ${tableCell(stripDayPrefix(event.notes))} |`;
   });
-  lines.push("Saved to your calendar. An alarm is set for each study day (morning) and at session time.");
-  return lines.join("\n").trim();
+  return [
+    `Here is your structured study plan for **${focus.title}**:`,
+    "",
+    "| Day | Date | Time | Session | What to do |",
+    "| --- | --- | --- | --- | --- |",
+    ...rows,
+    "",
+    "Saved to your study planner. You'll get a reminder before each session.",
+  ].join("\n");
+}
+
+type ExtractedRow = {
+  title?: unknown;
+  type?: unknown;
+  day?: unknown;
+  date?: unknown;
+  time?: unknown;
+  durationMinutes?: unknown;
+  notes?: unknown;
+};
+
+const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+function shiftDate(date: string, days: number) {
+  const [y, m, d] = date.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + days));
+  return `${t.getUTCFullYear()}-${pad2(t.getUTCMonth() + 1)}-${pad2(t.getUTCDate())}`;
+}
+
+/**
+ * Turn a plan's day label ("Monday", "Day 3", "Week 2 Day 1", "tomorrow", "2026-10-14") into a local date.
+ * Weekdays never land before `previous`, so a plan running Friday to Monday stays in order.
+ */
+export function resolvePlanDay(label: string, today: { date: string; weekday: number }, previous?: string): string | null {
+  const text = label.trim().toLowerCase();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  if (text === "today") return today.date;
+  if (text === "tomorrow") return shiftDate(today.date, 1);
+  const week = text.match(/\bweek\s*(\d{1,2})\b/);
+  const weekShift = week ? (Number(week[1]) - 1) * 7 : 0;
+  const weekday = text.match(/\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b/);
+  if (weekday) {
+    const ahead = (WEEKDAY_KEYS.indexOf(weekday[1]) - today.weekday + 7) % 7 || 7;
+    let date = shiftDate(today.date, ahead + weekShift);
+    while (previous && date < previous) date = shiftDate(date, 7);
+    return date;
+  }
+  const day = text.match(/\bday\s*(\d{1,2})\b/);
+  if (day) return shiftDate(today.date, weekShift + Number(day[1]));
+  return null;
+}
+
+function parsePlanTime(value: unknown) {
+  const match = String(value ?? "").trim().match(/^(\d{1,2})(?::(\d{2}))?\s*([ap])?\.?m?\.?$/i);
+  if (!match) return "18:00";
+  let hour = Number(match[1]);
+  const minute = Number(match[2] ?? 0);
+  const half = match[3]?.toLowerCase();
+  if (half === "p" && hour < 12) hour += 12;
+  if (half === "a" && hour === 12) hour = 0;
+  return hour > 23 || minute > 59 ? "18:00" : `${pad2(hour)}:${pad2(minute)}`;
+}
+
+/** Clean the model's rows: valid local dates, sensible lengths, future only, date order, max 14. */
+export function normalizeExtractedPlan(raw: unknown, tzOffsetMinutes: number, now = Date.now()): PlanSessionDraft[] {
+  const list: ExtractedRow[] = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === "object" && Array.isArray((raw as { events?: unknown }).events)
+      ? (raw as { events: ExtractedRow[] }).events
+      : [];
+  const today = toLocalParts(now, tzOffsetMinutes);
+  const out: Array<PlanSessionDraft & { at: number }> = [];
+  let previous: string | undefined;
+  for (const row of list) {
+    if (!row || typeof row !== "object") continue;
+    const title = String(row.title ?? "").replace(/\s+/g, " ").trim().slice(0, PLAN_LIMITS.title.max);
+    if (title.length < PLAN_LIMITS.title.min) continue;
+    const resolved = resolvePlanDay(String(row.day ?? ""), today, previous);
+    const date = resolved ?? String(row.date ?? "").trim();
+    if (resolved) previous = resolved;
+    const time = parsePlanTime(row.time);
+    const at = fromLocalParts(date, time, tzOffsetMinutes);
+    if (at === null || at < now || at > now + HORIZON_MS) continue;
+    const typeText = String(row.type ?? "").toLowerCase();
+    const type = (PLAN_SESSION_TYPES as readonly string[]).includes(typeText)
+      ? (typeText as PlanSessionType)
+      : inferTypeFromTitle(title) === "other"
+        ? "study"
+        : (inferTypeFromTitle(title) as PlanSessionType);
+    const duration = Number(row.durationMinutes);
+    out.push({
+      title,
+      type,
+      date,
+      time,
+      durationMinutes: Number.isFinite(duration)
+        ? Math.min(PLAN_LIMITS.duration.max, Math.max(PLAN_LIMITS.duration.min, Math.round(duration)))
+        : 60,
+      notes: String(row.notes ?? "").replace(/\s+/g, " ").trim().slice(0, PLAN_LIMITS.notes),
+      at,
+    });
+  }
+  return out
+    .sort((a, b) => a.at - b.at)
+    .slice(0, PLAN_LIMITS.sessions)
+    .map(({ at: _at, ...row }) => row);
+}
+
+/** Read the sessions out of an AI reply (tables, bullet lists, "Day 1 / Monday" plans) as dated drafts. */
+export async function extractPlanFromText(text: string, tzOffsetMinutes: number, now = Date.now()): Promise<PlanSessionDraft[]> {
+  const today = toLocalParts(now, tzOffsetMinutes);
+  const upcoming = Array.from({ length: 14 }, (_, i) => {
+    const day = toLocalParts(now + (i + 1) * 24 * 60 * 60 * 1000, tzOffsetMinutes);
+    return `${WEEKDAYS[day.weekday]} ${day.date}`;
+  }).join(", ");
+  const { text: reply } = await withTimeout(
+    generateAgentText(
+      [
+        {
+          role: "system",
+          content:
+            'You convert a study plan written for a student into calendar sessions. Reply with JSON only: {"events":[{"title":"","type":"study|quiz|test|exam","day":"","date":"YYYY-MM-DD","time":"HH:mm","durationMinutes":60,"notes":""}]}. One event per study session, in the same order as the plan. "day": copy the day label exactly as the plan writes it, such as "Monday", "Day 3", "Week 2 Day 1" or "tomorrow"; if the plan gives a calendar date, write it as YYYY-MM-DD. "date": only when the plan has no day labels, put sessions on consecutive days starting tomorrow, using the date list provided. Use the time in the plan in 24-hour HH:mm, otherwise 18:00. Use the duration in the plan, otherwise 60. Title: short session name with the topic (max 80 characters). Notes: the tasks for that session in one or two sentences. Never invent sessions that are not in the plan. Max 14 events. No markdown.',
+        },
+        {
+          role: "user",
+          content: [
+            `Today is ${WEEKDAYS[today.weekday]} ${today.date}, local time ${today.time}. Next 14 days: ${upcoming}.`,
+            `Study plan:\n${text.slice(0, PLAN_LIMITS.text.max)}`,
+          ].join("\n\n"),
+        },
+      ],
+      2500
+    ),
+    25_000
+  );
+  return normalizeExtractedPlan(extractJsonPayload(reply), tzOffsetMinutes, now);
 }
 
 function mergeStructuredPlan(skeleton: CalendarEventDraft[], llm: CalendarEventDraft[]): CalendarEventDraft[] {

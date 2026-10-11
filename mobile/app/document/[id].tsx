@@ -24,8 +24,10 @@ import { useChatVoice, VoiceCapture } from "../../src/lib/useChatVoice";
 import { FlippingFlashcard } from "../../src/components/FlippingFlashcard";
 import { oldestFirstById } from "../../src/lib/chatHistory";
 import { AssistantMessage } from "../../src/components/AssistantMessage";
+import { AudioRecapCard } from "../../src/components/study/AudioRecapCard";
+import { PracticeMistakes } from "../../src/components/study/PracticeMistakes";
 
-type Tab = "chat" | "flashcards" | "quiz";
+type Tab = "chat" | "flashcards" | "quiz" | "recap";
 
 export default function DocumentDetailScreen() {
   const {
@@ -145,7 +147,7 @@ export default function DocumentDetailScreen() {
 
       <View style={styles.tabBar}>
         <View style={styles.tabTrack}>
-          {(["chat", "flashcards", "quiz"] as Tab[]).map(t => (
+          {(["chat", "flashcards", "quiz", "recap"] as Tab[]).map(t => (
             <TouchableOpacity
               key={t}
               style={[styles.tab, activeTab === t && styles.tabActive]}
@@ -158,7 +160,9 @@ export default function DocumentDetailScreen() {
                     ? "chatbubble-ellipses"
                     : t === "flashcards"
                       ? "layers"
-                      : "help-circle"
+                      : t === "quiz"
+                        ? "help-circle"
+                        : "headset"
                 }
                 size={15}
                 color={activeTab === t ? colors.primary : colors.textMuted}
@@ -182,7 +186,23 @@ export default function DocumentDetailScreen() {
           initialQuizId={initialQuizId ? Number(initialQuizId) : undefined}
         />
       )}
+      {activeTab === "recap" && <RecapTab docId={docId} />}
     </SafeAreaView>
+  );
+}
+
+function RecapTab({ docId }: { docId: number }) {
+  const { data: summary } = trpc.summary.get.useQuery({ documentId: docId });
+  return (
+    <ScrollView contentContainerStyle={styles.tabContent}>
+      <AudioRecapCard documentId={docId} />
+      {summary ? (
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>Summary</Text>
+          <AssistantMessage content={summary.summary} />
+        </View>
+      ) : null}
+    </ScrollView>
   );
 }
 
@@ -646,6 +666,15 @@ function QuizTab({
               );
             })}
 
+            <PracticeMistakes
+              source={{
+                kind: "quiz",
+                quizId,
+                answers: Object.fromEntries(Object.entries(answers).map(([k, v]) => [String(k), v])),
+              }}
+              mistakes={questions.length - correctCount}
+            />
+
             <TouchableOpacity
               style={[styles.genBtn, { marginTop: 8 }]}
               onPress={() => {
@@ -1017,6 +1046,8 @@ const styles = StyleSheet.create({
   },
   micBtnActive: { backgroundColor: colors.primary },
   tabContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
+  summaryCard: { ...design.card, padding: 16, gap: 6 },
+  summaryTitle: { ...design.cardTitle, fontSize: 16 },
   emptyBox: {
     alignItems: "center",
     marginTop: 16,

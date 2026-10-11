@@ -48,6 +48,8 @@ function Router() {
         <Route path="/student/:page" component={StudentPortal} />
         <Route path="/course/:id" component={StudentPortal} />
         <Route path="/document/:id" component={StudentPortal} />
+        <Route path="/exam/:id" component={StudentPortal} />
+        <Route path="/discussion/:id" component={StudentPortal} />
         {/* Lecturer */}
         <Route path="/lecturer/dashboard" component={LecturerDashboard} />
         <Route path="/lecturer/courses" component={LecturerCourses} />

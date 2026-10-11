@@ -5,6 +5,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure, adminProcedure, studentProcedure } from "./_core/trpc";
 import { lecturerRouter, studentCoursesRouter } from "./lecturerRouter";
 import { studentLearningRouter } from "./studentLearningRouter";
+import { audioRecapRouter, discussionsRouter, examsRouter, practiceRouter } from "./studentFeaturesRouter";
 import { settingsRouter } from "./settingsRouter";
 import { autonomousAgentRouter } from "./autonomousAgentRouter";
 import { stripSensitiveUser } from "./userSafe";
@@ -27,6 +28,7 @@ import type { User } from "../drizzle/schema";
 import * as documentAi from "./documentAiService";
 import { runLearningAgent } from "./agent";
 import * as calendar from "./calendar";
+import { PLAN_LIMITS, PLAN_SESSION_TYPES } from "../shared/studyPlan";
 
 async function writeAdminAudit(adminId: number, action: string, targetType: string, targetId: number, reason?: string, metadata?: Record<string, unknown>) {
   const dbConn = await db.getDb();
@@ -577,17 +579,18 @@ export const appRouter = router({
 
         try {
           if (isGeneral) {
-            await queries.createGeneralChatMessage({
-              userId: ctx.user.id,
-              role: "user",
-              content: input.message,
-            });
-            const history = await queries.getGeneralChatHistory(ctx.user.id, 12);
             let scopedCourseId = input.courseId;
             if (scopedCourseId && ctx.user.role === "user") {
               const enrolled = await lecturerQueries.isStudentEnrolled(ctx.user.id, scopedCourseId);
               if (!enrolled) scopedCourseId = undefined;
             }
+            await queries.createGeneralChatMessage({
+              userId: ctx.user.id,
+              role: "user",
+              content: input.message,
+              courseId: scopedCourseId ?? null,
+            });
+            const history = await queries.getGeneralChatHistory(ctx.user.id, 12);
             const agent = await runLearningAgent({
               user: ctx.user,
               message: input.message,
@@ -1036,6 +1039,56 @@ export const appRouter = router({
           events,
           reply: calendar.formatStudyPlanReply(events),
         };
+      }),
+    /** Read the sessions out of an AI chat reply for the student to review; nothing is saved yet. */
+    draftFromText: studentProcedure
+      .input(z.object({
+        text: z.string().trim().min(PLAN_LIMITS.text.min, "This reply is too short to contain a plan.").max(PLAN_LIMITS.text.max),
+        timezoneOffset: z.number().int().min(-840).max(840),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const { assertAiRateLimit } = await import("./ai");
+          assertAiRateLimit(ctx.user.id);
+        } catch (error) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: error instanceof Error ? error.message : "Too many AI requests." });
+        }
+        let sessions: Awaited<ReturnType<typeof calendar.extractPlanFromText>>;
+        try {
+          sessions = await calendar.extractPlanFromText(input.text, input.timezoneOffset);
+        } catch (error) {
+          console.warn("[planner] Could not read plan from reply:", error);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "The AI couldn't read this plan right now. Please try again." });
+        }
+        if (!sessions.length) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "I couldn't find any upcoming study sessions in this reply." });
+        }
+        return { sessions };
+      }),
+    /** Save the sessions the student confirmed from a chat reply. */
+    savePlan: studentProcedure
+      .input(z.object({
+        sessions: z.array(z.object({
+          title: zText("Session title", PLAN_LIMITS.title),
+          type: z.enum(PLAN_SESSION_TYPES),
+          startsAt: z.number().int().refine(value => value > Date.now() - 5 * 60 * 1000, "One of the sessions is in the past."),
+          durationMinutes: z.number().int().min(PLAN_LIMITS.duration.min).max(PLAN_LIMITS.duration.max),
+          notes: zOptionalText("Notes", PLAN_LIMITS.notes).optional(),
+        })).min(1, "Choose at least one session.").max(PLAN_LIMITS.sessions),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const events = await calendar.insertCalendarEvents(
+          ctx.user.id,
+          input.sessions.map(s => ({
+            title: s.title,
+            type: s.type,
+            startsAt: new Date(s.startsAt).toISOString(),
+            endsAt: new Date(s.startsAt + s.durationMinutes * 60_000).toISOString(),
+            notes: s.notes || undefined,
+          })),
+          "agent"
+        );
+        return { created: events.length, events };
       }),
     updateGoal: studentProcedure.input(z.object({ dailyStudyMinutes: z.number().int().min(5).max(480), dailyFlashcards: z.number().int().min(1).max(100), dailyQuizzes: z.number().int().min(1).max(20) })).mutation(async ({ ctx, input }) => {
       const dbConn = await db.getDb(); if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -1691,6 +1744,10 @@ export const appRouter = router({
   lecturer: lecturerRouter,
   studentCourses: studentCoursesRouter,
   studentLearning: studentLearningRouter,
+  exams: examsRouter,
+  practice: practiceRouter,
+  discussions: discussionsRouter,
+  audioRecap: audioRecapRouter,
 
   // ── Assignment submissions ────────────────────────────────────────────────
   assignments: router({
