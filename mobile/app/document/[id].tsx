@@ -1,6 +1,7 @@
 import { design, elevation } from "../../src/theme/design";
 import {
   View,
+  Image,
   Text,
   ScrollView,
   StyleSheet,
@@ -26,18 +27,24 @@ import { oldestFirstById } from "../../src/lib/chatHistory";
 import { AssistantMessage } from "../../src/components/AssistantMessage";
 import { AudioRecapCard } from "../../src/components/study/AudioRecapCard";
 import { PracticeMistakes } from "../../src/components/study/PracticeMistakes";
+import { WebView } from "react-native-webview";
+import { documentPreviewKind } from "../../../shared/documentPreview";
+import { DocumentProcessingStatus } from "../../src/components/study/DocumentProcessingStatus";
+import { OfflineDownloadButton } from "../../src/components/study/OfflineDownloadButton";
 
-type Tab = "chat" | "flashcards" | "quiz" | "recap";
+type Tab = "notes" | "chat" | "flashcards" | "quiz" | "recap";
 
 export default function DocumentDetailScreen() {
   const {
     id,
     tab: initialTab,
     quizId: initialQuizId,
+    source: sourceId,
   } = useLocalSearchParams<{
     id: string;
     tab?: string;
     quizId?: string;
+    source?: string;
   }>();
   const router = useRouter();
   const docId = Number(id);
@@ -47,8 +54,9 @@ export default function DocumentDetailScreen() {
 
   const { data: doc, isLoading } = trpc.documents.get.useQuery(
     { id: docId },
-    { enabled: !Number.isNaN(docId) }
+    { enabled: !Number.isNaN(docId), refetchInterval: query => ["pending", "processing"].includes(query.state.data?.processingStatus ?? "") ? 2500 : false }
   );
+  const source = trpc.documents.source.useQuery({ id: docId, source: sourceId ?? "" }, { enabled: !!sourceId && /^[a-f0-9]{24}$/.test(sourceId), retry: false });
   const recordActivity = trpc.studentLearning.recordActivity.useMutation();
   useEffect(() => {
     if (!doc?.id) return;
@@ -136,7 +144,7 @@ export default function DocumentDetailScreen() {
         </View>
         <TouchableOpacity
           style={styles.viewBtn}
-          onPress={openDocument}
+          onPress={() => setActiveTab("notes")}
           activeOpacity={0.85}
           accessibilityLabel="Open document"
         >
@@ -145,9 +153,14 @@ export default function DocumentDetailScreen() {
         </TouchableOpacity>
       </View>
 
+      <View style={{ paddingHorizontal: 16, gap: 4 }}>
+        <DocumentProcessingStatus doc={doc} />
+        <OfflineDownloadButton documentId={doc.id} />
+        {sourceId && <Text numberOfLines={8} style={{ color: colors.text, paddingVertical: 8 }}>Source excerpt: {source.data?.excerpt ?? source.error?.message ?? "Loading…"}</Text>}
+      </View>
       <View style={styles.tabBar}>
         <View style={styles.tabTrack}>
-          {(["chat", "flashcards", "quiz", "recap"] as Tab[]).map(t => (
+          {(["notes", "chat", "flashcards", "quiz", "recap"] as Tab[]).map(t => (
             <TouchableOpacity
               key={t}
               style={[styles.tab, activeTab === t && styles.tabActive]}
@@ -156,7 +169,7 @@ export default function DocumentDetailScreen() {
             >
               <Ionicons
                 name={
-                  t === "chat"
+                  t === "notes" ? "document-text-outline" : t === "chat"
                     ? "chatbubble-ellipses"
                     : t === "flashcards"
                       ? "layers"
@@ -178,6 +191,7 @@ export default function DocumentDetailScreen() {
       </View>
 
       {/* Tab content */}
+      {activeTab === "notes" && <NotesTab doc={doc} url={docUrl} openOriginal={openDocument} />}
       {activeTab === "chat" && <ChatTab docId={docId} />}
       {activeTab === "flashcards" && <FlashcardsTab docId={docId} />}
       {activeTab === "quiz" && (
@@ -189,6 +203,29 @@ export default function DocumentDetailScreen() {
       {activeTab === "recap" && <RecapTab docId={docId} />}
     </SafeAreaView>
   );
+}
+
+function NotesTab({ doc, url, openOriginal }: {
+  doc: { id: number; fileName: string; title: string; mimeType?: string | null };
+  url: string;
+  openOriginal: () => Promise<void>;
+}) {
+  const kind = documentPreviewKind(doc);
+  const preview = trpc.documents.preview.useQuery({ id: doc.id }, {
+    enabled: kind !== "pdf" && kind !== "image", retry: false, staleTime: Infinity,
+  });
+  if (kind === "image") return <Image source={{ uri: url }} resizeMode="contain" style={{ flex: 1 }} accessibilityLabel={doc.title} />;
+  if (kind === "pdf" && Platform.OS === "web") return <iframe title={doc.title} src={url} style={{ flex: 1, width: "100%", border: 0 }} />;
+  if (preview.isLoading && kind !== "pdf") return <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />;
+  if (preview.data?.html) {
+    if (Platform.OS === "web") return <iframe title={doc.title} srcDoc={preview.data.html} sandbox="" style={{ flex: 1, width: "100%", border: 0 }} />;
+    return <WebView source={{ html: preview.data.html }} javaScriptEnabled={false} style={{ flex: 1 }} originWhitelist={["*"]} onShouldStartLoadWithRequest={request => request.url === "about:blank" || request.url.startsWith("data:")} />;
+  }
+  return <View style={{ padding: 24, gap: 16 }}>
+    <Text style={{ color: colors.text }}>{kind === "pdf" ? "Open the PDF in your device's document viewer." : preview.error?.message ?? "Preview unavailable."}</Text>
+    {kind !== "pdf" && <TouchableOpacity onPress={() => void preview.refetch()}><Text style={{ color: colors.primary }}>Retry preview</Text></TouchableOpacity>}
+    <TouchableOpacity onPress={() => void openOriginal()}><Text style={{ color: colors.primary }}>Open original document</Text></TouchableOpacity>
+  </View>;
 }
 
 function RecapTab({ docId }: { docId: number }) {

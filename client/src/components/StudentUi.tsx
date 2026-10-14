@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AnimatedProgressRing } from "./motion/AnimatedProgress";
 import {
   BookOpen,
   CalendarDays,
@@ -72,10 +73,9 @@ export function StudentRing({
   return (
     <div
       className="student-ring"
-      style={{
-        background: `conic-gradient(#00a77b ${Math.min(100, Math.max(0, value))}%, #eceef1 0)`,
-      }}
+      role="progressbar" aria-valuenow={Math.round(Math.min(100, Math.max(0, value)))} aria-valuemin={0} aria-valuemax={100} aria-label={label ?? "Learning progress"}
     >
+      <AnimatedProgressRing value={value} />
       <div>
         <strong>{Math.round(value)}%</strong>
         {label && <small>{label}</small>}

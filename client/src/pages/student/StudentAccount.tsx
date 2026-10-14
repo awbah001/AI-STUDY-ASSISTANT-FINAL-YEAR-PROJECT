@@ -12,7 +12,10 @@ import {
   Monitor,
   Save,
   Trash2,
+  GraduationCap,
 } from "lucide-react";
+import { SEMESTERS, isSemester, levelLabel } from "@shared/academics";
+import { selectClass } from "@/components/student/AcademicSetup";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useTheme } from "@/contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
@@ -56,6 +59,87 @@ function Panel({
     </section>
   );
 }
+/** Programme and level are read-only here; the student keeps their semester and academic year current. */
+function AcademicDetails() {
+  const utils = trpc.useUtils();
+  const status = trpc.studentLearning.onboardingStatus.useQuery();
+  const catalogue = trpc.academics.catalogue.useQuery();
+  const profile = status.data?.profile;
+  const [term, setTerm] = useState<{ semester: string; academicYear: string } | null>(null);
+  const save = trpc.academics.updateMyTerm.useMutation({
+    onSuccess: async () => {
+      await utils.studentLearning.onboardingStatus.invalidate();
+      setTerm(null);
+      toast.success("Semester updated");
+    },
+    onError: e => toast.error(e.message),
+  });
+  if (!profile) return null;
+  const current = {
+    semester: isSemester(profile.semester) ? profile.semester : "",
+    academicYear: profile.academicYear ?? "",
+  };
+  const draft = term ?? current;
+  const years = [...new Set([...(catalogue.data?.yearOptions ?? []), current.academicYear].filter(Boolean))].sort();
+  const changed = draft.semester !== current.semester || draft.academicYear !== current.academicYear;
+  return (
+    <Panel title="Academic details" description="Your programme and current semester." icon={<GraduationCap />}>
+      {[
+        ["Student ID", profile.studentNumber],
+        ["Faculty", profile.faculty],
+        ["Department", profile.department],
+        ["Programme", profile.programme],
+        ["Year", levelLabel(profile.academicLevel)],
+        ...(profile.academicStatus === "completed" ? [["Status", "Programme completed"]] : []),
+      ].map(([label, value]) => (
+        <div className="student-setting-row" key={label}>
+          <span>{label}</span>
+          <span>{value || "—"}</span>
+        </div>
+      ))}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1.5 text-sm">
+          <span className="font-medium">Semester</span>
+          <select
+            className={selectClass}
+            value={draft.semester}
+            onChange={e => setTerm({ ...draft, semester: e.target.value })}
+          >
+            {!draft.semester && <option value="">Choose semester</option>}
+            {SEMESTERS.map(s => (
+              <option key={s} value={s}>
+                {s} semester
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1.5 text-sm">
+          <span className="font-medium">Academic year</span>
+          <select
+            className={selectClass}
+            value={draft.academicYear}
+            onChange={e => setTerm({ ...draft, academicYear: e.target.value })}
+          >
+            {years.map(y => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <Button
+        disabled={!changed || !draft.semester || save.isPending}
+        onClick={() => save.mutate({ semester: draft.semester, academicYear: draft.academicYear })}
+      >
+        <Save />
+        {save.isPending ? "Saving..." : "Update semester"}
+      </Button>
+      <p className="student-muted text-xs">To change your programme or level, contact your administrator.</p>
+    </Panel>
+  );
+}
+
 export default function StudentAccount({
   settings = false,
 }: {
@@ -413,6 +497,7 @@ export default function StudentAccount({
           </div>
           <div className="student-account-column">
             {summary}
+            {!settings && <AcademicDetails />}
             {settings ? (
               <Panel
                 title="Learning preferences"

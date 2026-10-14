@@ -76,6 +76,7 @@ export function DocumentChatBox({ documentId, height = "600px", className }: Doc
       messages={messages}
       onSendMessage={handleSendMessage}
       isLoading={sendMessageMutation.isPending || historyLoading}
+      isGenerating={sendMessageMutation.isPending}
       placeholder="Ask the AI anything, or try /summary, /flashcards, /quiz …"
       emptyStateMessage="Ask questions about this document, or use AI commands: /summary, /flashcards 10, /quiz 5."
       suggestedPrompts={["/summary", "/flashcards 10", "/quiz 5"]}

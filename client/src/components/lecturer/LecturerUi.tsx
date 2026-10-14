@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { AnimatedCard } from "@/components/motion/AnimatedCard";
+import { AnimatedStatValue } from "@/components/motion/AnimatedStatValue";
 import { BookOpen, GraduationCap, ShieldCheck, Settings, Megaphone, FileText, BarChart3, Users, type LucideIcon } from "lucide-react";
 
 export function LecturerHero({ title, eyebrow, description, icon: Icon = BookOpen, actions }: { title: string; eyebrow?: string; description?: string; icon?: LucideIcon; actions?: ReactNode }) {
@@ -12,7 +14,7 @@ export function LecturerHero({ title, eyebrow, description, icon: Icon = BookOpe
 }
 
 export function LecturerStats({ items }: { items: { label: string; value: ReactNode; hint: string; icon?: LucideIcon }[] }) {
-  return <section className="lecturer-stats">{items.map(({ label, value, hint, icon: Icon = Users }, i) => <div className={`lecturer-stat lecturer-tone-${i % 4}`} key={label}><span className="lecturer-stat-icon"><Icon /></span><div><p>{label}</p><strong>{value}</strong><small>{hint}</small></div></div>)}</section>;
+  return <section className="lecturer-stats">{items.map(({ label, value, hint, icon: Icon = Users }, i) => <AnimatedCard className={`lecturer-stat lecturer-tone-${i % 4}`} key={label} delay={i * .05}><span className="lecturer-stat-icon"><Icon /></span><div><p>{label}</p><strong><AnimatedStatValue value={value} /></strong><small>{hint}</small></div></AnimatedCard>)}</section>;
 }
 
 export function downloadCsv(filename: string, rows: unknown[][]) {

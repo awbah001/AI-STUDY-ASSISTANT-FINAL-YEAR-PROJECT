@@ -37,6 +37,11 @@ import {
   UserDetailSheet,
   type UserSummary,
 } from "../../src/components/staff/admin/UserDetailSheet";
+import {
+  programmePickOptions,
+  studentAcademicLine,
+} from "../../src/components/staff/admin/AcademicKit";
+import { levelLabel, yearsForProgrammes } from "../../../shared/academics";
 
 type RoleFilter = "all" | "user" | "lecturer" | "admin";
 type StatusFilter = "all" | "active" | "banned";
@@ -64,6 +69,8 @@ export default function AdminUsers() {
   const [role, setRole] = useState<RoleFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
+  const [programmeFilter, setProgrammeFilter] = useState(0);
+  const [levelFilter, setLevelFilter] = useState(0);
   const [target, setTarget] = useState<UserSummary | null>(null);
   const [creating, setCreating] = useState(false);
   const [newRole, setNewRole] = useState<NewRole>("user");
@@ -91,7 +98,11 @@ export default function AdminUsers() {
     search: debounced,
     role: role === "all" ? undefined : role,
     status: status === "all" ? undefined : status,
+    programmeId: role === "user" && programmeFilter ? programmeFilter : undefined,
+    level: role === "user" && levelFilter ? levelFilter : undefined,
   });
+  const catalogue = trpc.academics.admin.catalogue.useQuery();
+  const programmeOptions = programmePickOptions(catalogue.data?.faculties ?? []);
   const allSummary = trpc.admin.listUsers.useQuery({
     page: 1,
     pageSize: 1,
@@ -160,6 +171,7 @@ export default function AdminUsers() {
       onRefresh={() =>
         Promise.all([
           users.refetch(),
+          catalogue.refetch(),
           allSummary.refetch(),
           studentSummary.refetch(),
           lecturerSummary.refetch(),
@@ -270,6 +282,36 @@ export default function AdminUsers() {
           { value: "banned", label: "Suspended" },
         ]}
       />
+      {role === "user" && programmeOptions.length ? (
+        <>
+          <FilterLabel>Programme</FilterLabel>
+          <ChipSelect<number>
+            value={programmeFilter}
+            onChange={value => {
+              setProgrammeFilter(value);
+              setPage(1);
+            }}
+            options={[
+              { value: 0, label: "All programmes" },
+              ...programmeOptions.map(p => ({ value: p.id, label: p.title })),
+            ]}
+          />
+          <FilterLabel>Year</FilterLabel>
+          <ChipSelect<number>
+            value={levelFilter}
+            onChange={value => {
+              setLevelFilter(value);
+              setPage(1);
+            }}
+            options={[
+              { value: 0, label: "All years" },
+              ...yearsForProgrammes(catalogue.data?.faculties ?? [], programmeFilter ? [programmeFilter] : []).map(
+                l => ({ value: l, label: levelLabel(l) })
+              ),
+            ]}
+          />
+        </>
+      ) : null}
 
       {users.isLoading ? (
         <Loading />
@@ -292,7 +334,7 @@ export default function AdminUsers() {
             iconColor={item.isBanned ? colors.error : colors.primary}
             title={`${item.name ?? "Unnamed user"}${item.id === me?.id ? " (you)" : ""}`}
             subtitle={item.email}
-            meta={`${roleLabel(item.role)} · ${Math.round(item.averageQuizScore ?? 0)}% engagement · ${item.quizzesAttempted ?? 0} quizzes · Joined ${formatDate(item.createdAt)}${item.lastSignedIn ? ` · Last seen ${formatDate(item.lastSignedIn)}` : ""}`}
+            meta={`${item.role === "user" ? studentAcademicLine(item.academic) : roleLabel(item.role)} · ${Math.round(item.averageQuizScore ?? 0)}% engagement · ${item.quizzesAttempted ?? 0} quizzes · Joined ${formatDate(item.createdAt)}${item.lastSignedIn ? ` · Last seen ${formatDate(item.lastSignedIn)}` : ""}`}
             right={
               <Badge
                 label={item.isBanned ? "Suspended" : "Active"}

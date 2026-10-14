@@ -1,5 +1,9 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -10,12 +14,14 @@ import {
   Sun, Moon, GraduationCap, Megaphone, ClipboardCheck, ChartNoAxesCombined,
   LibraryBig, ChevronRight, Menu, ServerCog, School, FileBarChart,
   BotMessageSquare, Layers, ListChecks, CalendarDays, TrendingUp,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
+import { motion, useAnimationControls, useReducedMotion } from "framer-motion";
 
 const ROLE_THEME = {
   admin: {
@@ -95,6 +101,7 @@ const getMenuItems = (role: string = "user"): MenuItem[] => {
 function isPathActive(path: string, location: string) {
   if (location === path) return true;
   if (path === "/admin" || path === "/lecturer/dashboard") return false;
+  if (path === "/student/courses" && location.startsWith("/course/")) return true;
   return location.startsWith(`${path}/`);
 }
 
@@ -128,10 +135,21 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
   const isMobile = useIsMobile();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const pageAnimation = useAnimationControls();
+  const reduced = useReducedMotion();
   const searchRef = useRef<HTMLInputElement>(null);
+  const pageRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (reduced) { pageAnimation.set({ opacity: 1 }); return; }
+    pageAnimation.set({ opacity: .55 });
+    void pageAnimation.start({ opacity: 1, transition: { duration: .3, ease: "easeOut" } });
+    return () => pageAnimation.stop();
+  }, [location, reduced, pageAnimation]);
   const [search, setSearch] = useState("");
   const inbox = trpc.notifications.list.useQuery(undefined, { enabled: user?.role === "user" });
-  const searchCourses = trpc.studentCourses.list.useQuery(undefined, { enabled: user?.role === "user" && search.length > 1 });
+  const openCourseId = Number(location.match(/^\/course\/(\d+)$/)?.[1] ?? 0);
+  const searchCourses = trpc.studentCourses.list.useQuery(undefined, { enabled: user?.role === "user" && (search.length > 1 || openCourseId > 0) });
   const searchDocuments = trpc.documents.list.useQuery(undefined, { enabled: user?.role === "user" && search.length > 1 });
   useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.ctrlKey || event.metaKey) && event.key === "k") { event.preventDefault(); searchRef.current?.focus(); } if (event.key === "Escape") setSearch(""); }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, []);
 
@@ -151,10 +169,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       settingsSectionId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
     : null;
   const academicSubLabel = location.startsWith("/admin/academic") ? "Assign Course" : null;
-  const crumbSubLabel = settingsSectionLabel ?? academicSubLabel;
+  const courseSubLabel = openCourseId ? searchCourses.data?.find((c) => c.id === openCourseId)?.title ?? null : null;
+  const crumbSubLabel = settingsSectionLabel ?? academicSubLabel ?? courseSubLabel;
 
   return (
-    <div className={`dashboard-shell ${role === "admin" ? "admin-shell" : role === "lecturer" ? "lecturer-shell" : "student-shell"} flex min-h-screen p-3 ${t.sidebar}`}>
+    <div className={`dashboard-shell ${!isMobile && collapsed ? "sidebar-compact" : ""} ${role === "admin" ? "admin-shell" : role === "lecturer" ? "lecturer-shell" : "student-shell"} flex min-h-screen p-3 ${t.sidebar}`}>
       {isMobile && mobileOpen && (
         <div className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
       )}
@@ -170,7 +189,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-emerald-400 shadow-lg shadow-emerald-950/40 ring-1 ring-white/30">
             <img src="/logo.png" alt="Course-Specific AI Learning Assistant" className="h-full w-full object-cover" />
           </div>
-          <div className="min-w-0">
+          <div className="sidebar-brand-copy min-w-0">
             <p className="text-[13.5px] font-bold leading-[1.15] tracking-tight text-white">
               <span className="sidebar-brand-line">Course-Specific</span>
               <span className="sidebar-brand-line sidebar-brand-sub">AI Learning Assistant</span>
@@ -195,6 +214,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                       <button
                         type="button"
                         aria-current={isActive ? "page" : undefined}
+                        aria-label={item.label} title={collapsed ? item.label : undefined}
                         onClick={() => { setLocation(item.path); setMobileOpen(false); }}
                         className={[
                           "sidebar-nav-item group relative flex w-full items-center gap-3 rounded-2xl px-2.5 py-2 text-[13.5px] font-semibold",
@@ -206,8 +226,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                             : "text-emerald-50/80 hover:bg-white/10 hover:text-white",
                         ].join(" ")}
                       >
-                        {isActive && role === "admin" ? (
-                          <span
+                        {isActive ? (
+                          <motion.span layoutId={`sidebar-active-${role}`} transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 350, damping: 32 }}
                             aria-hidden
                             className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-[#34d399]"
                           />
@@ -222,7 +242,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                         ].join(" ")}>
                           <item.icon strokeWidth={isActive ? 2.4 : 2} className="h-[16px] w-[16px]" />
                         </span>
-                        <span className="flex-1 text-left leading-tight">{item.label}</span>
+                        <span className="sidebar-nav-label flex-1 text-left leading-tight">{item.label}</span>
                       </button>
                     </li>
                   );
@@ -240,13 +260,14 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                 {user?.name?.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div className="min-w-0 flex-1">
+            <div className="sidebar-account-details min-w-0 flex-1">
               <p className="truncate text-[13px] font-semibold text-white">{user?.name}</p>
               <p className="truncate text-[11px] text-emerald-100/60">{role === "admin" ? "Administrator" : role === "lecturer" ? "Lecturer" : "Student"}</p>
             </div>
           </div>
           <button
             type="button"
+            aria-label="Sign out"
             onClick={async () => {
               await logout();
               window.location.replace("/login");
@@ -254,7 +275,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[13px] font-semibold text-emerald-100/70 transition-colors hover:bg-white/10 hover:text-white"
           >
             <LogOut strokeWidth={2} className="h-4 w-4 shrink-0" />
-            Logout
+            <span className="sidebar-nav-label">Logout</span>
           </button>
         </div>
       </aside>
@@ -265,6 +286,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       ].join(" ")}>
         <header className="dashboard-topbar sticky top-0 z-20 flex h-[72px] shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-5 backdrop-blur supports-[backdrop-filter]:bg-white/85 sm:px-8">
           <div className="flex items-center gap-3 min-w-0">
+            {!isMobile && <button type="button" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)} className="sidebar-collapse-control flex size-8 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500">
+              {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+            </button>}
             {isMobile && (
               <button type="button" aria-label="Open navigation" onClick={() => setMobileOpen(true)}
                 className="mr-1 flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
@@ -288,7 +312,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                         ? () => setLocation("/admin/settings")
                         : academicSubLabel
                           ? () => setLocation("/admin/academic")
-                          : undefined
+                          : courseSubLabel
+                            ? () => setLocation("/student/courses")
+                            : undefined
                     }
                   >
                     {activeItem.label}
@@ -328,7 +354,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             </label>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button type="button" aria-label="Notifications" onClick={() => role === "user" && setLocation("/student/notifications")}
               className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors">
               <Bell strokeWidth={2} className="h-[18px] w-[18px]" />
@@ -338,24 +364,42 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors">
               {theme === "light" ? <Moon strokeWidth={2} className="h-[18px] w-[18px]" /> : <Sun strokeWidth={2} className="h-[18px] w-[18px]" />}
             </button>
-            <div className="dashboard-account flex items-center gap-2 rounded-xl border border-slate-200 bg-white pl-1.5 pr-3 py-1 shadow-sm">
-              <Avatar className="h-7 w-7 rounded-lg">
-                {user?.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" className="object-cover rounded-lg" /> : null}
-                <AvatarFallback className={`rounded-lg text-xs font-bold text-white ${t.avatar}`}>
-                  {user?.name?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="hidden sm:block leading-none">
-                <p className="text-[13px] font-semibold text-slate-900 truncate max-w-[140px]">{user?.name}</p>
-                <p className="text-[11px] text-slate-500 truncate max-w-[140px]">{user?.email}</p>
-              </div>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" aria-label="Open profile menu" className="dashboard-account flex items-center gap-2 rounded-xl border border-slate-200 bg-white pl-1.5 pr-3 py-1 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+                  <Avatar className="h-7 w-7 rounded-lg">
+                    {user?.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" className="object-cover rounded-lg" /> : null}
+                    <AvatarFallback className={`rounded-lg text-xs font-bold text-white ${t.avatar}`}>
+                      {user?.name?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="hidden sm:block leading-none text-left">
+                    <p className="text-[13px] font-semibold text-slate-900 truncate max-w-[140px]">{user?.name}</p>
+                    <p className="text-[11px] text-slate-500 truncate max-w-[140px]">{user?.email}</p>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onSelect={() => setLocation(role === "admin" ? "/admin/settings/profile" : "/profile")}>
+                  <UserRound />
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onSelect={async () => {
+                  await logout();
+                  window.location.replace("/login");
+                }}>
+                  <LogOut />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
-        <main className="dashboard-page flex-1 overflow-y-auto p-5 sm:p-8">
+        <motion.main ref={pageRef} animate={pageAnimation} className="dashboard-page flex-1 overflow-y-auto p-5 sm:p-8">
           {children}
-        </main>
+        </motion.main>
       </div>
     </div>
   );

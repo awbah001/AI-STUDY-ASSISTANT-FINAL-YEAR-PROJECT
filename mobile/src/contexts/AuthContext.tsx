@@ -9,6 +9,7 @@ import * as SecureStore from "expo-secure-store";
 import { trpc, bumpAuthSession } from "../lib/api";
 import { setAuthSessionKey } from "../lib/authSession";
 import { registerForPushNotifications } from "../lib/notifications";
+import { setOfflineOwner } from "../lib/offlineStudy";
 
 const TOKEN_KEY = "cognify_auth_token";
 
@@ -87,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (newToken: string, newUser: AuthUser) => {
     bumpAuthSession();
     await SecureStore.setItemAsync(TOKEN_KEY, newToken);
+    await setOfflineOwner(newUser.id);
     setAuthSessionKey(`user-${newUser.id}`);
     setTokenState(newToken);
     setUser(newUser);
@@ -95,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     bumpAuthSession();
     await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await setOfflineOwner(null);
     setAuthSessionKey("guest");
     setTokenState(null);
     setUser(null);

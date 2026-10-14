@@ -24,6 +24,7 @@
     "mobile:ios": "pnpm cap:ios"
   },
   "dependencies": {
+    "@xmldom/xmldom": "^0.9.9",
     "@aws-sdk/client-s3": "^3.693.0",
     "@aws-sdk/s3-request-presigner": "^3.693.0",
     "@capacitor/android": "^8.3.4",
@@ -73,6 +74,7 @@
     "embla-carousel-react": "^8.6.0",
     "express": "^4.21.2",
     "framer-motion": "^12.23.22",
+    "fflate": "^0.8.2",
     "input-otp": "^1.4.2",
     "jose": "6.1.0",
     "lucide-react": "^0.453.0",

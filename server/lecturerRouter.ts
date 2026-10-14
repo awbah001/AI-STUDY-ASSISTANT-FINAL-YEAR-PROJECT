@@ -13,6 +13,12 @@ import { assessmentTemplates, assignmentSubmissions, assignments, courseEnrollme
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 const materialTypeSchema = z.enum(["pdf", "docx", "pptx"]);
+
+/** Covers must be images the lecturer uploaded themselves, or images on external storage. */
+export function isCourseCoverUrl(url: string, lecturerId: number) {
+  const image = /\.(jpe?g|png|webp)(\?.*)?$/i.test(url);
+  return image && (url.startsWith(`/uploads/${lecturerId}/courses/`) || /^https:\/\//i.test(url));
+}
 const rubricCriterionSchema = z.object({
   criterion: zText("Criterion", { max: LIMITS.shortText }),
   maxPoints: z.number().positive("Points must be more than 0.").max(1000, "Points must be at most 1000."),
@@ -50,10 +56,14 @@ export const lecturerRouter = router({
           subject: zOptionalText("Subject", 100).optional(),
           description: zOptionalText("Description", LIMITS.description).optional(),
           isActive: z.boolean().optional(),
+          coverImageUrl: z.string().trim().max(2048).nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
         const { courseId, ...patch } = input;
+        if (patch.coverImageUrl && !isCourseCoverUrl(patch.coverImageUrl, ctx.user.id)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Upload a JPG, PNG or WebP image for the course cover." });
+        }
         const updated = await lecturerQueries.updateCourse(courseId, ctx.user.id, patch);
         if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
         return updated;
@@ -133,13 +143,8 @@ export const lecturerRouter = router({
           materialType: materialType ?? "pdf",
           mimeType: docData.mimeType || "application/pdf",
         });
-        if (doc.extractedText?.trim()) {
-          try {
-            await llmUtils.indexDocumentForRag(doc.id, doc.extractedText);
-          } catch (e) {
-            console.error("RAG indexing failed:", e);
-          }
-        }
+        const { getSystemSettings } = await import("./settings");
+        documentAi.enqueueDocumentProcessing(doc.id, (await getSystemSettings()).content.autoIndex);
         return doc;
       }),
     delete: lecturerProcedure

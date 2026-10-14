@@ -48,7 +48,7 @@ describe("fallbackCalendarDrafts", () => {
   it("uses an explicit date from the student request", () => {
     const now = Date.parse("2026-09-16T10:00:00.000Z");
     const events = fallbackCalendarDrafts(
-      "Create a study plan for Artificial Intelligence which on the 25 September at 9am",
+      "Create a study plan for my Artificial Intelligence exam on the 25 September at 9am",
       now
     );
     const exam = events.find((e) => e.type === "exam");
@@ -109,7 +109,7 @@ describe("formatStudyPlanReply", () => {
     expect(rows[0]).toMatch(/^\| Day 1 of 2 \|.*\| Foundations: GIS \| start \|$/);
     expect(rows[1]).toMatch(/^\| Day 2 of 2 \|.*\| Mock exam: GIS \| mock \|$/);
     expect(rows[2]).toMatch(/^\| Exam \|.*\| GIS exam \| assessment \|$/);
-    expect(reply).toContain("| Day | Date | Time | Session | What to do |");
+    expect(reply).toContain("| Day | Date | Time | Topic | What to do |");
     expect(PLAN_SAVED_PATTERN.test(reply)).toBe(true);
   });
 });

@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "../../src/lib/api";
 import { colors, gradients } from "../../src/theme/colors";
+import { DocumentProcessingStatus } from "../../src/components/study/DocumentProcessingStatus";
 
 type Filter = "All" | "PDF" | "PPT" | "DOC";
 const FILTERS: Filter[] = ["All", "PDF", "PPT", "DOC"];
@@ -68,7 +69,7 @@ export default function LibraryScreen() {
     data: documents,
     isLoading,
     refetch,
-  } = trpc.documents.list.useQuery();
+  } = trpc.documents.list.useQuery(undefined, { refetchInterval: query => query.state.data?.some(doc => ["pending", "processing"].includes(doc.processingStatus)) ? 2500 : false });
 
   const filtered = (documents ?? []).filter(doc => {
     const matchSearch = doc.title.toLowerCase().includes(search.toLowerCase());
@@ -93,6 +94,7 @@ export default function LibraryScreen() {
           </Text>
           <Text style={s.title}>Library</Text>
         </View>
+        <TouchableOpacity onPress={() => router.push("/offline-study" as any)}><Text style={{ color: colors.primary }}>Downloads</Text></TouchableOpacity>
       </View>
 
       {/* ── Search ── */}
@@ -195,6 +197,7 @@ export default function LibraryScreen() {
                   <Text style={s.rowTitle} numberOfLines={1}>
                     {doc.title}
                   </Text>
+                  <DocumentProcessingStatus doc={doc} />
                   <View style={s.rowMetaLine}>
                     <View style={[s.typeTag, { backgroundColor: bg }]}>
                       <Text style={[s.typeTagText, { color: col }]}>

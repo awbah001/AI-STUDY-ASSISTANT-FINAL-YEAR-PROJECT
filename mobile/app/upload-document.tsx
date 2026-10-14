@@ -42,8 +42,17 @@ const SUPPORTED_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/msword",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.presentation",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/rtf",
+  "text/rtf",
   "text/plain",
+  "text/markdown",
+  "text/csv",
+  "text/tab-separated-values",
+  "image/*",
 ];
 
 function mimeIcon(mime: string) {

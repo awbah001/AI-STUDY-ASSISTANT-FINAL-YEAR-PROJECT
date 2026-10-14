@@ -18,14 +18,14 @@ describe("student presentation uses the student's own records", () => {
     );
     await client.executeMultiple(`
       CREATE TABLE users (id INTEGER, name TEXT);
-      CREATE TABLE courses (id INTEGER, title TEXT, subject TEXT, code TEXT, description TEXT, lecturerId INTEGER);
+      CREATE TABLE courses (id INTEGER, title TEXT, subject TEXT, code TEXT, description TEXT, lecturerId INTEGER, coverImageUrl TEXT);
       CREATE TABLE courseEnrollments (studentId INTEGER, courseId INTEGER, enrolledAt INTEGER);
       CREATE TABLE documents (id INTEGER, courseId INTEGER, title TEXT);
       CREATE TABLE progressTracking (documentId INTEGER, userId INTEGER, flashcardsReviewed INTEGER, quizzesAttempted INTEGER, totalStudyTimeMinutes INTEGER);
       CREATE TABLE quizzes (id INTEGER, userId INTEGER, title TEXT, totalQuestions INTEGER, documentId INTEGER, createdAt INTEGER);
       CREATE TABLE studentActivities (userId INTEGER, type TEXT, metadata TEXT, createdAt INTEGER);
       INSERT INTO users VALUES (10,'Lecturer');
-      INSERT INTO courses VALUES (1,'Course one','Science','ABC123','Description',10),(2,'Private course','Science','XYZ123','Description',10);
+      INSERT INTO courses VALUES (1,'Course one','Science','ABC123','Description',10,NULL),(2,'Private course','Science','XYZ123','Description',10,NULL);
       INSERT INTO courseEnrollments VALUES (1,1,1000),(2,1,1000),(2,2,1000);
       INSERT INTO documents VALUES (1,1,'First material'),(2,1,'Unopened material'),(3,2,'Private material');
       INSERT INTO progressTracking VALUES (1,1,10,1,30),(1,2,0,0,0);

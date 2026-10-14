@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { Quiz } from "@shared/types";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { PracticeMistakes } from "@/components/PracticeMistakes";
 
@@ -22,6 +22,7 @@ interface AnswerState {
 
 export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
   const { user } = useAuth();
+  const reduced = useReducedMotion();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerState>({});
   const [showResults, setShowResults] = useState(false);
@@ -112,7 +113,7 @@ export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
+        transition={{ duration: reduced ? 0 : .3 }}
       >
         <Card className="text-center">
           <CardHeader>
@@ -168,7 +169,7 @@ export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
         key={currentQuestion.id}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
+        transition={{ duration: reduced ? 0 : .3 }}
       >
         <Card>
           <CardHeader>
@@ -178,12 +179,12 @@ export function QuizComponent({ quiz, onComplete }: QuizComponentProps) {
             <RadioGroup value={currentAnswer} onValueChange={handleSelectAnswer}>
               <div className="space-y-3">
                 {currentQuestion.options?.map((option, idx) => (
-                  <div key={idx} className="flex items-center space-x-3 p-3 rounded-lg border border-input hover:bg-accent cursor-pointer transition-colors">
+                  <motion.div key={idx} className="quiz-answer flex items-center space-x-3 p-3 rounded-lg border border-input hover:bg-accent cursor-pointer transition-colors" data-selected={currentAnswer === option} animate={{ scale: currentAnswer === option ? 1.008 : 1 }} transition={{ duration: reduced ? 0 : .18 }}>
                     <RadioGroupItem value={option} id={`quiz-${quiz.id}-option-${idx}`} />
                     <Label htmlFor={`quiz-${quiz.id}-option-${idx}`} className="flex-1 cursor-pointer font-normal">
                       {option}
                     </Label>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </RadioGroup>

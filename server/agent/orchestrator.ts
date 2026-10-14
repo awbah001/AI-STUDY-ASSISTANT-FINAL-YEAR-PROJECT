@@ -2,12 +2,13 @@ import { randomUUID } from "crypto";
 import { classifyLearningIntent, type LearningIntent } from "./intents";
 import { resolveCourseFromMessage } from "./access";
 import { runAgenticToolLoop, shouldReportInsufficient } from "./agentLoop";
-import { formatStudyPlanReply } from "../calendar";
+import { formatStudyPlanReply, type TimetablePresentation } from "../calendar";
 import { executeAgentTool } from "./tools";
 import { currentLlmProviderName } from "./llmProvider";
 import { logAgentToolRun, upsertAgentSession } from "./persist";
 import { getAiService } from "../ai";
 import * as lecturerQueries from "../lecturerQueries";
+import { withDocumentSources } from "../documentSources";
 import {
   INSUFFICIENT_COURSE_CONTEXT,
   type AgentRunInput,
@@ -97,7 +98,9 @@ function formatToolReply(
           notes?: string | null;
         }>)
       : [];
-    if (events.length) return formatStudyPlanReply(events);
+    const assumptions = Array.isArray(data.assumptions) ? data.assumptions.filter((value): value is string => typeof value === "string") : [];
+    const presentation = data.presentation as TimetablePresentation | undefined;
+    if (events.length) return formatStudyPlanReply(events, assumptions, presentation);
     return `I've added **${data.created ?? 0} items** to your study planner. Open **Planner** to review the timetable.`;
   }
   return null;
@@ -154,6 +157,7 @@ export async function runLearningAgent(input: AgentRunInput): Promise<AgentRunRe
         user: input.user,
         documentId,
         courseId,
+        requestMessage: input.message,
       },
     });
 
@@ -166,7 +170,7 @@ export async function runLearningAgent(input: AgentRunInput): Promise<AgentRunRe
       const started = Date.now();
       const forced = await executeAgentTool(
         "createStudyTimetable",
-        { user: input.user, documentId, courseId },
+        { user: input.user, documentId, courseId, requestMessage: input.message },
         { message: input.message, courseId }
       );
       loop.toolsUsed.push("createStudyTimetable");
@@ -205,7 +209,9 @@ export async function runLearningAgent(input: AgentRunInput): Promise<AgentRunRe
         !r.ok &&
         (r.tool === "generateQuizDraft" ||
           r.tool === "generateFlashcards" ||
-          r.tool === "generateSummary")
+          r.tool === "generateSummary" ||
+          r.tool === "createStudyTimetable" ||
+          r.tool === "saveCalendarPlan")
     );
     if (failedCritical) {
       return {
@@ -238,7 +244,7 @@ export async function runLearningAgent(input: AgentRunInput): Promise<AgentRunRe
 
     if (loop.response.trim()) {
       return {
-        response: loop.response.trim(),
+        response: withDocumentSources(loop.response.trim(), loop.retrievedChunks),
         intent,
         requestId,
         toolsUsed: loop.toolsUsed,
@@ -252,7 +258,7 @@ export async function runLearningAgent(input: AgentRunInput): Promise<AgentRunRe
         .join("\n\n")
         .slice(0, 1200);
       return {
-        response: `Here is what I found in your materials:\n\n${preview}`,
+        response: withDocumentSources(`Here is what I found in your materials:\n\n${preview}`, loop.retrievedChunks),
         intent,
         requestId,
         toolsUsed: loop.toolsUsed,

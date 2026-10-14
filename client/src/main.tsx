@@ -12,7 +12,11 @@ import "./index.css";
 import "./admin.css";
 import "./lecturer.css";
 import "./student.css";
+import "./student-course.css";
 import "./secondary-accents.css";
+import "./motion.css";
+import "./premium.css";
+import { MotionConfig } from "framer-motion";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -69,7 +73,7 @@ const trpcClient = trpc.createClient({
 createRoot(document.getElementById("root")!).render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <MotionConfig reducedMotion="user"><App /></MotionConfig>
     </QueryClientProvider>
   </trpc.Provider>
 );

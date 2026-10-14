@@ -13,6 +13,7 @@ export type ToolContext = {
   user: User;
   documentId?: number;
   courseId?: number;
+  requestMessage?: string;
 };
 
 export type ToolResult = {
@@ -124,7 +125,11 @@ async function searchCourseMaterial(ctx: ToolContext, raw: unknown): Promise<Too
 
 async function getMaterialContext(ctx: ToolContext, raw: unknown): Promise<ToolResult> {
   const input = documentQueryInput.parse(raw);
-  const doc = await assertDocumentToolAccess(ctx.user, input.documentId);
+  let doc = await assertDocumentToolAccess(ctx.user, input.documentId);
+  if (!doc.extractedText?.trim()) {
+    const { ensureDocumentText } = await import("../documentAiService");
+    doc = await ensureDocumentText(doc.id);
+  }
   const query = input.query?.trim() || doc.title;
   const hits = await retrieveRelevantChunkHits(doc.id, query, 6);
   const chunks: RetrievedChunk[] = hits.map((h) => ({
@@ -301,6 +306,9 @@ async function listCalendarEventsTool(ctx: ToolContext, raw: unknown): Promise<T
 
 async function saveCalendarPlan(ctx: ToolContext, raw: unknown): Promise<ToolResult> {
   if (ctx.user.role !== "user") return fail("Calendar plans are for students.");
+  if (ctx.requestMessage && /\b(timetable|study plan|revision plan)\b/i.test(ctx.requestMessage) && (!/\b(save|add)\b/i.test(ctx.requestMessage) || /\b(create|make|build|generate)\b/i.test(ctx.requestMessage))) {
+    return createStudyTimetable(ctx, { message: ctx.requestMessage, courseId: ctx.courseId });
+  }
   const input = saveCalendarInput.parse(raw);
   const drafts = calendar.parseCalendarEventDrafts(input.events);
   if (!drafts.length) return fail("No valid calendar dates were found.");
@@ -329,11 +337,12 @@ async function createStudyTimetable(ctx: ToolContext, raw: unknown): Promise<Too
     })
     .parse(raw);
 
-  let courseId = input.courseId ?? ctx.courseId;
+  const request = (ctx.requestMessage ?? input.message).trim();
+  let courseId = ctx.courseId ?? input.courseId;
   // If still unknown, try to resolve from enrolled courses + message, or single enrollment.
-  if (!courseId && ctx.user.role === "user") {
+  if (!ctx.courseId && !ctx.documentId && ctx.user.role === "user") {
     const courses = await lecturerQueries.getStudentEnrolledCourses(ctx.user.id);
-    const lower = input.message.toLowerCase();
+    const lower = request.toLowerCase();
     const match = courses.find((c) => {
       const hay = [c.code, c.title, c.subject].filter(Boolean).join(" ").toLowerCase();
       return Boolean(
@@ -345,7 +354,9 @@ async function createStudyTimetable(ctx: ToolContext, raw: unknown): Promise<Too
     });
     courseId = match?.id ?? (courses.length === 1 ? courses[0].id : undefined);
   }
-  let enrichedMessage = input.message.trim();
+  const enrichedMessage = request;
+  let subject: string | undefined;
+  let materials: calendar.TimetableMaterial[] = [];
   const digestParts: string[] = [];
   if (input.progressDigest?.trim()) digestParts.push(input.progressDigest.trim());
 
@@ -355,9 +366,7 @@ async function createStudyTimetable(ctx: ToolContext, raw: unknown): Promise<Too
       const course = await lecturerQueries.getCourseById(courseId);
       if (course) {
         const label = [course.code, course.title].filter(Boolean).join(" — ") || course.title;
-        if (label && !enrichedMessage.toLowerCase().includes(String(course.title).toLowerCase())) {
-          enrichedMessage = `${enrichedMessage} (course: ${label})`;
-        }
+        subject = course.title;
         digestParts.push(`Course: ${label}`);
         const assignments = await lecturerQueries.getCourseAssignments(courseId, course.lecturerId);
         const upcoming = assignments
@@ -371,21 +380,6 @@ async function createStudyTimetable(ctx: ToolContext, raw: unknown): Promise<Too
                 .map((a) => `${a.title} due ${new Date(a.dueDate!).toISOString().slice(0, 10)}`)
                 .join("; ")
           );
-          // If the student gave no date, anchor the plan on the soonest due date.
-          const hasDate =
-            /\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(
-              enrichedMessage
-            ) ||
-            /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}/i.test(enrichedMessage) ||
-            /\b(tomorrow|next week|in\s+\d+\s+days?)\b/i.test(enrichedMessage);
-          if (!hasDate && upcoming[0]?.dueDate) {
-            const due = new Date(upcoming[0].dueDate);
-            enrichedMessage += ` focusing on ${upcoming[0].title} due ${due.toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}`;
-          }
         }
         const docs =
           ctx.user.role === "user"
@@ -395,6 +389,10 @@ async function createStudyTimetable(ctx: ToolContext, raw: unknown): Promise<Too
           digestParts.push(
             "Course materials: " + docs.slice(0, 8).map((d) => d.title).join("; ")
           );
+          for (const listed of docs.slice(0, 8)) {
+            const doc = await assertDocumentToolAccess(ctx.user, listed.id);
+            if (doc.extractedText?.trim()) materials.push({ id: doc.id, title: doc.title, text: doc.extractedText });
+          }
         }
       }
     } catch (error) {
@@ -402,25 +400,43 @@ async function createStudyTimetable(ctx: ToolContext, raw: unknown): Promise<Too
     }
   }
 
+  if (ctx.documentId) {
+    const doc = await assertDocumentToolAccess(ctx.user, ctx.documentId);
+    const readable = doc.extractedText?.trim() ? doc : await documentAi.ensureDocumentText(doc.id);
+    materials = [{ id: doc.id, title: doc.title, text: readable.extractedText ?? "" }];
+    subject = doc.title;
+    courseId = doc.courseId ?? undefined;
+  } else if (!courseId && /\b(resources?|materials?|notes|documents?|files)\b/i.test(request)) {
+    const own = (await queries.getUserDocuments(ctx.user.id)).filter(doc => doc.userId === ctx.user.id && !doc.courseId);
+    materials = own.filter(doc => doc.extractedText?.trim()).slice(0, 8).map(doc => ({ id: doc.id, title: doc.title, text: doc.extractedText! }));
+  }
+  if (/\b(resources?|materials?|notes|documents?|files)\b/i.test(request) && !materials.length) {
+    return fail(courseId || ctx.documentId ? "I couldn't find readable text in these resources yet. Finish processing the documents, then ask for the timetable again." : "Which resources should I use? Select a course in ‘Chat about’, or open a specific document and ask for its study timetable.");
+  }
+
   const drafts = await calendar.proposeCalendarDrafts(
     enrichedMessage,
-    digestParts.join("\n").slice(0, 2000)
+    digestParts.join("\n").slice(0, 2000),
+    { subject, materials }
   );
   if (!drafts.length) {
     return fail(
-      "Could not build a timetable. Include an exam/test date, for example: “Create a 5-day study plan for my GIS exam on 25 September at 9am.”"
+      "What date is your assessment? Include its date, or ask for a study timetable without an assessment."
     );
   }
 
   const withCourse = courseId
     ? drafts.map((d) => ({ ...d, courseId: d.courseId ?? courseId }))
     : drafts;
-  const created = await calendar.insertCalendarEvents(ctx.user.id, withCourse, "agent");
+  const presentation = calendar.timetablePresentation(request);
+  const created = presentation.saved ? await calendar.insertCalendarEvents(ctx.user.id, withCourse, "agent") : withCourse;
   return ok({
-    created: created.length,
+    created: presentation.saved ? created.length : 0,
     events: created,
     courseId: courseId ?? null,
     usedMessage: enrichedMessage,
+    assumptions: calendar.timetableAssumptions(request, drafts),
+    presentation,
   });
 }
 
@@ -497,7 +513,7 @@ export const agentTools: AgentTool[] = [
   {
     name: "createStudyTimetable",
     description:
-      "Create and save a multi-day exam/study timetable to the student's Planner calendar. ALWAYS use this when the student asks for a study timetable, revision plan, exam schedule, or calendar plan. Pass courseId when known. Prefer including an assessment date in message.",
+      "Create a study timetable from authorized resource text. ALWAYS use this for timetable, revision plan, exam schedule, or calendar plan requests. By default show ordered sessions and tasks, without days, dates, or times. Include those only when specifically requested. Save dated plans to the Planner only when the request supplies or asks for calendar dates. Pass courseId when known and preserve the original request. Never invent an assessment or deadline. Undated assessment revision does not require an exam date.",
     input: z.object({
       message: z.string().min(3).max(1000),
       courseId: z.number().int().positive().optional(),

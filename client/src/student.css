@@ -52,7 +52,7 @@
   max-width: 178.5px;
   margin-top: 4.3px;
 }
-.student-shell .dashboard-topbar > div:last-child > button {
+.student-shell .dashboard-topbar > div:last-child > button:not(.dashboard-account) {
   border-radius: 50%;
   width: 36.6px;
   height: 36.6px;
@@ -423,6 +423,12 @@
   place-items: center;
   flex-shrink: 0;
   color: white;
+  overflow: hidden;
+}
+.student-course-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .student-toolbar {
   display: flex;
@@ -1919,7 +1925,7 @@
     height: 36px;
     font-size: 12px;
   }
-  .student-shell .dashboard-topbar > div:last-child > button {
+  .student-shell .dashboard-topbar > div:last-child > button:not(.dashboard-account) {
     width: 34px;
     height: 34px;
   }

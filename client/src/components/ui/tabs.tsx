@@ -2,6 +2,7 @@ import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { cn } from "@/lib/utils";
+import { motion, useReducedMotion } from "framer-motion";
 
 function Tabs({
   className,
@@ -50,14 +51,19 @@ function TabsTrigger({
 
 function TabsContent({
   className,
+  children,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Content>) {
+  const reduced = useReducedMotion();
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
       className={cn("flex-1 outline-none", className)}
       {...props}
-    />
+      asChild
+    ><motion.div initial={reduced ? false : { opacity: .4, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduced ? 0 : .24 }}>
+      {children}
+    </motion.div></TabsPrimitive.Content>
   );
 }
 

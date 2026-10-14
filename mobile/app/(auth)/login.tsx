@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,8 +18,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { trpc } from "../../src/lib/api";
-import { useGoogleSignIn } from "../../src/lib/useGoogleSignIn";
-import { GoogleButton } from "../../src/components/GoogleButton";
 import { AuthBotHero } from "../../src/components/AuthBotHero";
 import { homeForRole } from "../../src/lib/roleHome";
 import { friendlyError, isNetworkError } from "../../src/lib/friendlyError";
@@ -61,22 +59,6 @@ export default function LoginScreen() {
       );
     },
   });
-
-  const googleMutation = trpc.auth.google.useMutation({
-    onSuccess: async (data) => {
-      await login(data.token, data.user as any);
-      router.replace(homeForRole(data.user.role) as any);
-    },
-    onError: (err) => Alert.alert("Google sign-in failed", friendlyError(err.message, "Please try again.")),
-  });
-
-  const onGoogleToken = useCallback(
-    (idToken: string) => {
-      googleMutation.mutate({ idToken, client: "mobile" });
-    },
-    [googleMutation]
-  );
-  const google = useGoogleSignIn(onGoogleToken);
 
   const handleLogin = () => {
     const ok = check({
@@ -166,20 +148,14 @@ export default function LoginScreen() {
                 </View>
               )}
 
-              <Pressable onPress={handleLogin} disabled={loginMutation.isPending || googleMutation.isPending} style={({ pressed }) => [styles.signInButton, pressed && styles.pressed, loginMutation.isPending && styles.disabled]}>
+              <Pressable onPress={handleLogin} disabled={loginMutation.isPending} style={({ pressed }) => [styles.signInButton, pressed && styles.pressed, loginMutation.isPending && styles.disabled]}>
                 <LinearGradient colors={["#16b47c", "#0e9a7a", "#0f8a8f"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.signInGradient}>
                   {loginMutation.isPending ? <ActivityIndicator color="#fff" /> : <><Text style={styles.signInText}>Sign in</Text><Ionicons name="arrow-forward" color="#fff" size={20} /></>}
                 </LinearGradient>
               </Pressable>
-
-              <View style={styles.orRow}><View style={styles.orLine} /><Text style={styles.orText}>or continue with</Text><View style={styles.orLine} /></View>
-              <GoogleButton
-                pending={googleMutation.isPending}
-                disabled={!google.ready}
-                onPress={() => {
-                  void google.prompt();
-                }}
-              />
+              <Pressable onPress={() => router.push("/offline-study" as any)} style={{ paddingVertical: 12 }}>
+                <Text style={{ color: "#00745d", textAlign: "center" }}>Study downloaded materials offline</Text>
+              </Pressable>
             </View>
           </Animated.View>
         </ScrollView>
@@ -261,7 +237,4 @@ const styles = StyleSheet.create({
   signInText: { color: "#fff", fontSize: 16, fontWeight: "800", letterSpacing: 0.2 },
   pressed: { transform: [{ scale: 0.985 }] },
   disabled: { opacity: 0.65 },
-  orRow: { alignItems: "center", flexDirection: "row", gap: 12, marginTop: 18, marginBottom: 14 },
-  orLine: { backgroundColor: "#e8eef2", flex: 1, height: 1 },
-  orText: { color: "#97abbb", fontSize: 12, fontWeight: "600" },
 });

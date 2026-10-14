@@ -100,7 +100,7 @@ function buildSystemPrompt(input: AgenticLoopInput, systemSnapshotText?: string)
     "Prefer tools over guessing when the student asks about their materials, progress, assignments, or planner.",
     "For quiz/flashcards/summary, a documentId is required (from snapshot or active context).",
     "For course-wide RAG search, a courseId is required (from snapshot or active context).",
-    "For study timetable / revision plan / exam schedule / calendar plan requests, you MUST call createStudyTimetable (do not only describe a plan in text). Pass courseId from the snapshot when available.",
+    "For study timetable / revision plan / exam schedule / calendar plan requests, you MUST call createStudyTimetable. Pass courseId from the snapshot when available. Default to ordered sessions and tasks. Include days, dates, or times only when specifically requested by the student; do not invent a calendar schedule for an undated plan.",
     "If you describe a schedule in text without saving it (for example study habits or a sample week), format it as a markdown table with the columns Day | Time | Session | What to do, one row per session.",
   ];
   if (systemSnapshotText) {
@@ -184,7 +184,7 @@ export async function runAgenticToolLoop(input: AgenticLoopInput): Promise<Agent
 
     const data = result.data as { chunks?: RetrievedChunk[] } | undefined;
     if (result.ok && data?.chunks?.length) {
-      retrievedChunks = data.chunks;
+      retrievedChunks = [...new Map([...retrievedChunks, ...data.chunks].map(chunk => [`${chunk.documentId}:${chunk.chunk}`, chunk])).values()];
     }
 
     console.log(

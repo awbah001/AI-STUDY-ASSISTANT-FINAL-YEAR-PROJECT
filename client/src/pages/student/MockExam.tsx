@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
-import { CheckCircle2, Clock, FileText, GraduationCap, History, Timer, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, FileText, GraduationCap, History, Play, Timer, XCircle } from "lucide-react";
+import { CourseCard } from "@/components/student/CoursePage";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { StudentRing } from "@/components/StudentUi";
@@ -35,16 +36,16 @@ function Choice<T extends number>({
   onChange: (v: T) => void;
 }) {
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">{label}</legend>
-      <div className="student-tabs" role="radiogroup" aria-label={label}>
+    <fieldset>
+      <legend>{label}</legend>
+      <div className="sc-options" role="radiogroup" aria-label={label}>
         {options.map((option) => (
           <button
             key={option}
             type="button"
             role="radio"
             aria-checked={option === value}
-            className={option === value ? "active" : ""}
+            className="sc-option"
             onClick={() => onChange(option)}
           >
             {option} {unit}
@@ -56,7 +57,7 @@ function Choice<T extends number>({
 }
 
 /** Start a timed exam built from a course's materials, and see past attempts. */
-export function MockExamLauncher({ courseId }: { courseId?: number }) {
+export function MockExamLauncher({ courseId, onMore }: { courseId?: number; onMore?: () => void }) {
   const [, navigate] = useLocation();
   const courses = trpc.studentCourses.list.useQuery(undefined, { enabled: !courseId });
   const history = trpc.exams.list.useQuery(courseId ? { courseId } : undefined);
@@ -70,19 +71,22 @@ export function MockExamLauncher({ courseId }: { courseId?: number }) {
   });
 
   return (
-    <section className={panel}>
-      <h2 className="student-panel-title">
-        <span className="student-icon">
-          <GraduationCap />
-        </span>
-        Mock exam
-      </h2>
-      <p className="student-muted">
-        A timed exam written from your course materials, with multiple-choice and short written answers. Answers are
-        marked when you hand in, and your mistakes can become a practice set.
-      </p>
+    <div className="sc-scope">
+      <CourseCard
+        icon={GraduationCap}
+        tone="orange"
+        title="Mock exam"
+        subtitle="A timed exam written from your course materials, with multiple-choice and short written answers. Answers are marked when you hand in, and your mistakes can become a practice set."
+        action={
+          onMore && (
+            <button type="button" className="sc-btn sc-btn--ghost" onClick={onMore}>
+              {history.data?.length ? "Past attempts" : "Learn more"}
+            </button>
+          )
+        }
+      >
       <form
-        className="space-y-4"
+        className="sc-exam"
         noValidate
         onSubmit={(e) => {
           e.preventDefault();
@@ -94,13 +98,13 @@ export function MockExamLauncher({ courseId }: { courseId?: number }) {
         }}
       >
         {!courseId && (
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="exam-course">
-              Course
-            </label>
+          <fieldset>
+            <legend>
+              <label htmlFor="exam-course">Course</label>
+            </legend>
             <select
               id="exam-course"
-              className="h-10 w-full max-w-sm rounded-md border bg-background px-3 text-sm"
+              className="sc-select"
               value={selectedCourse}
               aria-invalid={Boolean(courseError)}
               onChange={(e) => {
@@ -120,18 +124,18 @@ export function MockExamLauncher({ courseId }: { courseId?: number }) {
                 {courseError}
               </p>
             )}
-          </div>
+          </fieldset>
         )}
-        <div className="flex flex-wrap gap-6">
-          <Choice label="Questions" value={questions} options={EXAM_QUESTION_CHOICES} unit="questions" onChange={setQuestions} />
-          <Choice label="Time limit" value={minutes} options={EXAM_MINUTE_CHOICES} unit="min" onChange={setMinutes} />
-        </div>
-        <Button disabled={create.isPending}>
-          <Timer className="size-4" />
-          {create.isPending ? "Writing your exam (this can take a minute)..." : "Start mock exam"}
-        </Button>
+        {!courseId && <span className="sc-exam-divider" aria-hidden />}
+        <Choice label="Questions" value={questions} options={EXAM_QUESTION_CHOICES} unit="questions" onChange={setQuestions} />
+        <span className="sc-exam-divider" aria-hidden />
+        <Choice label="Time limit" value={minutes} options={EXAM_MINUTE_CHOICES} unit="min" onChange={setMinutes} />
+        <button className="sc-btn sc-btn--solid sc-btn--lg sc-exam-start" disabled={create.isPending}>
+          <Play />
+          {create.isPending ? "Writing your exam..." : "Start mock exam"}
+        </button>
       </form>
-      {!!history.data?.length && (
+      {!onMore && !!history.data?.length && (
         <div className="space-y-2">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <History className="size-4" /> Previous attempts
@@ -163,7 +167,8 @@ export function MockExamLauncher({ courseId }: { courseId?: number }) {
           </ul>
         </div>
       )}
-    </section>
+      </CourseCard>
+    </div>
   );
 }
 

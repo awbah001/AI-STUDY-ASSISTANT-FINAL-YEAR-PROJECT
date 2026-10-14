@@ -223,7 +223,7 @@ async function ragOrSlice(
 /**
  * Extract text from a document (PDF, DOCX, PPTX) from a URL.
  */
-export async function extractDocumentText(fileUrl: string): Promise<string> {
+export async function readDocumentBuffer(fileUrl: string): Promise<Buffer> {
   let buffer: Buffer;
   if (fileUrl.startsWith("/uploads/")) {
     const relativePath = fileUrl.replace("/uploads/", "");
@@ -236,24 +236,44 @@ export async function extractDocumentText(fileUrl: string): Promise<string> {
     throw new Error(`Unsupported file URL format: ${fileUrl}`);
   }
   
-  // Try officeparser first (supports docx, pptx, xlsx, etc.)
+  return buffer;
+}
+
+export async function extractDocumentText(fileUrl: string): Promise<string> {
+  const buffer = await readDocumentBuffer(fileUrl);
+  if (buffer.length === 0) throw new Error("The uploaded file is empty.");
+  const extension = fileUrl.split(/[?#]/)[0].split(".").pop()?.toLowerCase();
+  if (["txt", "md", "csv", "tsv"].includes(extension ?? "")) {
+    const text = buffer.toString("utf8").replace(/^\uFEFF/, "").trim();
+    if (!text) throw new Error("This document contains no extractable text.");
+    return text;
+  }
+  // Only PDF bytes may be passed to the legacy PDF fallback.
+  const isPdf = buffer.subarray(0, 1024).includes(Buffer.from("%PDF-"));
+  let officeError: unknown;
   try {
-    const text = await (officeParser as any).parseOfficeAsync(buffer);
-    if (text && text.trim().length > 0) {
-      return text.trim();
-    }
+    const document = await officeParser.parseOffice(buffer);
+    const text = document.toText().trim();
+    if (text) return text;
   } catch (err) {
-    // If officeparser fails, try pdf-parse if it might be a PDF
-    console.log("OfficeParser failed or skipped, trying PDF parser...");
+    officeError = err;
+  }
+
+  if (!isPdf) {
+    if (officeError) {
+      throw new Error("Could not read this document. It may be damaged or in an unsupported format. Try exporting it as PDF, DOCX, or PPTX and uploading again.", { cause: officeError });
+    }
+    throw new Error("This document contains no extractable text.");
   }
 
   try {
     const data = await pdfParse(buffer);
-    return (data.text ?? "").trim();
+    const text = (data.text ?? "").trim();
+    if (text) return text;
   } catch (err) {
-    console.error("All text extraction methods failed:", err);
-    throw new Error("Could not extract text from this file format.");
+    throw new Error("Could not read this PDF. It may be damaged or password-protected. Try opening it and exporting a new PDF before uploading again.", { cause: err });
   }
+  throw new Error("This PDF contains no extractable text. If it is a scan, use OCR to create a searchable PDF before uploading.");
 }
 
 /**

@@ -6,6 +6,8 @@ const Module = require('node:module');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
+const sourceRoutes = [];
+const linkActions = [];
 
 function loadTs(filename) {
   const file = new Module(filename, module);
@@ -14,13 +16,17 @@ function loadTs(filename) {
   const originalRequire = file.require.bind(file);
   file.require = (id) => {
     if (id === 'react-native') return {
-      Text: ({ children, style }) => React.createElement('span', { style: Object.assign({}, ...[style].flat().filter(Boolean)) }, children),
+      Text: ({ children, style, onPress, accessibilityRole }) => {
+        if (accessibilityRole === 'link' && onPress) linkActions.push(onPress);
+        return React.createElement('span', { style: Object.assign({}, ...[style].flat().filter(Boolean)) }, children);
+      },
       View: ({ children }) => React.createElement('div', null, children),
       StyleSheet: { create: value => value },
       Platform: { OS: 'ios' },
       Alert: { alert() {} },
       Linking: { openURL() {} },
     };
+    if (id === 'expo-router') return { router: { push: route => sourceRoutes.push(route) } };
     if (id === '../theme/colors') return loadTs(path.resolve(path.dirname(filename), '../theme/colors.ts'));
     return originalRequire(id);
   };
@@ -46,4 +52,7 @@ assert.ok(render('| Value | Meaning |\n|---|---|\n| a \\| b | Either |').include
 assert.ok(render('An unfinished **response').includes('response'));
 assert.ok(render('<script>alert("x")</script>').includes('&lt;script&gt;'));
 assert.equal(render(''), '<div></div>');
+render('[Notes — view source excerpt](/document/7?tab=notes&source=0123456789abcdef01234567)');
+linkActions.at(-1)();
+assert.deepEqual(sourceRoutes.at(-1), { pathname: '/document/[id]', params: { id: '7', tab: 'notes', source: '0123456789abcdef01234567' } });
 console.log('Chat rendering checks passed: table cards, formatting, lists, code, escaped pipes, incomplete text, and inert HTML.');

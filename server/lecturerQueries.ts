@@ -13,6 +13,7 @@ import {
   quizzes,
   studySessions,
   studentActivities,
+  studentProfiles,
   users,
   type Course,
   type Document,
@@ -87,7 +88,7 @@ export async function createCourse(
 export async function updateCourse(
   courseId: number,
   lecturerId: number,
-  patch: Partial<Pick<InsertCourse, "title" | "subject" | "description" | "isActive">>
+  patch: Partial<Pick<InsertCourse, "title" | "subject" | "description" | "isActive" | "coverImageUrl">>
 ): Promise<Course | undefined> {
   const db = await getDb();
   if (!db) return undefined;
@@ -180,6 +181,14 @@ export async function removeStudentFromCourse(
   return true;
 }
 
+const academicColumns = {
+  studentNumber: studentProfiles.studentNumber,
+  programmeId: studentProfiles.programmeId,
+  programme: studentProfiles.programme,
+  level: studentProfiles.academicLevel,
+  academicStatus: studentProfiles.academicStatus,
+};
+
 export async function getCourseStudents(courseId: number, lecturerId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -194,9 +203,11 @@ export async function getCourseStudents(courseId: number, lecturerId: number) {
       email: users.email,
       avatarUrl: users.avatarUrl,
       enrolledAt: courseEnrollments.enrolledAt,
+      ...academicColumns,
     })
     .from(courseEnrollments)
     .innerJoin(users, eq(courseEnrollments.studentId, users.id))
+    .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
     .where(and(eq(courseEnrollments.courseId, courseId), eq(users.role, "user")))
     .orderBy(desc(courseEnrollments.enrolledAt));
 }
@@ -218,10 +229,12 @@ export async function getAllLecturerStudents(lecturerId: number) {
       courseId: courses.id,
       courseTitle: courses.title,
       enrolledAt: courseEnrollments.enrolledAt,
+      ...academicColumns,
     })
     .from(courseEnrollments)
     .innerJoin(users, eq(courseEnrollments.studentId, users.id))
     .innerJoin(courses, eq(courseEnrollments.courseId, courses.id))
+    .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
     .where(and(inArray(courseEnrollments.courseId, courseIds), eq(users.role, "user")))
     .orderBy(desc(courseEnrollments.enrolledAt));
 }
@@ -683,6 +696,7 @@ export async function getStudentEnrolledCourses(studentId: number) {
       subject: courses.subject,
       code: courses.code,
       description: courses.description,
+      coverImageUrl: courses.coverImageUrl,
       enrolledAt: courseEnrollments.enrolledAt,
       lecturerName: users.name,
     })

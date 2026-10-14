@@ -13,7 +13,8 @@ import {
   studentProfiles,
   studySessions,
 } from "../drizzle/schema";
-import { academicProfileSchema, FOCUS_GOALS, LEARN_MODES, ONBOARDING_STEPS, type OnboardingStep } from "../shared/studentLearning";
+import { ACADEMIC_PROFILE_FIELDS, academicProfileSchema, FOCUS_GOALS, LEARN_MODES, ONBOARDING_STEPS, type OnboardingStep } from "../shared/studentLearning";
+import * as academics from "./academics";
 import { studentProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import * as lecturerQueries from "./lecturerQueries";
@@ -47,8 +48,13 @@ function isStep(value: string | null | undefined): OnboardingStep {
     : "welcome";
 }
 
+/** Stored details are judged by presence only, so profiles saved before the dropdowns stay complete. */
+function academicDetailsFilled(row: typeof studentProfiles.$inferSelect) {
+  return ACADEMIC_PROFILE_FIELDS.every(({ key }) => Boolean(row[key]?.trim()));
+}
+
 function isOnboardingComplete(row: typeof studentProfiles.$inferSelect) {
-  return Boolean(row.onboardingCompletedAt) && academicProfileSchema.safeParse(row).success;
+  return Boolean(row.onboardingCompletedAt) && academicDetailsFilled(row);
 }
 
 /** Only call this when a student self-registers (email signup or first Google account). */
@@ -99,9 +105,11 @@ function serializeProfile(row: typeof studentProfiles.$inferSelect) {
     faculty: row.faculty,
     department: row.department,
     programme: row.programme,
+    programmeId: row.programmeId,
     academicLevel: row.academicLevel,
     semester: row.semester,
     academicYear: row.academicYear,
+    academicStatus: row.academicStatus ?? "active",
     learnModes: row.learnModes ?? [],
     focusGoals: row.focusGoals ?? [],
     onboardingStep: isStep(row.onboardingStep),
@@ -133,14 +141,39 @@ export const studentLearningRouter = router({
     const dbConn = await getDb();
     if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     await requirePendingOnboarding(ctx.user.id);
+    const { courseIds, programmeId, ...details } = input;
+    let names = { faculty: details.faculty, department: details.department, programme: details.programme };
+    let level = details.academicLevel;
+    if (programmeId) {
+      const picked = await academics.programmeWithNames(programmeId);
+      if (!picked?.isActive) throw new TRPCError({ code: "BAD_REQUEST", message: "Choose your programme from the list." });
+      level = String(academics.assertLevel(details.academicLevel, picked.durationYears));
+      names = { faculty: picked.faculty, department: picked.department, programme: picked.name };
+    } else if (await academics.hasActiveProgrammes()) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Choose your programme from the list." });
+    }
     await dbConn.update(studentProfiles).set({
-      ...input,
+      studentNumber: details.studentNumber,
+      ...names,
+      programmeId: programmeId ?? null,
+      academicLevel: level,
+      semester: details.semester,
+      academicYear: details.academicYear,
+      academicStatus: "active",
       onboardingStep: "done",
       onboardingRequired: false,
       onboardingCompletedAt: new Date(),
       updatedAt: new Date(),
     }).where(eq(studentProfiles.userId, ctx.user.id));
-    return { ok: true };
+    let enrolled: number[] = [];
+    if (programmeId && courseIds?.length) {
+      const allowed = new Set(
+        (await academics.suggestedCourses({ programmeId, level: Number(level), semester: details.semester })).map((c) => c.id)
+      );
+      const picked = courseIds.filter((id) => allowed.has(id));
+      if (picked.length) enrolled = await lecturerQueries.enrollStudentInCourses(ctx.user.id, picked);
+    }
+    return { ok: true, enrolled };
   }),
   onboardingStatus: studentProcedure.query(async ({ ctx }) => {
     const profile = await getOrCreateProfile(ctx.user.id);
@@ -226,7 +259,7 @@ export const studentLearningRouter = router({
     const dbConn = await getDb();
     if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     const profile = await requirePendingOnboarding(ctx.user.id);
-    if (!academicProfileSchema.safeParse(profile).success) {
+    if (!academicDetailsFilled(profile)) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "Complete all academic profile fields before continuing." });
     }
     await dbConn

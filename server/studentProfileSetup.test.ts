@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { getDb } from "./db";
 import { studentLearningRouter } from "./studentLearningRouter";
 import { runStudentLearningMigration } from "./migrations/addStudentLearning";
+import { runAcademicStructureMigration } from "./migrations/addAcademicStructure";
 import type { TrpcContext } from "./_core/context";
 import { ACADEMIC_PROFILE_FIELDS } from "../shared/studentLearning";
 
@@ -22,7 +23,7 @@ const details = {
   department: "Computing",
   programme: "BSc Computer Science",
   academicLevel: "200",
-  semester: "1",
+  semester: "First",
   academicYear: "2026/2027",
 };
 const caller = (id = 1, role = "user") =>
@@ -40,6 +41,7 @@ describe("required student profile setup", () => {
       drizzle(client) as Awaited<ReturnType<typeof getDb>>
     );
     await runStudentLearningMigration(client);
+    await runAcademicStructureMigration(client);
   });
   afterEach(() => client.close());
 

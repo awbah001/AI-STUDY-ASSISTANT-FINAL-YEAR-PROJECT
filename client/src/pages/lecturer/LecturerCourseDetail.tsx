@@ -22,10 +22,12 @@ import {
   STUDY_DOC_HELP,
 } from "@shared/studyDocuments";
 import { LIMITS, parseRubricText, validateEmail, validateFutureDate, validateText } from "@shared/validation";
+import { levelLabel } from "@shared/academics";
 import { FieldError } from "@/components/FieldError";
 import { CourseDiscussion } from "@/components/CourseDiscussion";
 import { SimilarityDialog } from "@/components/lecturer/SimilarityCheck";
 import { ConfusionReport } from "@/components/lecturer/ConfusionReport";
+import { CourseCoverEditor } from "@/components/lecturer/CourseCoverEditor";
 import { useFieldErrors } from "@/lib/formValidation";
 import {
   Upload, Users, FileText, Megaphone, ClipboardList,
@@ -294,23 +296,23 @@ export default function LecturerCourseDetail() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="w-full space-y-6">
         <Button variant="ghost" className="gap-2 -ml-2" onClick={() => setLocation("/lecturer/courses")}>
           <ArrowLeft className="h-4 w-4" /> Back to courses
         </Button>
 
         <div className="rounded-2xl border border-indigo-100 bg-white px-6 py-5 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <CourseCoverEditor courseId={courseId} coverImageUrl={course.coverImageUrl ?? null}>
+              <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold text-slate-900">{course.title}</h1>
                 {!course.isActive ? (
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">Archived</span>
                 ) : null}
               </div>
               {course.subject ? <p className="text-indigo-600 font-medium mt-0.5">{course.subject}</p> : null}
-            </div>
-            <div className="text-right shrink-0">
+            </CourseCoverEditor>
+            <div className="shrink-0 sm:text-right">
               <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Enrollment code</p>
               <p className="font-mono font-bold text-indigo-700 text-lg tracking-widest">{course.code}</p>
             </div>
@@ -616,6 +618,11 @@ export default function LecturerCourseDetail() {
                         <div>
                           <p className="text-sm font-semibold text-slate-900">{s.name}</p>
                           <p className="text-xs text-slate-500">{s.email}</p>
+                          {s.programme && (
+                            <p className="text-xs text-slate-400">
+                              {s.programme} · {levelLabel(s.level)}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <Button variant="ghost" size="sm" className="rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 text-xs gap-1" onClick={() => removeStudent.mutate({ courseId, studentId: s.studentId })}>

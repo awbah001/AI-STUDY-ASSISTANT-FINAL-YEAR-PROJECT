@@ -12,7 +12,7 @@ import {
   Volume2,
   Volume1,
 } from "lucide-react";
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { lazy, Suspense, useState, useEffect, useRef, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
 import { toast } from "sonner";
 import { LIMITS } from "@shared/validation";
@@ -25,6 +25,8 @@ import {
 
 /** Errors where the browser's speech service is unusable but recording + server transcription still works. */
 const RECOGNITION_FALLBACK_ERRORS = new Set(["network", "service-not-allowed", "language-not-supported"]);
+const AIOrb3D = lazy(() => import("./motion/AIOrb3D"));
+const OrbFallback = ({ compact = false }: { compact?: boolean }) => <div aria-hidden="true" className={`ai-orb ai-orb--static ${compact ? "ai-orb--compact" : ""}`}><div className="ai-orb-core"><Sparkles /></div></div>;
 
 function joinDictation(base: string, spoken: string) {
   return [base.trimEnd(), spoken.trim()].filter(Boolean).join(" ");
@@ -84,6 +86,8 @@ export type AIChatBoxProps = {
    * Whether the AI is currently generating a response
    */
   isLoading?: boolean;
+  /** AI mutation state, separate from history loading or clearing a conversation. */
+  isGenerating?: boolean;
 
   /**
    * Placeholder text for the input field
@@ -172,6 +176,7 @@ export function AIChatBox({
   messages,
   onSendMessage,
   isLoading = false,
+  isGenerating = isLoading,
   placeholder = "Type your message...",
   className,
   height = "600px",
@@ -504,18 +509,23 @@ export function AIChatBox({
     <div
       ref={containerRef}
       className={cn(
-        "flex flex-col bg-card text-card-foreground rounded-lg border shadow-sm",
+        "ai-experience flex flex-col bg-card text-card-foreground rounded-lg border shadow-sm",
         className
       )}
       style={{ height }}
     >
+      {displayMessages.length > 0 && <div className="ai-experience-header">
+        <Suspense fallback={<OrbFallback compact />}><AIOrb3D compact thinking={isGenerating} listening={isListening || isTranscribing} /></Suspense>
+        <div><strong>Cognify AI</strong><p aria-live="polite">{isGenerating ? "Working on your request…" : isLoading ? "Loading conversation…" : isListening ? "Listening to your voice…" : "Your learning companion"}</p></div>
+        <span className="ai-state-dot" data-thinking={isGenerating} aria-hidden="true" />
+      </div>}
       {/* Messages Area */}
       <div ref={scrollAreaRef} className="flex-1 overflow-hidden">
         {displayMessages.length === 0 ? (
           <div className="flex h-full flex-col p-4">
             <div className="flex flex-1 flex-col items-center justify-center gap-6 text-muted-foreground">
               <div className="flex flex-col items-center gap-3">
-                <Sparkles className="size-12 opacity-20" />
+                <Suspense fallback={<OrbFallback />}><AIOrb3D thinking={isGenerating} listening={isListening || isTranscribing} /></Suspense>
                 <p className="text-sm">{emptyStateMessage}</p>
               </div>
 
@@ -526,7 +536,7 @@ export function AIChatBox({
                       key={index}
                       onClick={() => onSendMessage(prompt)}
                       disabled={isLoading}
-                      className="rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                      className="ai-suggestion rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {prompt}
                     </button>
@@ -548,7 +558,7 @@ export function AIChatBox({
                   <div
                     key={index}
                     className={cn(
-                      "flex gap-3",
+                      "chat-message flex gap-3",
                       message.role === "user"
                         ? "justify-end items-start"
                         : "justify-start items-start"
@@ -640,8 +650,8 @@ export function AIChatBox({
                   <div className="size-8 shrink-0 mt-1 rounded-full bg-primary/10 flex items-center justify-center">
                     <Sparkles className="size-4 text-primary" />
                   </div>
-                  <div className="rounded-lg bg-muted px-4 py-2.5">
-                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  <div className="ai-typing rounded-lg bg-muted px-4 py-2.5" role="status" aria-label={isGenerating ? "AI is processing your request" : "Loading conversation"}>
+                    <span /><span /><span />
                   </div>
                 </div>
               )}

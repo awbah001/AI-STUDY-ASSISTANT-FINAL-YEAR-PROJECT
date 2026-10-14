@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldError } from "@/components/FieldError";
+import { CourseEmpty } from "@/components/student/CoursePage";
 import { useFieldErrors } from "@/lib/formValidation";
 import { trpc } from "@/lib/trpc";
 import { validateText } from "@shared/validation";
@@ -41,7 +42,15 @@ function RoleTag({ role, isLecturer }: { role: string; isLecturer?: boolean }) {
 }
 
 /** Course Q&A: students ask, the AI drafts an answer from course materials, lecturers endorse. */
-export function CourseDiscussion({ courseId, initialThreadId }: { courseId: number; initialThreadId?: number }) {
+export function CourseDiscussion({
+  courseId,
+  initialThreadId,
+  limit,
+}: {
+  courseId: number;
+  initialThreadId?: number;
+  limit?: number;
+}) {
   const [openId, setOpenId] = useState<number | null>(initialThreadId ?? null);
   const [asking, setAsking] = useState(false);
   const [filter, setFilter] = useState<"all" | "open" | "answered">("all");
@@ -49,22 +58,31 @@ export function CourseDiscussion({ courseId, initialThreadId }: { courseId: numb
 
   if (openId) return <DiscussionThread threadId={openId} onBack={() => setOpenId(null)} />;
 
-  const threads = list.data?.threads.filter((t) => (filter === "all" ? true : filter === "answered" ? t.resolved : !t.resolved));
+  const threads = list.data?.threads
+    .filter((t) => (filter === "all" ? true : filter === "answered" ? t.resolved : !t.resolved))
+    .slice(0, limit);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="student-tabs" role="tablist" aria-label="Filter questions">
+    <div className="sc-scope space-y-4">
+      <div className="sc-discussion-bar">
+        <div className="sc-options" role="tablist" aria-label="Filter questions">
           {(["all", "open", "answered"] as const).map((key) => (
-            <button key={key} role="tab" aria-selected={filter === key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={filter === key}
+              className={`sc-option${filter === key ? "" : " sc-option--flat"}`}
+              onClick={() => setFilter(key)}
+            >
               {key === "all" ? "All questions" : key === "open" ? "Unanswered" : "Answered"}
             </button>
           ))}
         </div>
         {!asking && (
-          <Button onClick={() => setAsking(true)}>
-            <MessageCircleQuestion className="size-4" /> Ask a question
-          </Button>
+          <button type="button" className="sc-btn sc-btn--solid" onClick={() => setAsking(true)}>
+            <MessageCircleQuestion /> Ask a question
+          </button>
         )}
       </div>
       {asking && (
@@ -88,9 +106,13 @@ export function CourseDiscussion({ courseId, initialThreadId }: { courseId: numb
         </div>
       )}
       {threads?.length === 0 && (
-        <p className="py-4 text-muted-foreground">
-          {filter === "all" ? "No questions yet. Be the first to ask something about this course." : "Nothing here yet."}
-        </p>
+        <CourseEmpty icon={MessagesSquare} title={filter === "all" ? "No questions yet" : "Nothing here yet"} boxed>
+          {filter === "all"
+            ? "Be the first to ask something about this course. Your question can help other students too."
+            : filter === "open"
+              ? "Every question in this course has an answer."
+              : "No questions have been marked as answered yet."}
+        </CourseEmpty>
       )}
       <ul className="space-y-3">
         {threads?.map((t) => (

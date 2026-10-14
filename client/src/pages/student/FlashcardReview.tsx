@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { StudentRing } from "@/components/StudentUi";
@@ -12,6 +13,7 @@ export default function FlashcardReview({
   documentId?: number;
 }) {
   const query = trpc.flashcards.due.useQuery({ documentId });
+  const reducedMotion = useReducedMotion();
   const utils = trpc.useUtils();
   const [reviewed, setReviewed] = useState<number[]>([]);
   const [revealed, setRevealed] = useState(false);
@@ -48,9 +50,9 @@ export default function FlashcardReview({
           <div className="student-review-card space-y-5 rounded-xl bg-emerald-50 p-6 text-emerald-950">
             <p className="text-lg font-semibold">{card.question}</p>
             {revealed ? (
-              <p className="whitespace-pre-wrap border-t border-emerald-200 pt-5">
+              <motion.p initial={reducedMotion ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} transition={{ duration: reducedMotion ? 0 : .25 }} className="whitespace-pre-wrap overflow-hidden border-t border-emerald-200 pt-5">
                 {card.answer}
-              </p>
+              </motion.p>
             ) : (
               <Button variant="outline" onClick={() => setRevealed(true)}>
                 Show answer

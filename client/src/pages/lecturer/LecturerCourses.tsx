@@ -18,6 +18,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { FieldError } from "@/components/FieldError";
+import { courseCoverSrc } from "@/components/student/CoursePage";
 import { useFieldErrors } from "@/lib/formValidation";
 import { LIMITS, validateText } from "@shared/validation";
 
@@ -161,7 +162,9 @@ export default function LecturerCourses() {
                 onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setLocation(`/lecturer/courses/${course.id}`); } }}
                 onClick={() => setLocation(`/lecturer/courses/${course.id}`)}
               >
-                <div className="lecturer-course-cover" aria-hidden="true"><BookOpen/></div>
+                <div className="lecturer-course-cover" aria-hidden="true">
+                  {course.coverImageUrl ? <img src={courseCoverSrc(course.coverImageUrl)} alt="" /> : <BookOpen/>}
+                </div>
                 <div className="p-5">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div className="min-w-0">

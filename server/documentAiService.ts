@@ -4,6 +4,37 @@ import * as queries from "./queries";
 import * as llmUtils from "./llmUtils";
 import { getFeatureFlags } from "./settings";
 
+const processingJobs = new Map<number, Promise<void>>();
+
+/** One extraction/indexing job per document, shared by uploads and explicit retries. */
+export function processDocument(documentId: number, autoIndex = true): Promise<void> {
+  const running = processingJobs.get(documentId);
+  if (running) return running;
+  const job = (async () => {
+    const doc = await queries.getDocumentById(documentId);
+    if (!doc) throw new Error("Document not found.");
+    await queries.updateDocument(documentId, { processingStatus: "processing", processingError: null });
+    try {
+      const text = doc.extractedText?.trim() || await llmUtils.extractDocumentText(doc.fileUrl);
+      if (!text.trim()) throw new Error("No readable text was found in this document.");
+      await queries.updateDocument(documentId, { extractedText: text });
+      if (autoIndex) await llmUtils.indexDocumentForRag(documentId, text);
+      await queries.updateDocument(documentId, { processingStatus: "ready", processingError: null });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Document processing failed.";
+      await queries.updateDocument(documentId, { processingStatus: "failed", processingError: message.slice(0, 1000) });
+      await queries.recordSystemEvent({ category: "indexing", severity: "error", message, documentId, userId: doc.userId });
+      throw error;
+    }
+  })().finally(() => processingJobs.delete(documentId));
+  processingJobs.set(documentId, job);
+  return job;
+}
+
+export function enqueueDocumentProcessing(documentId: number, autoIndex = true): void {
+  void processDocument(documentId, autoIndex).catch(error => console.warn(`[Document ${documentId}] ${error instanceof Error ? error.message : "Processing failed"}`));
+}
+
 export async function ensureDocumentText(documentId: number): Promise<Document> {
   const doc = await queries.getDocumentById(documentId);
   if (!doc) {
@@ -15,37 +46,18 @@ export async function ensureDocumentText(documentId: number): Promise<Document> 
   }
 
   try {
-    await queries.updateDocument(documentId, { processingStatus: "processing", processingError: null });
-    const extractedText = await llmUtils.extractDocumentText(doc.fileUrl);
-    if (!extractedText.trim()) {
-      throw new Error("No selectable text found in document");
-    }
-
-    await queries.updateDocument(documentId, { extractedText, processingStatus: "processing" });
-
-    try {
-      await llmUtils.indexDocumentForRag(documentId, extractedText);
-      await queries.updateDocument(documentId, { processingStatus: "ready", processingError: null });
-    } catch (error) {
-      console.error("RAG indexing failed during lazy extraction:", error);
-      const message = error instanceof Error ? error.message : "Indexing failed";
-      await queries.updateDocument(documentId, { processingStatus: "failed", processingError: message });
-      await queries.recordSystemEvent({ category: "indexing", severity: "error", message, documentId, userId: doc.userId });
-    }
-
-    return {
-      ...doc,
-      extractedText,
-    };
+    await processDocument(documentId);
+    const updated = await queries.getDocumentById(documentId);
+    if (!updated?.extractedText?.trim()) throw new Error("No readable text was found in this document.");
+    return updated;
   } catch (error) {
-    console.error("Lazy document text extraction failed:", error);
-    const message = error instanceof Error ? error.message : "Text extraction failed";
-    await queries.updateDocument(documentId, { processingStatus: "failed", processingError: message });
-    await queries.recordSystemEvent({ category: "ai", severity: "error", message, documentId, userId: doc.userId });
+    // Extraction can still be used if the embedding provider failed afterwards.
+    const updated = await queries.getDocumentById(documentId);
+    if (updated?.extractedText?.trim()) return updated;
     throw new TRPCError({
       code: "BAD_REQUEST",
       message:
-        "This document could not be read automatically. Try re-uploading the file (PDF, DOCX, or PPTX) or use a file that contains selectable text.",
+        error instanceof Error ? error.message : "This document could not be read automatically. Retry processing or upload a readable copy.",
     });
   }
 }

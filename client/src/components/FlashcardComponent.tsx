@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Heart, RotateCw } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import type { Flashcard } from "@shared/types";
@@ -15,6 +15,7 @@ interface FlashcardComponentProps {
 
 export function FlashcardComponent({ card, onReviewMarked, documentId }: FlashcardComponentProps) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const reduced = useReducedMotion();
   const utils = trpc.useUtils();
   
   const toggleFavoriteMutation = trpc.flashcards.toggleFavorite.useMutation({
@@ -43,13 +44,15 @@ export function FlashcardComponent({ card, onReviewMarked, documentId }: Flashca
     <div className="space-y-3">
       {/* Flip Card */}
       <div
-        className="h-56 cursor-pointer"
+        className="flashcard-flip h-56 cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-500/40"
+        role="button" tabIndex={0} aria-pressed={isFlipped} aria-label={isFlipped ? "Show question" : "Reveal answer"}
+        onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setIsFlipped(value => !value); } }}
         style={{ perspective: "1000px" }}
         onClick={() => setIsFlipped(!isFlipped)}
       >
         <motion.div
           animate={{ rotateY: isFlipped ? 180 : 0 }}
-          transition={{ duration: 0.6, type: "spring", stiffness: 100, damping: 20 }}
+          transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 160, damping: 24 }}
           style={{
             transformStyle: "preserve-3d",
             position: "relative",
@@ -59,6 +62,7 @@ export function FlashcardComponent({ card, onReviewMarked, documentId }: Flashca
         >
           {/* Front Face (Question) */}
           <Card
+            aria-hidden={isFlipped}
             className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-emerald-50 to-slate-50 dark:from-slate-800 dark:to-slate-950 border-2 border-emerald-200/60 dark:border-emerald-800/50 shadow-sm"
             style={{
               backfaceVisibility: "hidden",
@@ -76,6 +80,7 @@ export function FlashcardComponent({ card, onReviewMarked, documentId }: Flashca
 
           {/* Back Face (Answer) */}
           <Card
+            aria-hidden={!isFlipped}
             className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-white to-emerald-50 dark:from-slate-900 dark:to-slate-800 border-2 border-emerald-300 dark:border-emerald-700 shadow-md"
             style={{
               backfaceVisibility: "hidden",
@@ -103,6 +108,7 @@ export function FlashcardComponent({ card, onReviewMarked, documentId }: Flashca
             onClick={() => toggleFavoriteMutation.mutate({ flashcardId: card.id })}
             disabled={toggleFavoriteMutation.isPending}
             className={card.isFavorite ? "text-red-500" : ""}
+            aria-label={card.isFavorite ? "Remove from favorites" : "Add to favorites"}
           >
             <Heart
               className="w-4 h-4"

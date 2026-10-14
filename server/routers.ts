@@ -5,6 +5,9 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure, adminProcedure, studentProcedure } from "./_core/trpc";
 import { lecturerRouter, studentCoursesRouter } from "./lecturerRouter";
 import { studentLearningRouter } from "./studentLearningRouter";
+import { academicsRouter } from "./academicsRouter";
+import * as academics from "./academics";
+import { MAX_PROGRAMME_YEARS, MIN_PROGRAMME_YEARS, SEMESTERS } from "../shared/academics";
 import { audioRecapRouter, discussionsRouter, examsRouter, practiceRouter } from "./studentFeaturesRouter";
 import { settingsRouter } from "./settingsRouter";
 import { autonomousAgentRouter } from "./autonomousAgentRouter";
@@ -13,6 +16,7 @@ import { getPasswordMinLength, getFeatureFlags } from "./settings";
 import { verifyTotp, consumeRecoveryCode } from "./totp";
 import * as lecturerQueries from "./lecturerQueries";
 import { canAccessDocument } from "./documentAccess";
+import { offlineStudyEventSchema } from "../shared/offlineStudy";
 import { sql, and, desc, eq, gte, inArray, like, or } from "drizzle-orm";
 import { users, documents, flashcards, quizzes, quizQuestions, progressTracking, studySessions, courses, courseEnrollments, assignments, assignmentSubmissions, learningGoals, adminAuditLogs, systemEvents, notifications } from "../drizzle/schema";
 import { z } from "zod";
@@ -404,6 +408,17 @@ export const appRouter = router({
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ ctx, input }) => assertDocumentAccess(ctx.user.id, input.id)),
+    preview: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const doc = await assertDocumentAccess(ctx.user.id, input.id);
+        const { createDocumentPreview } = await import("./documentPreview");
+        try {
+          return await createDocumentPreview(doc);
+        } catch (cause) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: cause instanceof Error ? cause.message : "Could not preview this document.", cause });
+        }
+      }),
     toggleFavorite: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
@@ -412,6 +427,28 @@ export const appRouter = router({
           throw new TRPCError({ code: "FORBIDDEN", message: "Can only favorite your own documents." });
         }
         return queries.toggleDocumentFavorite(input.id);
+      }),
+    retryProcessing: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const doc = await assertDocumentAccess(ctx.user.id, input.id);
+        if (doc.userId !== ctx.user.id) {
+          if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only the document owner can retry processing." });
+        }
+        const { getSystemSettings } = await import("./settings");
+        const cfg = await getSystemSettings();
+        await queries.updateDocument(doc.id, { processingStatus: "pending", processingError: null });
+        documentAi.enqueueDocumentProcessing(doc.id, cfg.content.autoIndex);
+        return { success: true };
+      }),
+    source: protectedProcedure
+      .input(z.object({ id: z.number().int().positive(), source: z.string().regex(/^[a-f0-9]{24}$/) }))
+      .query(async ({ ctx, input }) => {
+        const doc = await assertDocumentAccess(ctx.user.id, input.id);
+        const { findDocumentSource } = await import("./documentSources");
+        const excerpt = await findDocumentSource(doc, input.source);
+        if (!excerpt) throw new TRPCError({ code: "NOT_FOUND", message: "This source excerpt is no longer available. The material may have changed." });
+        return { title: doc.title, excerpt };
       }),
     create: protectedProcedure
       .input(z.object({
@@ -445,11 +482,7 @@ export const appRouter = router({
           mimeType: input.mimeType || "application/pdf",
         });
         await queries.getOrCreateProgress(doc.id, ctx.user.id);
-        if (doc.extractedText?.trim() && cfg.content.autoIndex) {
-          // Background indexing — non-blocking, upload returns immediately
-          llmUtils.indexDocumentForRag(doc.id, doc.extractedText)
-            .catch(e => console.error("[RAG] Background indexing failed:", e));
-        }
+        documentAi.enqueueDocumentProcessing(doc.id, cfg.content.autoIndex);
         return doc;
       }),
     delete: protectedProcedure
@@ -510,19 +543,28 @@ export const appRouter = router({
         // Initialise a progress row so stats queries never return null
         await queries.getOrCreateProgress(doc.id, ctx.user.id);
 
-        // Extract text + build RAG index in the background — non-blocking
-        llmUtils.extractDocumentText(doc.fileUrl)
-          .then(async (text) => {
-            if (!text?.trim()) return;
-            await queries.updateDocument(doc.id, { extractedText: text });
-            if (cfg.content.autoIndex) {
-              await llmUtils.indexDocumentForRag(doc.id, text);
-            }
-          })
-          .catch((e) => console.error("[Upload] Background extraction failed:", e));
+        documentAi.enqueueDocumentProcessing(doc.id, cfg.content.autoIndex);
 
         return doc;
       }),
+  }),
+
+  offlineStudy: router({
+    download: studentProcedure.input(z.object({ documentId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const { buildOfflineStudyPack } = await import("./offlineStudy");
+      return buildOfflineStudyPack(ctx.user.id, input.documentId);
+    }),
+    sync: studentProcedure.input(z.object({ ownerId: z.number().int().positive(), events: z.array(offlineStudyEventSchema).min(1).max(50) })).mutation(async ({ ctx, input }) => {
+      if (input.ownerId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "Sign in to the account that downloaded these materials." });
+      const { syncOfflineStudyEvent } = await import("./offlineStudy");
+      const accepted: string[] = [];
+      const rejected: Array<{ eventId: string; message: string }> = [];
+      for (const event of input.events) {
+        try { await syncOfflineStudyEvent(ctx.user.id, event); accepted.push(event.eventId); }
+        catch (error) { rejected.push({ eventId: event.eventId, message: error instanceof Error ? error.message : "Could not sync session." }); }
+      }
+      return { accepted, rejected };
+    }),
   }),
 
   chat: router({
@@ -1218,7 +1260,7 @@ export const appRouter = router({
       }),
 
     listUsers: adminProcedure
-      .input(z.object({ page: z.number().int().min(1).default(1), pageSize: z.number().int().min(1).max(100).default(20), search: z.string().max(100).default(""), role: z.enum(["user", "lecturer", "admin"]).optional(), status: z.enum(["active", "banned"]).optional() }))
+      .input(z.object({ page: z.number().int().min(1).default(1), pageSize: z.number().int().min(1).max(100).default(20), search: z.string().max(100).default(""), role: z.enum(["user", "lecturer", "admin"]).optional(), status: z.enum(["active", "banned"]).optional(), programmeId: z.number().int().positive().optional(), level: z.number().int().min(MIN_PROGRAMME_YEARS).max(MAX_PROGRAMME_YEARS).optional() }))
       .query(async ({ ctx, input }) => {
         const { userHasPermission } = await import("./settings");
         if (!(await userHasPermission(ctx.user, "users.view"))) {
@@ -1229,12 +1271,19 @@ export const appRouter = router({
         if (input.search) conditions.push(or(like(users.name, `%${input.search}%`), like(users.email, `%${input.search}%`)));
         if (input.role) conditions.push(eq(users.role, input.role));
         if (input.status) conditions.push(eq(users.isBanned, input.status === "banned"));
+        if (input.programmeId || input.level) {
+          const ids = await academics.studentIdsMatching({ programmeId: input.programmeId, level: input.level });
+          if (!ids.length) return { items: [], total: 0, page: input.page, pageSize: input.pageSize };
+          conditions.push(inArray(users.id, ids));
+        }
         const where = conditions.length ? and(...conditions) : undefined;
         const [items, [{ total }]] = await Promise.all([
           dbConn.select({ id: users.id, name: users.name, email: users.email, role: users.role, isBanned: users.isBanned, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn, quizzesAttempted: sql<number>`coalesce(sum(${progressTracking.quizzesAttempted}), 0)`, averageQuizScore: sql<number>`coalesce(avg(${progressTracking.averageQuizScore}), 0)` }).from(users).leftJoin(progressTracking, eq(users.id, progressTracking.userId)).where(where).groupBy(users.id).orderBy(desc(users.createdAt)).limit(input.pageSize).offset((input.page - 1) * input.pageSize),
           dbConn.select({ total: sql<number>`cast(count(*) as integer)` }).from(users).where(where),
         ]);
-        return { items, total, page: input.page, pageSize: input.pageSize };
+        const academic = await academics.academicFor(items.filter((u) => u.role === "user").map((u) => u.id));
+        const withAcademic = items.map((u) => ({ ...u, academic: academic.get(u.id) ?? null }));
+        return { items: withAcademic, total, page: input.page, pageSize: input.pageSize };
       }),
 
     listDocuments: adminProcedure
@@ -1338,6 +1387,9 @@ export const appRouter = router({
           description: zOptionalText("Description", LIMITS.description).optional(),
           lecturerId: z.number().int().positive(),
           reason: zReason,
+          programmeIds: z.array(z.number().int().positive()).max(50).optional(),
+          level: z.number().int().min(MIN_PROGRAMME_YEARS).max(MAX_PROGRAMME_YEARS).nullable().optional(),
+          semester: z.enum(SEMESTERS).nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -1350,6 +1402,13 @@ export const appRouter = router({
           subject: input.subject,
           description: input.description,
         });
+        if (input.programmeIds?.length || input.level || input.semester) {
+          await academics.setCourseTags(course.id, {
+            programmeIds: input.programmeIds ?? [],
+            level: input.level ?? null,
+            semester: input.semester ?? null,
+          });
+        }
         const dbConn = await db.getDb();
         if (dbConn) {
           await dbConn.insert(notifications).values({
@@ -1687,7 +1746,8 @@ export const appRouter = router({
       const [user] = await dbConn.select({ id: users.id, name: users.name, email: users.email, role: users.role, isBanned: users.isBanned, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn }).from(users).where(eq(users.id, input.userId));
       if (!user) throw new TRPCError({ code: "NOT_FOUND" });
       const [stats] = await dbConn.select({ courses: sql<number>`cast(count(distinct ${courseEnrollments.courseId}) as integer)`, quizAverage: sql<number>`coalesce(avg(${progressTracking.averageQuizScore}), 0)`, studyMinutes: sql<number>`coalesce(sum(${progressTracking.totalStudyTimeMinutes}), 0)` }).from(progressTracking).leftJoin(courseEnrollments, eq(courseEnrollments.studentId, users.id)).where(eq(progressTracking.userId, input.userId));
-      return { user, stats };
+      const academic = user.role === "user" ? (await academics.academicFor([user.id])).get(user.id) ?? null : null;
+      return { user, stats, academic };
     }),
 
     requestPasswordReset: adminProcedure.input(z.object({ userId: z.number(), reason: zReason })).mutation(async ({ ctx, input }) => {
@@ -1744,6 +1804,7 @@ export const appRouter = router({
   lecturer: lecturerRouter,
   studentCourses: studentCoursesRouter,
   studentLearning: studentLearningRouter,
+  academics: academicsRouter,
   exams: examsRouter,
   practice: practiceRouter,
   discussions: discussionsRouter,

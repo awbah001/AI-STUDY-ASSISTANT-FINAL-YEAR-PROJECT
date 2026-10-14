@@ -1,4 +1,4 @@
-import { int, sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
+import { int, sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { ConfusionTopic, GradeDraft } from "../shared/lecturerInsights";
 
 /**
@@ -196,6 +196,13 @@ export const studySessions = sqliteTable("studySessions", {
 export type StudySession = typeof studySessions.$inferSelect;
 export type InsertStudySession = typeof studySessions.$inferInsert;
 
+export const offlineStudyEvents = sqliteTable("offlineStudyEvents", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull(),
+  eventId: text("eventId").notNull(),
+  syncedAt: integer("syncedAt", { mode: "timestamp_ms" }).notNull(),
+}, table => ({ eventKey: uniqueIndex("offline_study_event_key").on(table.userId, table.eventId) }));
+
 // Progress tracking table
 export const progressTracking = sqliteTable("progressTracking", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -239,11 +246,53 @@ export const courses = sqliteTable("courses", {
   subject: text("subject"),
   description: text("description"),
   isActive: integer("isActive", { mode: "boolean" }).default(true).notNull(),
+  /** Year of study (1, 2, ...) when the course is taught to one year. */
+  level: integer("level"),
+  /** "First" or "Second" when the course runs in one semester. */
+  semester: text("semester"),
+  /** Cover picture uploaded by the lecturer; students see a default image when empty. */
+  coverImageUrl: text("coverImageUrl"),
   createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
   updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
 }, (table) => ({
   lecturerIdIdx: index("courses_lecturerId_idx").on(table.lecturerId),
 }));
+
+export const faculties = sqliteTable("faculties", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+});
+
+export const departments = sqliteTable("departments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  facultyId: integer("facultyId").notNull(),
+  name: text("name").notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+}, (table) => ({
+  facultyNameIdx: uniqueIndex("departments_faculty_name_idx").on(table.facultyId, table.name),
+}));
+
+export const programmes = sqliteTable("programmes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  departmentId: integer("departmentId").notNull(),
+  name: text("name").notNull(),
+  durationYears: integer("durationYears").notNull().default(4),
+  isActive: integer("isActive", { mode: "boolean" }).default(true).notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+}, (table) => ({
+  departmentNameIdx: uniqueIndex("programmes_department_name_idx").on(table.departmentId, table.name),
+}));
+
+export const courseProgrammes = sqliteTable("courseProgrammes", {
+  courseId: integer("courseId").notNull(),
+  programmeId: integer("programmeId").notNull(),
+}, (table) => ({
+  pairIdx: uniqueIndex("course_programmes_pair_idx").on(table.courseId, table.programmeId),
+  programmeIdx: index("course_programmes_programme_idx").on(table.programmeId),
+}));
+
+export type Programme = typeof programmes.$inferSelect;
 
 export type Course = typeof courses.$inferSelect;
 export type InsertCourse = typeof courses.$inferInsert;
@@ -548,9 +597,13 @@ export const studentProfiles = sqliteTable("studentProfiles", {
   faculty: text("faculty"),
   department: text("department"),
   programme: text("programme"),
+  /** Set when the programme was picked from the admin's list; the text fields above mirror its names. */
+  programmeId: integer("programmeId"),
   academicLevel: text("academicLevel"),
   semester: text("semester"),
   academicYear: text("academicYear"),
+  /** "completed" once the student has finished the final level of their programme. */
+  academicStatus: text("academicStatus").default("active").notNull(),
   learnModes: text("learnModes", { mode: "json" }).$type<string[]>(),
   focusGoals: text("focusGoals", { mode: "json" }).$type<string[]>(),
   onboardingStep: text("onboardingStep").default("welcome").notNull(),

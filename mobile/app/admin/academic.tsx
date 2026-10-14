@@ -31,6 +31,16 @@ import {
   UserDetailSheet,
   type UserSummary,
 } from "../../src/components/staff/admin/UserDetailSheet";
+import {
+  AcademicTermCard,
+  CourseTagFields,
+  CourseTagsSheet,
+  NO_TAGS,
+  ProgrammeCatalogue,
+  courseTagText,
+  type CourseTagDraft,
+  type TaggedCourse,
+} from "../../src/components/staff/admin/AcademicKit";
 import { FieldError } from "../../src/components/FieldError";
 import { LIMITS, useFieldErrors, validateText } from "../../src/lib/validation";
 
@@ -68,9 +78,13 @@ export default function AdminAcademic() {
     search: "",
     role: "user",
   });
+  const catalogue = trpc.academics.admin.catalogue.useQuery();
+  const courseTags = trpc.academics.admin.courseTags.useQuery();
 
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY_COURSE);
+  const [tags, setTags] = useState<CourseTagDraft>(NO_TAGS);
+  const [tagging, setTagging] = useState<TaggedCourse | null>(null);
   const [lecturerId, setLecturerId] = useState<number | null>(null);
   const [reassign, setReassign] = useState<Reassign | null>(null);
   const [reassignTo, setReassignTo] = useState<number | null>(null);
@@ -85,9 +99,14 @@ export default function AdminAcademic() {
   const courses = academic.data?.courses ?? [];
   const atRisk = academic.data?.atRisk ?? [];
   const topics = academic.data?.topicWeaknesses ?? [];
+  const faculties = catalogue.data?.faculties ?? [];
+  const tagsByCourse = new Map(
+    (courseTags.data ?? []).map(({ courseId, ...t }) => [courseId, t])
+  );
 
   const resetForm = () => {
     setForm(EMPTY_COURSE);
+    setTags(NO_TAGS);
     setLecturerId(null);
     reset();
   };
@@ -97,6 +116,7 @@ export default function AdminAcademic() {
       setCreating(false);
       resetForm();
       void utils.admin.getAcademicPerformance.invalidate();
+      void utils.academics.invalidate();
       Alert.alert(
         "Course created",
         `${course.title} (${course.code}) was assigned to the lecturer.`
@@ -141,6 +161,9 @@ export default function AdminAcademic() {
       description: form.description.trim() || undefined,
       lecturerId,
       reason: form.reason.trim(),
+      programmeIds: tags.programmeIds,
+      level: tags.level,
+      semester: tags.semester,
     });
   };
 
@@ -151,6 +174,8 @@ export default function AdminAcademic() {
           academic.refetch(),
           lecturers.refetch(),
           students.refetch(),
+          catalogue.refetch(),
+          courseTags.refetch(),
         ])
       }
     >
@@ -205,6 +230,8 @@ export default function AdminAcademic() {
           accentBg={colors.errorSoft}
         />
       </MetricGrid>
+
+      <AcademicTermCard />
 
       <Card>
         <Text style={st.cardTitle}>Course assignment</Text>
@@ -263,7 +290,10 @@ export default function AdminAcademic() {
                 enrolled · avg quiz score
               </Text>
               <ScoreBar value={score} color={scoreColor(score)} />
-              <View style={{ marginTop: 12 }}>
+              <Text style={st.tags} numberOfLines={2}>
+                {courseTagText(tagsByCourse.get(course.courseId), faculties)}
+              </Text>
+              <View style={st.actions}>
                 <InlineButton
                   label={
                     course.lecturerId ? "Reassign lecturer" : "Assign lecturer"
@@ -279,11 +309,26 @@ export default function AdminAcademic() {
                     });
                   }}
                 />
+                <InlineButton
+                  label="Edit tags"
+                  icon="pricetags-outline"
+                  tone="muted"
+                  onPress={() =>
+                    setTagging({
+                      courseId: course.courseId,
+                      title: course.title,
+                      code: course.code,
+                    })
+                  }
+                />
               </View>
             </Card>
           );
         })
       )}
+
+      <SectionHeader title="Programmes" />
+      <ProgrammeCatalogue />
 
       <SectionHeader
         title={`Students requiring follow-up (${atRisk.length})`}
@@ -417,6 +462,7 @@ export default function AdminAcademic() {
           />
         )}
         <FieldError message={errors.lecturer} style={{ marginBottom: 10 }} />
+        <CourseTagFields value={tags} onChange={setTags} faculties={faculties} />
         <FormField
           label="Reason"
           value={form.reason}
@@ -476,6 +522,13 @@ export default function AdminAcademic() {
         />
       </Sheet>
 
+      <CourseTagsSheet
+        course={tagging}
+        tags={tagging ? tagsByCourse.get(tagging.courseId) : undefined}
+        faculties={faculties}
+        onClose={() => setTagging(null)}
+      />
+
       <UserDetailSheet target={student} onClose={() => setStudent(null)} />
     </StaffScreen>
   );
@@ -494,6 +547,8 @@ const st = StyleSheet.create({
   title: { flex: 1, ...design.cardTitle },
   score: { fontSize: 14, fontWeight: "800" },
   meta: { marginTop: 4, ...design.caption },
+  tags: { marginTop: 10, ...design.caption, color: colors.textSub },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
   topic: { paddingVertical: 10 },
   topicBorder: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   topicTitle: { flex: 1, ...design.cardTitle },

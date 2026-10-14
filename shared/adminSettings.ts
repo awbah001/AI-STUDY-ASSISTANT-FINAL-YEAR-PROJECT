@@ -68,7 +68,7 @@ export const DEFAULT_SYSTEM_SETTINGS = {
     semester: "First",
     faculties: "Computing, Education, Business",
     departments: "Computer Science, Information Systems",
-    levels: "100, 200, 300, 400",
+    levels: "Year 1, Year 2, Year 3, Year 4",
     creditHoursDefault: 3,
     passMark: 50,
     gradingSystem: "percentage",

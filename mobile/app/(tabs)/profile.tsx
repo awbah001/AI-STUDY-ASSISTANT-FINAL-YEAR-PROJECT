@@ -26,6 +26,7 @@ import {
 import { colors, gradients } from "../../src/theme/colors";
 import { LIMITS, passwordChangeErrors, useFieldErrors, validatePersonName } from "../../src/lib/validation";
 import { FieldError, FIELD_ERROR_COLOR } from "../../src/components/FieldError";
+import { SEMESTERS, isSemester, levelLabel } from "../../../shared/academics";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -329,6 +330,8 @@ export default function ProfileScreen() {
           />
         </Section>
 
+        <AcademicDetails />
+
         <Section title="Preferences">
           <View style={[s.row, s.rowBorder, s.switchRow]}>
             <View style={s.rowLeft}>
@@ -547,6 +550,111 @@ function ProgressMetric({
         </Text>
       </View>
     </View>
+  );
+}
+
+function AcademicDetails() {
+  const utils = trpc.useUtils();
+  const status = trpc.studentLearning.onboardingStatus.useQuery();
+  const catalogue = trpc.academics.catalogue.useQuery();
+  const profile = status.data?.profile;
+  const [term, setTerm] = useState<{ semester: string; academicYear: string } | null>(null);
+  const save = trpc.academics.updateMyTerm.useMutation({
+    onSuccess: async () => {
+      await utils.studentLearning.onboardingStatus.invalidate();
+      setTerm(null);
+      Alert.alert("Saved", "Semester updated.");
+    },
+    onError: err => Alert.alert("Could not save", err.message),
+  });
+  if (!profile) return null;
+
+  const current = {
+    semester: isSemester(profile.semester) ? profile.semester : "",
+    academicYear: profile.academicYear ?? "",
+  };
+  const draft = term ?? current;
+  const years = [
+    ...new Set([...(catalogue.data?.yearOptions ?? []), current.academicYear].filter(Boolean)),
+  ].sort();
+  const changed =
+    draft.semester !== current.semester || draft.academicYear !== current.academicYear;
+  const canSave = changed && !!draft.semester && !!draft.academicYear && !save.isPending;
+  const details: Array<[string, string, string | null | undefined]> = [
+    ["id-card-outline", "Student ID", profile.studentNumber],
+    ["business-outline", "Faculty", profile.faculty],
+    ["git-branch-outline", "Department", profile.department],
+    ["school-outline", "Programme", profile.programme],
+    ["stats-chart-outline", "Year", levelLabel(profile.academicLevel)],
+    ["flag-outline", "Status", profile.academicStatus === "completed" ? "Completed" : "Studying"],
+  ];
+
+  return (
+    <Section title="Academic details">
+      {details.map(([icon, label, value]) => (
+        <Row key={label} icon={icon} tone={TONES.blue} label={label} value={value || "—"} />
+      ))}
+      <View style={s.termBlock}>
+        <Text style={s.termLabel}>Semester</Text>
+        <View style={s.chips}>
+          {SEMESTERS.map(value => (
+            <Chip
+              key={value}
+              label={`${value} semester`}
+              active={draft.semester === value}
+              onPress={() => setTerm({ ...draft, semester: value })}
+            />
+          ))}
+        </View>
+        <Text style={s.termLabel}>Academic year</Text>
+        <View style={s.chips}>
+          {years.map(value => (
+            <Chip
+              key={value}
+              label={value}
+              active={draft.academicYear === value}
+              onPress={() => setTerm({ ...draft, academicYear: value })}
+            />
+          ))}
+        </View>
+        <TouchableOpacity
+          style={[s.saveBtn, s.termSave, !canSave && s.saveBtnOff]}
+          disabled={!canSave}
+          onPress={() => save.mutate(draft)}
+          accessibilityRole="button"
+        >
+          {save.isPending ? (
+            <ActivityIndicator color={colors.white} size="small" />
+          ) : (
+            <Text style={s.saveBtnText}>Save</Text>
+          )}
+        </TouchableOpacity>
+        <Text style={s.switchHint}>
+          To change your programme or level, contact your administrator.
+        </Text>
+      </View>
+    </Section>
+  );
+}
+
+function Chip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[s.chip, active && s.chipActive]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+    >
+      <Text style={[s.chipText, active && s.chipTextActive]}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -820,6 +928,22 @@ const s = StyleSheet.create({
     flexShrink: 1,
   },
   rowValue: { fontSize: 13, color: colors.textMuted, flexShrink: 1 },
+
+  termBlock: { padding: 16, gap: 10 },
+  termLabel: { fontSize: 12, fontWeight: "700", color: colors.textSub },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 13, fontWeight: "700", color: colors.textSub },
+  chipTextActive: { color: colors.white },
+  termSave: { marginTop: 4 },
 
   logoutBtn: {
     flexDirection: "row",

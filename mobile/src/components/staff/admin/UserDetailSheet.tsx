@@ -15,6 +15,8 @@ import { roleLabel } from "../../../lib/roleHome";
 import { colors } from "../../../theme/colors";
 import { Badge, ChipSelect, formatDate } from "../StaffUi";
 import { ActionRow, DetailRow, ReasonForm, Sheet } from "./AdminKit";
+import { StudentAcademicEditor, studentAcademicLine } from "./AcademicKit";
+import { levelLabel } from "../../../../../shared/academics";
 
 export type UserSummary = {
   id: number;
@@ -28,7 +30,7 @@ export type UserSummary = {
   averageQuizScore?: number | null;
 };
 
-type Mode = "detail" | "ban" | "delete" | "role" | "reset" | "logout";
+type Mode = "detail" | "ban" | "delete" | "role" | "reset" | "logout" | "academic";
 type EditableRole = "user" | "lecturer";
 
 export function UserDetailSheet({
@@ -55,6 +57,8 @@ export function UserDetailSheet({
 
   const u = detail.data?.user ?? target;
   const stats = detail.data?.stats;
+  const academic = detail.data?.academic ?? null;
+  const isStudent = u?.role === "user";
   const isSelf = !!target && target.id === me?.id;
   const canChangeRole = !!u && (u.role === "user" || u.role === "lecturer");
 
@@ -130,6 +134,7 @@ export function UserDetailSheet({
     role: "Change role",
     reset: "Send password reset",
     logout: "Sign out everywhere",
+    academic: "Programme and year",
   };
   const hints: Record<Mode, string | null> = {
     detail: null,
@@ -140,6 +145,7 @@ export function UserDetailSheet({
     role: `Choose the new role for ${name}. They will see the matching portal next time they sign in.`,
     reset: `${name} will receive an email with a one-hour reset link. Only available for email/password accounts.`,
     logout: `Every active session for ${name} is invalidated on web and mobile. They can sign in again straight away.`,
+    academic: `Students can't change their programme or level themselves. Set ${name}'s here; the change is audited.`,
   };
 
   const back = (
@@ -235,6 +241,31 @@ export function UserDetailSheet({
               Extended stats unavailable: {detail.error.message}
             </Text>
           ) : null}
+          {isStudent && detail.data ? (
+            <>
+              <DetailRow
+                label="Student ID"
+                value={academic?.studentNumber || "—"}
+              />
+              <DetailRow
+                label="Programme"
+                value={academic?.programme || "Not set"}
+              />
+              <DetailRow label="Year" value={levelLabel(academic?.level)} />
+              <DetailRow
+                label="Term"
+                value={
+                  academic?.semester
+                    ? `${academic.semester} semester ${academic.academicYear ?? ""}`.trim()
+                    : "—"
+                }
+              />
+              <DetailRow
+                label="Study status"
+                value={academic?.status === "completed" ? "Completed" : "Studying"}
+              />
+            </>
+          ) : null}
 
           {isSelf ? (
             <Text style={st.note}>
@@ -243,6 +274,14 @@ export function UserDetailSheet({
             </Text>
           ) : (
             <View style={{ marginTop: 10 }}>
+              {isStudent && detail.data ? (
+                <ActionRow
+                  icon="school-outline"
+                  label="Set programme and year"
+                  hint={studentAcademicLine(academic)}
+                  onPress={() => setMode("academic")}
+                />
+              ) : null}
               <ActionRow
                 icon="key-outline"
                 label="Send password reset"
@@ -317,6 +356,18 @@ export function UserDetailSheet({
             onSubmit={reason =>
               updateRole.mutate({ userId: target.id, role: nextRole, reason })
             }
+          />
+        </>
+      ) : null}
+
+      {mode === "academic" && target ? (
+        <>
+          {back}
+          <StudentAcademicEditor
+            key={target.id}
+            userId={target.id}
+            academic={academic}
+            onSaved={() => setMode("detail")}
           />
         </>
       ) : null}

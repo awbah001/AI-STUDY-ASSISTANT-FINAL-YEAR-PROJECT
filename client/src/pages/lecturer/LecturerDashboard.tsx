@@ -9,10 +9,7 @@ import {
   TrendingUp, ChevronRight,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
-} from "recharts";
+import { EngagementChart, ENGAGEMENT_HINT } from "@/components/lecturer/EngagementChart";
 
 export default function LecturerDashboard() {
   const { user, isAllowed } = useRoleGuard("lecturer");
@@ -27,7 +24,7 @@ export default function LecturerDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="w-full space-y-6">
 
         <StaffWelcomeBanner
           name={firstName}
@@ -59,20 +56,12 @@ export default function LecturerDashboard() {
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-800">Course Engagement</p>
-              <p className="text-xs text-slate-500">Average student activity score per course</p>
+              <p className="text-xs text-slate-500">{ENGAGEMENT_HINT}</p>
             </div>
           </div>
           <div className="p-6 h-[260px]">
             {engagement && engagement.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={engagement} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 6" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="courseTitle" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0" }} />
-                  <Bar dataKey="avgEngagement" fill="#047857" radius={[8, 8, 0, 0]} name="Avg Engagement" />
-                </BarChart>
-              </ResponsiveContainer>
+              <EngagementChart data={engagement} color="#047857" />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
                 <TrendingUp className="h-10 w-10 text-slate-200" />

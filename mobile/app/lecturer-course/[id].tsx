@@ -34,6 +34,7 @@ import {
   SectionHeader,
   StaffScreen,
 } from "../../src/components/staff/StaffUi";
+import { levelLabel } from "../../../shared/academics";
 
 type Section =
   "quizzes" | "students" | "materials" | "assignments" | "announcements" | "discussion" | "insights";
@@ -202,7 +203,17 @@ function StudentsSection({ courseId }: { courseId: number }) {
             iconColor="#2563eb"
             title={student.name ?? "Unnamed student"}
             subtitle={student.email}
-            meta={`Enrolled ${formatDate(student.enrolledAt)}`}
+            meta={[
+              student.programme?.trim(),
+              student.academicStatus === "completed"
+                ? "Completed"
+                : student.level?.trim()
+                  ? levelLabel(student.level)
+                  : null,
+              `Enrolled ${formatDate(student.enrolledAt)}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
             right={
               <TouchableOpacity
                 onPress={() => confirmRemove(student.studentId, student.name)}

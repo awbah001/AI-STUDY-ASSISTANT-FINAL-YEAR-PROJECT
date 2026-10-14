@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSemester, parseAcademicYear } from "./academics";
 
 export const LEARN_MODES = [
   { id: "read", label: "Read explanations" },
@@ -40,13 +41,41 @@ export const ACADEMIC_PROFILE_FIELDS = [
 const requiredField = (label: string, max: number) =>
   z.string().trim().min(1, `${label} is required`).max(max);
 
-export const academicProfileSchema = z.object({
-  studentNumber: requiredField("Student ID", 80),
-  faculty: requiredField("Faculty", 120),
-  department: requiredField("Department", 120),
-  programme: requiredField("Programme", 120),
-  academicLevel: requiredField("Level", 80),
-  semester: requiredField("Semester", 40),
-  academicYear: requiredField("Academic year", 40),
+const PROGRAMME_TEXT_FIELDS = [
+  ["faculty", "Faculty"],
+  ["department", "Department"],
+  ["programme", "Programme"],
+] as const;
+
+/**
+ * Profile setup. When the admin has set up programmes the student picks one (programmeId)
+ * and the faculty, department and programme names come from it; otherwise they are typed.
+ */
+export const academicProfileSchema = z
+  .object({
+    studentNumber: requiredField("Student ID", 80),
+    programmeId: z.number().int().positive().optional(),
+    faculty: z.string().trim().max(120).default(""),
+    department: z.string().trim().max(120).default(""),
+    programme: z.string().trim().max(120).default(""),
+    academicLevel: requiredField("Level", 80),
+    semester: requiredField("Semester", 40).refine(isSemester, "Choose the first or second semester."),
+    academicYear: requiredField("Academic year", 40).refine(
+      value => parseAcademicYear(value) !== null,
+      "Choose an academic year like 2025/2026."
+    ),
+    courseIds: z.array(z.number().int().positive()).max(40).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.programmeId) return;
+    for (const [key, label] of PROGRAMME_TEXT_FIELDS) {
+      if (!value[key]) ctx.addIssue({ code: "custom", path: [key], message: `${label} is required` });
+    }
+  });
+export type AcademicProfile = z.input<typeof academicProfileSchema>;
+
+/** Semester and academic year are the only academic details a student can change after setup. */
+export const studentTermSchema = z.object({
+  semester: z.string().refine(isSemester, "Choose the first or second semester."),
+  academicYear: z.string().trim().refine(value => parseAcademicYear(value) !== null, "Choose an academic year like 2025/2026."),
 });
-export type AcademicProfile = z.infer<typeof academicProfileSchema>;

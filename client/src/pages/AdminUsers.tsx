@@ -28,8 +28,11 @@ import {
   Filter,
   Pencil,
   CircleDot,
+  Layers,
 } from "lucide-react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
+import { levelLabel, yearsForProgrammes } from "@shared/academics";
+import { StudentAcademicEditor } from "@/components/admin/AcademicStructure";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -71,6 +74,8 @@ export default function AdminUsers() {
   const [showPassword, setShowPassword] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [programmeFilter, setProgrammeFilter] = useState(0);
+  const [levelFilter, setLevelFilter] = useState(0);
   const [viewUser, setViewUser] = useState<{
     userId: number;
     userName: string | null;
@@ -79,6 +84,7 @@ export default function AdminUsers() {
     isBanned: boolean;
     engagementScore: number;
     quizzesAttempted: number;
+    academic: Academic;
   } | null>(null);
 
   useEffect(() => {
@@ -91,7 +97,15 @@ export default function AdminUsers() {
     search: searchQuery,
     role: roleTab,
     ...(statusFilter !== "all" ? { status: statusFilter as "active" | "banned" } : {}),
+    ...(roleTab === "user" && programmeFilter ? { programmeId: programmeFilter } : {}),
+    ...(roleTab === "user" && levelFilter ? { level: levelFilter } : {}),
   };
+  const { data: catalogue } = trpc.academics.admin.catalogue.useQuery(undefined, {
+    enabled: user?.role === "admin",
+  });
+  const programmeOptions = (catalogue?.faculties ?? []).flatMap((f) =>
+    f.departments.flatMap((d) => d.programmes.map((p) => ({ value: String(p.id), label: p.name })))
+  );
 
   const { data: usersPage, isLoading, refetch } = trpc.admin.listUsers.useQuery(listInput, {
     enabled: user?.role === "admin",
@@ -179,6 +193,7 @@ export default function AdminUsers() {
             .toUpperCase() || "U",
         engagementScore: Math.round(u.averageQuizScore ?? 0),
         quizzesAttempted: u.quizzesAttempted ?? 0,
+        academic: u.academic ?? null,
       })),
     [usersPage?.items]
   );
@@ -406,6 +421,34 @@ export default function AdminUsers() {
                   setPage(1);
                 }}
               />
+              {roleTab === "user" && programmeOptions.length > 0 ? (
+                <>
+                  <FilterSelect
+                    icon={<GraduationCap className="h-3.5 w-3.5 text-slate-400" />}
+                    value={String(programmeFilter)}
+                    options={[{ value: "0", label: "All Programmes" }, ...programmeOptions]}
+                    onChange={(v) => {
+                      setProgrammeFilter(Number(v));
+                      setPage(1);
+                    }}
+                  />
+                  <FilterSelect
+                    icon={<Layers className="h-3.5 w-3.5 text-slate-400" />}
+                    value={String(levelFilter)}
+                    options={[
+                      { value: "0", label: "All Years" },
+                      ...yearsForProgrammes(catalogue?.faculties ?? [], programmeFilter ? [programmeFilter] : []).map((l) => ({
+                        value: String(l),
+                        label: levelLabel(l),
+                      })),
+                    ]}
+                    onChange={(v) => {
+                      setLevelFilter(Number(v));
+                      setPage(1);
+                    }}
+                  />
+                </>
+              ) : null}
               <button
                 type="button"
                 className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
@@ -424,6 +467,7 @@ export default function AdminUsers() {
                   <th className="px-3 py-3">Name</th>
                   <th className="px-3 py-3">Email</th>
                   <th className="px-3 py-3">Role</th>
+                  {roleTab === "user" ? <th className="px-3 py-3">Programme</th> : null}
                   <th className="px-3 py-3">Engagement Score</th>
                   <th className="px-3 py-3">Quizzes</th>
                   <th className="px-3 py-3">Status</th>
@@ -434,7 +478,7 @@ export default function AdminUsers() {
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b border-slate-50">
-                      {Array.from({ length: 8 }).map((__, j) => (
+                      {Array.from({ length: roleTab === "user" ? 9 : 8 }).map((__, j) => (
                         <td key={j} className="px-3 py-4">
                           <Skeleton className="h-5 w-16" />
                         </td>
@@ -466,6 +510,11 @@ export default function AdminUsers() {
                       <td className="px-3 py-4">
                         <RoleBadge role={u.role} />
                       </td>
+                      {roleTab === "user" ? (
+                        <td className="px-3 py-4">
+                          <AcademicCell academic={u.academic} />
+                        </td>
+                      ) : null}
                       <td className="px-3 py-4 font-semibold text-slate-800">{u.engagementScore}%</td>
                       <td className="px-3 py-4 text-slate-600">{u.quizzesAttempted}</td>
                       <td className="px-3 py-4">
@@ -577,6 +626,31 @@ export default function AdminUsers() {
               <DetailRow label="Status" value={viewUser.isBanned ? "Banned" : "Active"} />
               <DetailRow label="Engagement" value={`${viewUser.engagementScore}%`} />
               <DetailRow label="Quizzes" value={String(viewUser.quizzesAttempted)} />
+              {viewUser.role === "user" ? (
+                <>
+                  <DetailRow label="Student ID" value={viewUser.academic?.studentNumber || "—"} />
+                  <DetailRow label="Programme" value={viewUser.academic?.programme || "—"} />
+                  <DetailRow label="Year" value={levelLabel(viewUser.academic?.level)} />
+                  <DetailRow
+                    label="Term"
+                    value={
+                      viewUser.academic?.semester
+                        ? `${viewUser.academic.semester} semester ${viewUser.academic.academicYear ?? ""}`.trim()
+                        : "—"
+                    }
+                  />
+                  <DetailRow
+                    label="Study status"
+                    value={viewUser.academic?.status === "completed" ? "Completed" : "Studying"}
+                  />
+                  <StudentAcademicEditor
+                    key={viewUser.userId}
+                    userId={viewUser.userId}
+                    academic={viewUser.academic}
+                    onSaved={(academic) => setViewUser((v) => (v ? { ...v, academic } : v))}
+                  />
+                </>
+              ) : null}
               <div className="flex gap-2 pt-2">
                 <Button
                   type="button"
@@ -733,6 +807,21 @@ function FilterSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+type Academic = RouterOutputs["admin"]["listUsers"]["items"][number]["academic"] | null;
+
+function AcademicCell({ academic }: { academic: Academic }) {
+  if (!academic?.programme) return <span className="text-slate-400">Not set</span>;
+  return (
+    <div className="max-w-[200px] text-xs">
+      <p className="truncate font-medium text-slate-700">{academic.programme}</p>
+      <p className="text-slate-500">
+        {academic.status === "completed" ? "Completed" : levelLabel(academic.level)}
+        {academic.programmeId ? "" : " · needs review"}
+      </p>
+    </div>
   );
 }
 

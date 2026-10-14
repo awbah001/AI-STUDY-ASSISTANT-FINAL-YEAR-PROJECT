@@ -22,6 +22,7 @@ import {
   addNotificationListener,
 } from "../src/lib/notifications";
 import { coachRoute } from "../src/lib/coachRoute";
+import { syncOfflineStudy } from "../src/lib/offlineStudy";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -77,6 +78,18 @@ function AuthedNavigation() {
   const queryClient = useQueryClient();
   const sessionKey = user?.id != null ? `user-${user.id}` : "guest";
   const role = user?.role;
+  const utils = trpc.useUtils();
+
+  useEffect(() => {
+    if (user?.role !== "user") return;
+    let active = true;
+    const sync = () => void syncOfflineStudy(user.id, input => utils.client.offlineStudy.sync.mutate(input)).then(result => {
+      if (active && result.accepted.length) void queryClient.invalidateQueries();
+    }).catch(() => undefined);
+    sync();
+    const timer = setInterval(sync, 30_000);
+    return () => { active = false; clearInterval(timer); };
+  }, [user?.id, role, queryClient, utils.client]);
 
   useEffect(() => {
     registerForPushNotifications();

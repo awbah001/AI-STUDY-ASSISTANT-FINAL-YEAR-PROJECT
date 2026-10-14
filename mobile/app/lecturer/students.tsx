@@ -36,10 +36,26 @@ import {
   toCsv,
   type RouterOutputs,
 } from "../../src/components/staff/lecturer-workspace/helpers";
+import { levelLabel } from "../../../shared/academics";
 
 type Enrollment = RouterOutputs["lecturer"]["students"]["listAll"][number];
 type Row = { student: Enrollment; courses: Enrollment[] };
 type CourseFilter = number | "all";
+
+const NO_LEVEL = "—";
+
+function academicLine(s: Enrollment) {
+  return [
+    s.programme?.trim(),
+    s.academicStatus === "completed"
+      ? "Completed"
+      : s.level?.trim()
+        ? levelLabel(s.level)
+        : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 export default function LecturerStudents() {
   const st = useStaffStyles(baseStyles);
@@ -50,6 +66,8 @@ export default function LecturerStudents() {
   const students = trpc.lecturer.students.listAll.useQuery();
   const [search, setSearch] = useState("");
   const [courseTab, setCourseTab] = useState<CourseFilter>("all");
+  const [programmeFilter, setProgrammeFilter] = useState("");
+  const [levelFilter, setLevelFilter] = useState("");
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [enrollCourse, setEnrollCourse] = useState<number | null>(null);
@@ -59,11 +77,32 @@ export default function LecturerStudents() {
   const all = students.data ?? [];
   const activeCourses = (courses.data ?? []).filter(course => course.isActive);
   const uniqueCount = new Set(all.map(s => s.studentId)).size;
+  const programmeOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          all
+            .map(s => s.programme?.trim())
+            .filter((v): v is string => Boolean(v))
+        ),
+      ].sort(),
+    [all]
+  );
+  const levelOptions = useMemo(
+    () =>
+      [
+        ...new Set(all.map(s => levelLabel(s.level)).filter(v => v !== NO_LEVEL)),
+      ].sort(),
+    [all]
+  );
 
   const rows = useMemo<Row[]>(() => {
     const term = search.trim().toLowerCase();
     const scoped = all.filter(
-      s => courseTab === "all" || s.courseId === courseTab
+      s =>
+        (courseTab === "all" || s.courseId === courseTab) &&
+        (!programmeFilter || s.programme?.trim() === programmeFilter) &&
+        (!levelFilter || levelLabel(s.level) === levelFilter)
     );
     const matched = new Set(
       scoped
@@ -84,7 +123,7 @@ export default function LecturerStudents() {
       grouped.get(s.studentId)!.courses.push(s);
     }
     return [...grouped.values()];
-  }, [all, courseTab, search]);
+  }, [all, courseTab, programmeFilter, levelFilter, search]);
 
   const detail =
     detailId === null
@@ -163,10 +202,13 @@ export default function LecturerStudents() {
     shareText(
       "students.csv",
       toCsv([
-        ["Name", "Email", "Courses", "Enrolled"],
+        ["Name", "Email", "Student ID", "Programme", "Year", "Courses", "Enrolled"],
         ...rows.map(({ student: s, courses: c }) => [
           s.name,
           s.email,
+          s.studentNumber ?? "",
+          s.programme ?? "",
+          s.level ? levelLabel(s.level) : "",
           c.map(v => v.courseTitle).join("; "),
           formatDate(s.enrolledAt),
         ]),
@@ -233,6 +275,26 @@ export default function LecturerStudents() {
           })),
         ]}
       />
+      {programmeOptions.length > 1 ? (
+        <ChipSelect<string>
+          value={programmeFilter}
+          onChange={setProgrammeFilter}
+          options={[
+            { value: "", label: "All programmes" },
+            ...programmeOptions.map(p => ({ value: p, label: p })),
+          ]}
+        />
+      ) : null}
+      {levelOptions.length > 1 ? (
+        <ChipSelect<string>
+          value={levelFilter}
+          onChange={setLevelFilter}
+          options={[
+            { value: "", label: "All years" },
+            ...levelOptions.map(l => ({ value: l, label: l })),
+          ]}
+        />
+      ) : null}
 
       <View style={st.search}>
         <Ionicons name="search" size={18} color={colors.textLight} />
@@ -306,6 +368,11 @@ export default function LecturerStudents() {
                 <Text style={st.email} numberOfLines={1}>
                   {s.email}
                 </Text>
+                {academicLine(s) ? (
+                  <Text style={st.academic} numberOfLines={1}>
+                    {academicLine(s)}
+                  </Text>
+                ) : null}
               </View>
               {s.email ? (
                 <TouchableOpacity
@@ -404,6 +471,16 @@ export default function LecturerStudents() {
                 size={56}
               />
               <View style={{ flex: 1 }}>
+                {academicLine(detail.student) ? (
+                  <Text style={st.academic}>
+                    {academicLine(detail.student)}
+                  </Text>
+                ) : null}
+                {detail.student.studentNumber ? (
+                  <Text style={st.meta}>
+                    Student ID {detail.student.studentNumber}
+                  </Text>
+                ) : null}
                 <Text style={st.meta}>
                   {detail.courses.length} course enrollment
                   {detail.courses.length === 1 ? "" : "s"}
@@ -480,6 +557,12 @@ const baseStyles = StyleSheet.create({
   personRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   name: { ...design.cardTitle },
   email: { marginTop: 2, ...design.caption },
+  academic: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textSub,
+  },
   iconBtn: { ...design.iconButton },
   iconBtnDanger: { backgroundColor: colors.errorSoft },
   badges: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 12 },

@@ -12,6 +12,12 @@ importers:
 
   .:
     dependencies:
+      '@xmldom/xmldom':
+        specifier: ^0.9.9
+        version: 0.9.10
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.2
       '@aws-sdk/client-s3':
         specifier: ^3.693.0
         version: 3.1030.0

@@ -225,4 +225,29 @@ describe("runLearningAgent (agentic)", () => {
 
     expect(result.response).toMatch(/temporarily unavailable|try again/i);
   });
+
+  it("shows the timetable's schedule assumptions instead of a model-written plan", async () => {
+    vi.mocked(runAgenticToolLoop).mockResolvedValue({
+      response: "An unsupported generic plan", toolsUsed: ["createStudyTimetable"], retrievedChunks: [], usedAgentic: true,
+      toolResults: [{ tool: "createStudyTimetable", ok: true, data: {
+        events: [{ title: "OSI model", type: "study", startsAt: "2026-10-14T18:00:00Z", notes: "Compare the seven layers." }],
+        assumptions: ["Study sessions start at 18:00 UTC."],
+      } }],
+    });
+    const message = "generate a study timetable for the resources provided";
+    const result = await runLearningAgent({ user: student, message });
+    expect(result.response).toContain("OSI model");
+    expect(result.response).toContain("Schedule assumptions: Study sessions start at 18:00 UTC.");
+    expect(result.response).not.toContain("unsupported generic plan");
+    expect(vi.mocked(runAgenticToolLoop).mock.calls.at(-1)?.[0].toolCtx.requestMessage).toBe(message);
+  });
+
+  it("asks for missing assessment details without claiming a timetable was saved", async () => {
+    vi.mocked(runAgenticToolLoop).mockResolvedValue({
+      response: "A fabricated saved plan", toolsUsed: ["createStudyTimetable"], retrievedChunks: [], usedAgentic: true,
+      toolResults: [{ tool: "createStudyTimetable", ok: false, error: "What date is your assessment?" }],
+    });
+    const result = await runLearningAgent({ user: student, message: "Create a study timetable for my exam" });
+    expect(result.response).toBe("What date is your assessment?");
+  });
 });

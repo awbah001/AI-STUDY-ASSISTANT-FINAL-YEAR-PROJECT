@@ -32,6 +32,8 @@ export async function getDb() {
       _db = drizzle(client);
 
       // Run schema migrations using the raw libSQL client (not the Drizzle wrapper)
+      const { runOfflineStudyMigration } = await import("./migrations/addOfflineStudy");
+      await runOfflineStudyMigration(client);
       try {
         const { runSm2Migration } = await import("./migrations/addSm2Fields");
         await runSm2Migration(client);
@@ -79,6 +81,12 @@ export async function getDb() {
         await runLecturerInsightsMigration(client);
       } catch (migErr) {
         console.warn("[migration] Lecturer insights migration skipped:", migErr);
+      }
+      try {
+        const { runAcademicStructureMigration } = await import("./migrations/addAcademicStructure");
+        await runAcademicStructureMigration(client);
+      } catch (migErr) {
+        console.warn("[migration] Academic structure migration skipped:", migErr);
       }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);

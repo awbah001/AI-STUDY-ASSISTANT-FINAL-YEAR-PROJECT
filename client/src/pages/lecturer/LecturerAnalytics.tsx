@@ -4,15 +4,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { ConfusionReport } from "@/components/lecturer/ConfusionReport";
+import { EngagementChart, ENGAGEMENT_HINT } from "@/components/lecturer/EngagementChart";
 import { trpc } from "@/lib/trpc";
 import { BarChart3, TrendingUp, Users, Brain, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
+import { useReducedMotion } from "framer-motion";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 
 export default function LecturerAnalytics() {
+  const reducedMotion = useReducedMotion();
   const { isAllowed } = useRoleGuard("lecturer");
   const [courseId, setCourseId] = useState<string>("");
   const [expandedQuiz, setExpandedQuiz] = useState<number | null>(null);
@@ -84,22 +87,14 @@ export default function LecturerAnalytics() {
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-800">Engagement by Course</p>
-              <p className="text-xs text-slate-500">Average student activity score per course</p>
+              <p className="text-xs text-slate-500">{ENGAGEMENT_HINT}</p>
             </div>
           </div>
           <div className="p-6 h-[260px]">
             {engagementLoading ? (
               <Skeleton className="h-full w-full rounded-xl" />
             ) : engagement && engagement.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={engagement} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 6" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="courseTitle" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0" }} />
-                  <Bar dataKey="avgEngagement" fill="#0aa480" radius={[6, 6, 0, 0]} name="Avg Engagement" />
-                </BarChart>
-              </ResponsiveContainer>
+              <EngagementChart data={engagement} color="#0aa480" />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
                 <BarChart3 className="h-10 w-10 text-slate-200" />
@@ -132,9 +127,9 @@ export default function LecturerAnalytics() {
                   <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0" }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="Engagement" fill="#800020" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Quizzes" fill="#06b6d4" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Avg Score %" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Engagement" fill="#003D33" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={!reducedMotion} animationDuration={650} />
+                  <Bar dataKey="Quizzes" fill="#06b6d4" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={!reducedMotion} animationDuration={650} />
+                  <Bar dataKey="Avg Score %" fill="#008F68" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={!reducedMotion} animationDuration={650} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

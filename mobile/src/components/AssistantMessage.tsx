@@ -1,9 +1,15 @@
 import { memo, useMemo, type ReactNode } from "react";
 import { Alert, Linking, Platform, StyleSheet, Text, View } from "react-native";
 import { Lexer, type Token, type MarkedToken } from "marked";
+import { router } from "expo-router";
 import { colors } from "../theme/colors";
 
 async function openLink(url: string) {
+  const source = url.match(/^\/document\/(\d+)\?tab=notes&source=([a-f0-9]{24})$/);
+  if (source) {
+    router.push({ pathname: "/document/[id]", params: { id: source[1], tab: "notes", source: source[2] } });
+    return;
+  }
   if (!/^(https?:\/\/|mailto:)/i.test(url)) return;
   try {
     await Linking.openURL(url);

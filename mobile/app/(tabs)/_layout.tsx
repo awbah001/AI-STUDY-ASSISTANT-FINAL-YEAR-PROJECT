@@ -3,7 +3,7 @@ import {
   toneTab,
   useWorkspaceTabOptions,
 } from "../../src/components/staff/StaffUi";
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, router } from "expo-router";
 import { View, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Text } from "react-native";
 import { trpc } from "../../src/lib/api";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,6 +24,7 @@ export default function TabLayout() {
     <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 16 }}>
       <Text>Unable to load your profile. Check your connection and try again.</Text>
       <TouchableOpacity accessibilityRole="button" onPress={() => profile.refetch()}><Text>Retry</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" onPress={() => router.push("/offline-study" as any)}><Text>Study downloaded materials</Text></TouchableOpacity>
     </View>
   );
   if (!profile.data) return <ActivityIndicator color={colors.primary} />;

@@ -14,9 +14,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { AIChatBox } from "@/components/AIChatBox";
 import { AddPlanToPlanner } from "@/components/AddPlanToPlanner";
 import { DocumentChatBox } from "@/components/DocumentChatBox";
+import { DocumentProcessingStatus } from "@/components/DocumentProcessingStatus";
+import { AnimatedCard } from "@/components/motion/AnimatedCard";
+import { AnimatedStatValue } from "@/components/motion/AnimatedStatValue";
+import { AnimatedPage } from "@/components/motion/AnimatedPage";
+import { documentPreviewKind, DOCUMENT_ACCEPT } from "@shared/documentPreview";
 import { FlashcardComponent } from "@/components/FlashcardComponent";
 import { QuizComponent } from "@/components/QuizComponent";
-import { ACADEMIC_PROFILE_FIELDS, academicProfileSchema } from "@shared/studentLearning";
+import { AcademicSetup } from "@/components/student/AcademicSetup";
 import {
   LIMITS,
   titleFromFileName,
@@ -54,7 +59,19 @@ import {
   Maximize2,
   Megaphone,
   Minimize2,
+  ChevronRight,
+  MessageSquareText,
+  MessagesSquare,
 } from "lucide-react";
+import {
+  courseCoverSrc,
+  CourseCard,
+  CourseEmpty,
+  CourseHeader,
+  MaterialTile,
+  Tile,
+  ViewAll,
+} from "@/components/student/CoursePage";
 
 const panel =
   "student-panel rounded-2xl border bg-card p-5 shadow-sm space-y-4";
@@ -222,8 +239,8 @@ function StudentWorkspace() {
       "Stay updated with important announcements, assignments, and activity from your courses.",
   };
   return (
-    <div className={`student-content student-page-${page}`}>
-      {page !== "dashboard" && (
+    <AnimatedPage routeKey={location} className={`student-content student-page-${page}`}>
+      {page !== "dashboard" && !course && (
         <StudentHero
           title={
             page === "courses"
@@ -246,58 +263,21 @@ function StudentWorkspace() {
         />
       )}
       {content}
-    </div>
+    </AnimatedPage>
   );
 }
 
 function Onboarding() {
   const utils = trpc.useUtils();
   const query = trpc.studentLearning.onboardingStatus.useQuery();
-  const complete = trpc.studentLearning.completeProfileSetup.useMutation();
-  const [busy, setBusy] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const catalogue = trpc.academics.catalogue.useQuery();
   if (!query.data) return <State query={query} />;
+  if (!catalogue.data) return <State query={catalogue} />;
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-3xl font-bold">Complete your student profile</h1>
       <p>Enter your academic details to continue to your dashboard. All fields are required.</p>
-      <form className={panel} noValidate onSubmit={async e => {
-        e.preventDefault();
-        const result = academicProfileSchema.safeParse(Object.fromEntries(new FormData(e.currentTarget)));
-        if (!result.success) {
-          const next: Record<string, string> = {};
-          for (const issue of result.error.issues) {
-            const key = String(issue.path[0] ?? "");
-            if (key && !next[key]) next[key] = issue.message;
-          }
-          setFieldErrors(next);
-          return;
-        }
-        setFieldErrors({});
-        setBusy(true);
-        try {
-          await complete.mutateAsync(result.data);
-          await utils.invalidate();
-        } catch (error) {
-          fail(error as Error);
-        } finally {
-          setBusy(false);
-        }
-      }}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {ACADEMIC_PROFILE_FIELDS.map(({ key, label, maxLength }) => (
-            <label key={key} className="space-y-2">
-              {label}
-              <Input name={key} maxLength={maxLength}
-                aria-invalid={Boolean(fieldErrors[key])}
-                onChange={() => fieldErrors[key] && setFieldErrors(({ [key]: _, ...rest }) => rest)}
-                defaultValue={query.data.profile[key] || ""} disabled={busy} />
-              <FieldError message={fieldErrors[key]} />
-            </label>
-          ))}
-        </div>
-        <Button disabled={busy}>{busy ? "Saving..." : "Save and continue"}</Button>
-      </form>
+      <AcademicSetup profile={query.data.profile} catalogue={catalogue.data} onDone={() => utils.invalidate()} />
     </div>
   );
 }
@@ -369,7 +349,7 @@ function Dashboard() {
               href={`/course/${c.id}`}
             >
               <span className="student-course-thumb">
-                <BookOpen />
+                <img src={courseCoverSrc(c.coverImageUrl)} alt="" />
               </span>
               <div>
                 <h3>{c.title}</h3>
@@ -458,17 +438,17 @@ function Stats({
         ],
         ["Day streak", data.streak, "Keep going!", Flame],
         ["Study minutes", data.studyMinutes, "Stay consistent", Clock],
-      ].map(([label, value, hint, Icon]: any) => (
-        <section className="student-panel student-stat" key={label}>
+      ].map(([label, value, hint, Icon]: any, index: number) => (
+        <AnimatedCard as="section" className="student-panel student-stat" key={label} delay={index * .05}>
           <span className="student-icon">
             <Icon />
           </span>
           <div>
             <p>{label}</p>
-            <strong>{value}</strong>
+            <strong><AnimatedStatValue value={value} /></strong>
             <small>{hint}</small>
           </div>
-        </section>
+        </AnimatedCard>
       ))}
     </div>
   );
@@ -547,10 +527,10 @@ function Courses() {
               .toLowerCase()
               .includes(search.toLowerCase())
           )
-          .map(c => (
-            <article className="student-panel student-course-card" key={c.id}>
+          .map((c, index) => (
+            <AnimatedCard as="article" className="student-panel student-course-card" key={c.id} delay={index * .05}>
               <div className="student-course-cover">
-                <BookOpen />
+                <img src={courseCoverSrc(c.coverImageUrl)} alt="" />
                 <span>Enrolled</span>
               </div>
               <div>
@@ -570,11 +550,11 @@ function Courses() {
                   <small>{c.progressPct}%</small>
                 </div>
                 <div className="student-course-links">
-                  <Link href={`/course/${c.id}`}>
+                  <Link href={`/course/${c.id}?tab=materials`}>
                     <FileText />
                     Materials
                   </Link>
-                  <Link href={`/course/${c.id}`}>
+                  <Link href={`/course/${c.id}?tab=assignments`}>
                     <ClipboardList />
                     Assignments
                   </Link>
@@ -584,7 +564,7 @@ function Courses() {
                   </Link>
                 </div>
               </div>
-            </article>
+            </AnimatedCard>
           ))}
       </div>
       {query.data?.length === 0 && (
@@ -604,63 +584,292 @@ function Course({ id }: { id: number }) {
   });
   const quizzes = trpc.studentCourses.quizzes.useQuery({ courseId: id });
   const activity = trpc.studentLearning.recordActivity.useMutation();
+  const [tab, setTab] = useState<CourseTab>(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    return COURSE_TABS.find(([key]) => key === requested)?.[0] ?? "overview";
+  });
+  const [openQuiz, setOpenQuiz] = useState<number | null>(null);
+  const [allNews, setAllNews] = useState(false);
   useEffect(() => {
     activity.mutate({ type: "COURSE_OPENED", courseId: id });
   }, [id]);
-  return (
-    <>
-      <Go href="/student/courses" tone="neutral">All courses</Go>
-      <h2 className="text-2xl font-semibold">
-        {courses.data?.find(c => c.id === id)?.title}
-      </h2>
-      <Box title="Course materials">
-        <State query={materials} />
-        <div className={grid}>
-          {materials.data?.map(d => (
-            <div key={d.id} className="space-y-3 rounded-xl border p-4">
-              <div>
-                <h3 className="font-medium">{d.title}</h3>
-                <p className="text-xs text-muted-foreground">{d.fileName}</p>
-              </div>
-              <Go href={`/document/${d.id}`}>View notes &amp; ask AI</Go>
-            </div>
+  const course = courses.data?.find(c => c.id === id);
+  const docTitle = new Map(materials.data?.map(d => [d.id, d.title]));
+  const quizDetail = (q: { documentId: number | null; score: string | number | null; completedAt: Date | null }) =>
+    [docTitle.get(q.documentId ?? 0) ?? course?.title, q.completedAt && q.score !== null ? `Last score ${Math.round(Number(q.score))}%` : null]
+      .filter(Boolean)
+      .join(" · ");
+  const go = (next: CourseTab) => {
+    setTab(next);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const materialsCard = (all: boolean) => (
+    <CourseCard
+      icon={BookOpen}
+      tone="green"
+      title="Course materials"
+      subtitle="Access lecture notes, slides, and additional resources."
+      action={!all && <ViewAll onClick={() => go("materials")} />}
+    >
+      <State query={materials} />
+      {materials.data?.length === 0 ? (
+        <CourseEmpty icon={FileText} title="No materials yet">
+          Your lecturer hasn't published any materials for this course yet.
+        </CourseEmpty>
+      ) : (
+        <div className={`sc-materials${all ? " sc-materials--wide" : ""}`}>
+          {(all ? materials.data : materials.data?.slice(0, 3))?.map((d, index) => (
+            <MaterialTile key={d.id} doc={d} delay={index * .05} />
           ))}
         </div>
-        {materials.data?.length === 0 && (
-          <Empty>No materials published yet.</Empty>
-        )}
-      </Box>
-      <Box title="Announcements">
-        <State query={announcements} />
-        {announcements.data?.map(a => (
-          <article key={a.id} className="border-b pb-4">
-            <h3 className="font-semibold">{a.title}</h3>
-            <p className="whitespace-pre-wrap">{a.content}</p>
-          </article>
+      )}
+    </CourseCard>
+  );
+  const quizzesCard = (all: boolean) => (
+    <CourseCard
+      icon={MessageSquareText}
+      tone="purple"
+      title="Course quizzes"
+      subtitle="Test your understanding and track your performance."
+      action={!all && <ViewAll onClick={() => go("quizzes")} />}
+    >
+      <State query={quizzes} />
+      {quizzes.data?.length === 0 ? (
+        <CourseEmpty icon={MessageSquareText} title="No quizzes yet">
+          Your lecturer hasn't published any quizzes for this course yet.
+        </CourseEmpty>
+      ) : (
+        <div className="sc-list">
+          {(all ? quizzes.data : quizzes.data?.slice(0, 2))?.map(q => (
+            <CourseQuiz
+              key={q.id}
+              id={q.id}
+              title={q.title}
+              detail={quizDetail(q)}
+              open={all && openQuiz === q.id}
+              onToggle={() => {
+                if (!all) go("quizzes");
+                setOpenQuiz(all && openQuiz === q.id ? null : q.id);
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </CourseCard>
+  );
+  const discussionCard = (all: boolean) => (
+    <CourseCard
+      icon={MessagesSquare}
+      tone="green"
+      title="Course discussion"
+      subtitle="Ask questions, help classmates, and discuss course topics."
+      action={!all && <ViewAll onClick={() => go("discussion")} />}
+    >
+      <CourseDiscussion courseId={id} limit={all ? undefined : 3} />
+    </CourseCard>
+  );
+  if (courses.data && !course)
+    return (
+      <div className="sc-page">
+        <section className="sc-card flex flex-col items-center gap-3">
+          <CourseEmpty icon={BookOpen} title="You're not enrolled in this course">
+            Join it with the enrolment code from your lecturer, then it will appear in My courses.
+          </CourseEmpty>
+          <Link href="/student/courses" className="sc-btn sc-btn--solid">
+            Go to My courses
+          </Link>
+        </section>
+      </div>
+    );
+  return (
+    <div className="sc-page">
+      <CourseHeader
+        course={course}
+        counts={{
+          materials: materials.data?.length ?? 0,
+          quizzes: quizzes.data?.length ?? 0,
+          assignments: assignments.data?.length ?? 0,
+        }}
+      />
+      <div className="sc-tabs" role="tablist" aria-label="Course sections">
+        {COURSE_TABS.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            id={`course-tab-${key}`}
+            aria-controls="course-tab-panel"
+            aria-selected={tab === key}
+            tabIndex={tab === key ? 0 : -1}
+            className="sc-tab"
+            onClick={() => setTab(key)}
+            onKeyDown={event => {
+              const index = COURSE_TABS.findIndex(([value]) => value === key);
+              const next = event.key === "ArrowRight" ? (index + 1) % COURSE_TABS.length
+                : event.key === "ArrowLeft" ? (index + COURSE_TABS.length - 1) % COURSE_TABS.length
+                : event.key === "Home" ? 0 : event.key === "End" ? COURSE_TABS.length - 1 : -1;
+              if (next < 0) return;
+              event.preventDefault();
+              setTab(COURSE_TABS[next][0]);
+              event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+            }}
+          >
+            {label}
+          </button>
         ))}
-        {announcements.data?.length === 0 && (
-          <Empty>No announcements yet.</Empty>
-        )}
-      </Box>
-      <Box title="Assignments">
-        <State query={assignments} />
-        {assignments.data?.map(a => (
-          <Assignment key={a.id} assignment={a} courseId={id} />
-        ))}
-        {assignments.data?.length === 0 && <Empty>No assignments yet.</Empty>}
-      </Box>
-      <Box title="Course quizzes">
-        <State query={quizzes} />
-        {quizzes.data?.map(q => (
-          <QuizEntry key={q.id} id={q.id} title={q.title} />
-        ))}
-        {quizzes.data?.length === 0 && <Empty>No quizzes published yet.</Empty>}
-      </Box>
-      <MockExamLauncher courseId={id} />
-      <Box title="Course discussion">
-        <CourseDiscussion courseId={id} />
-      </Box>
-    </>
+      </div>
+      <div id="course-tab-panel" role="tabpanel" aria-labelledby={`course-tab-${tab}`}>
+      <AnimatedPage routeKey={tab}>
+      {tab === "overview" && (
+        <>
+          <div className="sc-grid">
+            {materialsCard(false)}
+            <CourseCard
+              icon={Megaphone}
+              tone="green"
+              title="Announcements"
+              subtitle="Stay updated with important course information."
+              action={
+                (announcements.data?.length ?? 0) > 2 && (
+                  <ViewAll onClick={() => setAllNews(!allNews)} label={allNews ? "Show less" : "View all"} />
+                )
+              }
+            >
+              <State query={announcements} />
+              {announcements.data?.length === 0 ? (
+                <CourseEmpty icon={Megaphone} title="No announcements yet">
+                  Your lecturer hasn't posted any announcements for this course yet. Check back later.
+                </CourseEmpty>
+              ) : (
+                <div className="sc-list">
+                  {(allNews ? announcements.data : announcements.data?.slice(0, 2))?.map(a => (
+                    <article key={a.id} className="sc-row items-start">
+                      <Tile icon={Megaphone} tone="green" small />
+                      <div>
+                        <h3>{a.title}</h3>
+                        <p className="!whitespace-pre-wrap !line-clamp-3">{a.content}</p>
+                        <p>{new Date(a.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </CourseCard>
+            <CourseCard
+              icon={FileText}
+              tone="blue"
+              title="Assignments"
+              subtitle="View and submit your course assignments."
+              action={<ViewAll onClick={() => go("assignments")} />}
+            >
+              <State query={assignments} />
+              {assignments.data?.length === 0 ? (
+                <CourseEmpty icon={FileText} title="No assignments yet">
+                  Your lecturer hasn't added any assignments for this course yet.
+                </CourseEmpty>
+              ) : (
+                <div className="sc-list">
+                  {assignments.data?.slice(0, 2).map(a => (
+                    <div key={a.id} className="sc-row">
+                      <Tile icon={ClipboardList} tone="blue" />
+                      <div>
+                        <h3>{a.title}</h3>
+                        <p>{a.dueDate ? `Due ${new Date(a.dueDate).toLocaleString()}` : "No deadline"}</p>
+                      </div>
+                      <button type="button" className="sc-btn sc-btn--outline" onClick={() => go("assignments")}>
+                        Open <ArrowRight />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CourseCard>
+            {quizzesCard(false)}
+          </div>
+          <MockExamLauncher courseId={id} onMore={() => go("exam")} />
+          {discussionCard(false)}
+        </>
+      )}
+      {tab === "materials" && materialsCard(true)}
+      {tab === "quizzes" && quizzesCard(true)}
+      {tab === "assignments" && (
+        <CourseCard
+          icon={FileText}
+          tone="blue"
+          title="Assignments"
+          subtitle="View and submit your course assignments."
+        >
+          <State query={assignments} />
+          {assignments.data?.length === 0 ? (
+            <CourseEmpty icon={FileText} title="No assignments yet">
+              Your lecturer hasn't added any assignments for this course yet.
+            </CourseEmpty>
+          ) : (
+            assignments.data?.map(a => <Assignment key={a.id} assignment={a} courseId={id} />)
+          )}
+        </CourseCard>
+      )}
+      {tab === "exam" && <MockExamLauncher courseId={id} />}
+      {tab === "discussion" && discussionCard(true)}
+      </AnimatedPage>
+      </div>
+    </div>
+  );
+}
+
+type CourseTab = "overview" | "materials" | "quizzes" | "assignments" | "exam" | "discussion";
+const COURSE_TABS: Array<[CourseTab, string]> = [
+  ["overview", "Overview"],
+  ["materials", "Materials"],
+  ["quizzes", "Quizzes"],
+  ["assignments", "Assignments"],
+  ["exam", "Mock exam"],
+  ["discussion", "Discussion"],
+];
+
+function CourseQuiz({
+  id,
+  title,
+  detail,
+  open,
+  onToggle,
+}: {
+  id: number;
+  title: string;
+  detail: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const query = trpc.quizzes.get.useQuery({ quizId: id }, { enabled: open });
+  const utils = trpc.useUtils();
+  return (
+    <div className="space-y-4">
+      <div className="sc-row">
+        <Tile icon={ClipboardList} tone="rose" />
+        <div>
+          <h3>{/^quiz\b/i.test(title) ? title : `Quiz: ${title}`}</h3>
+          {detail && <p>{detail}</p>}
+        </div>
+        <button type="button" className="sc-btn sc-btn--rose" onClick={onToggle}>
+          {open ? "Close quiz" : "Take quiz"} <ChevronRight />
+        </button>
+      </div>
+      {open && (
+        <>
+          <State query={query} />
+          {query.data && (
+            <QuizComponent
+              quiz={query.data}
+              onComplete={() => {
+                void utils.progress.invalidate();
+                void utils.studentCourses.invalidate();
+                void utils.studentLearning.dashboard.invalidate();
+              }}
+            />
+          )}
+        </>
+      )}
+    </div>
   );
 }
 function DiscussionPage({ id }: { id: number }) {
@@ -800,7 +1009,7 @@ function Assignment({
 }
 
 function Library({ mode }: { mode?: "flashcards" }) {
-  const query = trpc.documents.list.useQuery();
+  const query = trpc.documents.list.useQuery(undefined, { refetchInterval: query => query.state.data?.some(d => d.processingStatus === "pending" || d.processingStatus === "processing") ? 2500 : false });
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [category, setCategory] = useState("All materials");
@@ -872,7 +1081,7 @@ function Library({ mode }: { mode?: "flashcards" }) {
                 name="file"
                 aria-label="Study material file"
                 type="file"
-                accept=".pdf,.doc,.docx,.ppt,.pptx,.txt"
+                accept={DOCUMENT_ACCEPT}
                 aria-invalid={Boolean(uploadErrors.file)}
                 onChange={() => clearUpload("file")}
               />
@@ -912,6 +1121,7 @@ function Library({ mode }: { mode?: "flashcards" }) {
         {visibleDocuments?.map(d => (
           <Box title={d.title} key={d.id}>
             <p className="text-sm text-muted-foreground">{d.fileName}</p>
+            <DocumentProcessingStatus doc={d} />
             <div className="student-material-meta">
               <span>
                 <CalendarDays />
@@ -942,20 +1152,11 @@ function Library({ mode }: { mode?: "flashcards" }) {
     </>
   );
 }
-type NoteKind = "pdf" | "image" | "word" | "slides" | "text";
-function noteKind(doc: { fileName: string; fileUrl: string; mimeType?: string | null }): NoteKind {
-  const ext = (doc.fileName.split(".").pop() || doc.fileUrl.split(/[?#]/)[0].split(".").pop() || "").toLowerCase();
-  const mime = (doc.mimeType ?? "").toLowerCase();
-  if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext) || mime.startsWith("image/")) return "image";
-  if (["ppt", "pptx"].includes(ext) || mime.includes("presentation")) return "slides";
-  if (["doc", "docx"].includes(ext) || mime.includes("word")) return "word";
-  if (["txt", "md"].includes(ext) || mime.startsWith("text/")) return "text";
-  return "pdf";
-}
 function Notes({
   doc,
 }: {
   doc: {
+    id: number;
     title: string;
     fileName: string;
     fileUrl: string;
@@ -964,7 +1165,13 @@ function Notes({
   };
 }) {
   const url = fileHref(doc.fileUrl);
-  const kind = noteKind(doc);
+  const kind = documentPreviewKind(doc);
+  const preview = trpc.documents.preview.useQuery({ id: doc.id }, {
+    enabled: kind !== "pdf" && kind !== "image",
+    retry: false,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
   const text = doc.extractedText?.trim();
   const sectionRef = useRef<HTMLElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -988,9 +1195,7 @@ function Notes({
         <div className="min-w-0">
           <h3 className="font-semibold">Notes</h3>
           <p className="truncate text-xs text-muted-foreground">
-            {kind === "word" || kind === "slides"
-              ? `Text of this ${kind === "word" ? "Word document" : "slide deck"}. Download for the original layout.`
-              : doc.fileName}
+            {doc.fileName}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1021,22 +1226,34 @@ function Notes({
           <div className="flex h-full items-center justify-center overflow-auto rounded-xl border bg-white">
             <img src={url} alt={doc.title} className="max-h-full max-w-full" />
           </div>
+        ) : preview.data?.html ? (
+          <iframe
+            title={doc.title}
+            srcDoc={preview.data.html}
+            sandbox=""
+            className="h-full w-full rounded-xl border bg-white"
+          />
+        ) : preview.isLoading ? (
+          <Empty>Preparing document preview…</Empty>
         ) : text ? (
           <article className="mx-auto h-full max-w-4xl overflow-y-auto whitespace-pre-wrap rounded-xl border bg-white p-6 text-[15px] leading-8 text-slate-800">
             {text}
           </article>
         ) : (
-          <Empty>
-            This file is still being processed and can't be previewed yet.
-            Download it to read the notes now.
-          </Empty>
+          <div className="space-y-3 py-4 text-muted-foreground">
+            <p>{preview.error?.message ?? "A preview is unavailable for this document."}</p>
+            <Button variant="outline" size="sm" onClick={() => void preview.refetch()}>Retry preview</Button>
+            <p>You can also download the original using the button above.</p>
+          </div>
         )}
       </div>
     </section>
   );
 }
 function Document({ id }: { id: number }) {
-  const query = trpc.documents.get.useQuery({ id });
+  const query = trpc.documents.get.useQuery({ id }, { refetchInterval: query => ["pending", "processing"].includes(query.state.data?.processingStatus ?? "") ? 2500 : false });
+  const sourceId = new URLSearchParams(window.location.search).get("source") ?? "";
+  const source = trpc.documents.source.useQuery({ id, source: sourceId }, { enabled: /^[a-f0-9]{24}$/.test(sourceId), retry: false });
   const [tab, setTab] = useState(
     () => new URLSearchParams(window.location.search).get("tab") || "notes"
   );
@@ -1055,6 +1272,11 @@ function Document({ id }: { id: number }) {
         <Go href="/student/library" tone="neutral">Back to library</Go>
       )}
       <h2 className="text-2xl font-semibold">{doc.title}</h2>
+      <DocumentProcessingStatus doc={doc} />
+      {sourceId && <aside className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <h3 className="font-semibold">Source excerpt</h3>
+        {source.data ? <blockquote className="mt-2 whitespace-pre-wrap">{source.data.excerpt}</blockquote> : <p>{source.error?.message ?? "Loading source excerpt…"}</p>}
+      </aside>}
       <div
         className="flex flex-wrap gap-2"
         role="tablist"
@@ -1435,6 +1657,7 @@ function AskAI() {
               ...(pending ? [{ role: "user" as const, content: pending }] : []),
             ]}
             isLoading={query.isLoading || send.isPending || clear.isPending}
+            isGenerating={send.isPending}
             onSendMessage={message => {
               if (send.isPending) return;
               setPending(message);

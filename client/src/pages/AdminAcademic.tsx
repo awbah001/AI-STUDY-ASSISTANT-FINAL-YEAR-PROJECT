@@ -12,6 +12,7 @@ import {
   FileText,
   GraduationCap,
   List,
+  Pencil,
   Plus,
   Tag,
   User,
@@ -23,6 +24,14 @@ import { useLocation } from "wouter";
 import { FieldError } from "@/components/FieldError";
 import { promptReason, useFieldErrors } from "@/lib/formValidation";
 import { LIMITS, validateText } from "@shared/validation";
+import { levelLabel, type CatalogueFaculty, type CourseTags, type SEMESTERS } from "@shared/academics";
+import {
+  AcademicTermCard,
+  CourseTagFields,
+  CourseTagsDialog,
+  ProgrammeCatalogue,
+  programmeNames,
+} from "@/components/admin/AcademicStructure";
 
 const DESC_MAX = 500;
 
@@ -47,7 +56,13 @@ export default function AdminAcademic() {
   const [description, setDescription] = useState("");
   const [lecturerId, setLecturerId] = useState("");
   const [reason, setReason] = useState("Assigned as module lecturer");
+  const [tags, setTags] = useState<CourseTags>(NO_TAGS);
+  const [tagging, setTagging] = useState<{ courseId: number; title: string; code: string } | null>(null);
   const { errors, check, clear, reset: resetErrors } = useFieldErrors<"title" | "lecturerId" | "subject" | "reason" | "description">();
+  const catalogue = trpc.academics.admin.catalogue.useQuery(undefined, { enabled: user?.role === "admin" });
+  const courseTags = trpc.academics.admin.courseTags.useQuery(undefined, { enabled: user?.role === "admin" });
+  const faculties = catalogue.data?.faculties ?? [];
+  const tagsByCourse = new Map((courseTags.data ?? []).map(({ courseId, ...t }) => [courseId, t]));
 
   const createCourse = trpc.admin.createCourse.useMutation({
     onSuccess: (course) => {
@@ -57,7 +72,9 @@ export default function AdminAcademic() {
       setDescription("");
       setLecturerId("");
       setReason("Assigned as module lecturer");
+      setTags(NO_TAGS);
       utils.admin.getAcademicPerformance.invalidate();
+      utils.academics.admin.courseTags.invalidate();
     },
     onError: (error) => toast.error(error.message),
   });
@@ -81,6 +98,7 @@ export default function AdminAcademic() {
     setDescription("");
     setLecturerId("");
     setReason("Assigned as module lecturer");
+    setTags(NO_TAGS);
     resetErrors();
   };
 
@@ -99,6 +117,9 @@ export default function AdminAcademic() {
       description: description.trim() || undefined,
       lecturerId: Number(lecturerId),
       reason: reason.trim(),
+      programmeIds: tags.programmeIds,
+      level: tags.level,
+      semester: tags.semester as (typeof SEMESTERS)[number] | null,
     });
   };
 
@@ -107,6 +128,8 @@ export default function AdminAcademic() {
       <main className="admin-content admin-academic mx-auto space-y-5">
         {/* Hero */}
         <AdminHero kind="academic" />
+
+        <AcademicTermCard />
 
         {/* Course Assignment form */}
         <section className="rounded-[1.25rem] border border-slate-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6">
@@ -194,6 +217,10 @@ export default function AdminAcademic() {
               </div>
               <FieldError message={errors.description} />
             </div>
+
+            <div className="md:col-span-2">
+              <CourseTagFields value={tags} onChange={setTags} faculties={faculties} />
+            </div>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -257,6 +284,8 @@ export default function AdminAcademic() {
           />
         </section>
 
+        <ProgrammeCatalogue />
+
         {/* Keep operational tables below the matched design */}
         <section
           id="academic-courses"
@@ -271,11 +300,17 @@ export default function AdminAcademic() {
             </p>
           </div>
           <Table
-            heads={["Course", "Lecturer", "Enrolled", "Average quiz score", "Reassign"]}
+            heads={["Course", "Programmes", "Lecturer", "Enrolled", "Average quiz score", "Reassign"]}
             rows={(data?.courses ?? []).map((c) => [
               <>
                 {c.code} — {c.title}
               </>,
+              <CourseTagSummary
+                key={`tags-${c.courseId}`}
+                tags={tagsByCourse.get(c.courseId)}
+                faculties={faculties}
+                onEdit={() => setTagging({ courseId: c.courseId, title: c.title, code: c.code })}
+              />,
               c.lecturerName ?? "Unassigned",
               c.enrolled,
               `${Math.round(c.averageScore)}%`,
@@ -303,6 +338,12 @@ export default function AdminAcademic() {
             ])}
             loading={isLoading}
           />
+          <CourseTagsDialog
+            course={tagging}
+            tags={tagging ? tagsByCourse.get(tagging.courseId) : undefined}
+            faculties={faculties}
+            onClose={() => setTagging(null)}
+          />
         </section>
 
         <section className="overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
@@ -326,6 +367,24 @@ export default function AdminAcademic() {
         </section>
       </main>
     </DashboardLayout>
+  );
+}
+
+const NO_TAGS: CourseTags = { programmeIds: [], level: null, semester: null };
+
+function CourseTagSummary({ tags, faculties, onEdit }: { tags?: CourseTags; faculties: CatalogueFaculty[]; onEdit: () => void }) {
+  const names = tags ? programmeNames(faculties, tags.programmeIds) : [];
+  const detail = [tags?.level ? levelLabel(tags.level) : null, tags?.semester ? `${tags.semester} semester` : null].filter(Boolean).join(" · ");
+  return (
+    <div className="flex max-w-[260px] items-start gap-1.5">
+      <div className="min-w-0 flex-1 text-xs">
+        {names.length ? <p className="text-slate-700">{names.join(", ")}</p> : <p className="text-slate-400">Not tagged</p>}
+        {detail && <p className="text-slate-500">{detail}</p>}
+      </div>
+      <button type="button" onClick={onEdit} aria-label="Edit programmes, year and semester" className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+    </div>
   );
 }
 
