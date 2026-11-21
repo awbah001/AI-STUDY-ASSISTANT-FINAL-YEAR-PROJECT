@@ -1,16 +1,7 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
+import { FormPanel } from "../../src/components/ui/FormPanel";
 import { design } from "../../src/theme/design";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert } from "react-native";
 import { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -89,6 +80,7 @@ export default function ResetPasswordScreen() {
             Use at least 8 characters with a mix of letters and numbers.
           </Text>
 
+          <FormPanel>
           <Text style={s.label}>New password</Text>
           <PasswordField
             value={password}
@@ -133,6 +125,7 @@ export default function ResetPasswordScreen() {
               <Text style={s.btnText}>Update password</Text>
             )}
           </TouchableOpacity>
+          </FormPanel>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -253,10 +246,15 @@ const s = StyleSheet.create({
   fieldGroup: { marginBottom: 14 },
   inputError: { borderColor: FIELD_ERROR_COLOR },
   inputWrap: {
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 2,
     flexDirection: "row",
     alignItems: "center",
     height: 52,
-    borderRadius: 14,
+    borderRadius: 20,
     borderWidth: 1.2,
     borderColor: colors.border,
     backgroundColor: colors.surface,

@@ -1,0 +1,133 @@
+/* Shared gradient and stacked hover treatment for web action buttons.
+   The translucent gradient retains each control's own background and theme. */
+:is(.button-sweep, .web-button, .sc-btn, .student-go):not([data-day]) {
+  --button-stack-default: var(--primary, #047857);
+  --button-lift: 0px;
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  border-radius: 999px;
+  translate: var(--button-lift) var(--button-lift);
+  transition: translate 300ms ease, box-shadow 300ms ease,
+    background-color 200ms ease, color 200ms ease;
+}
+
+/* Keep the gradient behind text, icons and loading indicators. */
+:is(.button-sweep, .web-button, .sc-btn, .student-go):not([data-day])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgb(255 255 255 / 16%),
+    rgb(255 255 255 / 2%) 45%, rgb(0 0 0 / 10%));
+  pointer-events: none;
+}
+
+/* Preserve the original hit area as the visual control moves up and left. */
+:is(.button-sweep, .web-button, .sc-btn, .student-go):not([data-day])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: auto;
+  border-radius: inherit;
+  translate: calc(-1 * var(--button-lift)) calc(-1 * var(--button-lift));
+  transition: translate 300ms ease;
+}
+
+:is(.button-sweep, .web-button, .sc-btn, .student-go):not([data-day])[data-variant="destructive"],
+.web-button:is([class*="red-"], [class*="rose-"]) {
+  --button-stack-color: #be123c;
+}
+:is(.button-sweep, .web-button)[data-variant="accent"],
+:is(.button-sweep, .web-button)[data-variant="accent-outline"],
+.button-sweep[data-variant="outline"], .web-button[class*="burgundy"] {
+  --button-stack-color: var(--burgundy, #800020);
+}
+:is(.web-button, .button-sweep)[class*="bg-violet-"] { --button-stack-color: #7c3aed; }
+:is(.web-button, .button-sweep)[class*="bg-indigo-"] { --button-stack-color: #4f46e5; }
+.web-button[class*="text-slate-"], .web-button[class*="text-muted-foreground"] { --button-stack-color: var(--neutral-gray, #64748b); }
+.web-button[class*="text-violet-"] { --button-stack-color: #7c3aed; }
+.web-button[class*="text-indigo-"] { --button-stack-color: #4f46e5; }
+.student-photo-wrap button.web-button { position: absolute; --button-stack-color: var(--burgundy, #800020); }
+.button-sweep:is([data-variant="secondary"], [data-variant="neutral"], [data-variant="ghost"]) {
+  --button-stack-color: var(--neutral-gray, #64748b);
+}
+.sc-btn { --button-stack-color: var(--sc-brand, #047857); }
+.sc-btn--rose { --button-stack-color: #be123c; }
+.sc-btn--ghost { --button-stack-color: #64748b; }
+.student-go--accent { --button-stack-color: var(--burgundy, #800020); }
+.student-go--neutral { --button-stack-color: var(--neutral-gray, #64748b); }
+.dashboard-shell .dashboard-page :is(.button-sweep, .web-button, .sc-btn, .student-go):not([data-day]) {
+  border-radius: 999px;
+}
+
+/* Keep Google's real sign-in hit target fixed while its visual face lifts. */
+.cognify-google { --button-stack-color: #64748b; }
+.cognify-google-face {
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fff, #eef5f2);
+  transition: translate 300ms ease, box-shadow 300ms ease;
+}
+.cognify-google-hit { border-radius: 999px; }
+@media (hover: hover) {
+  :is(.button-sweep, .web-button, .sc-btn, .student-go, .sidebar-nav-item):not(:disabled):not([aria-disabled="true"]) svg {
+    transition: transform 180ms ease;
+  }
+  :is(.button-sweep, .web-button, .sc-btn, .student-go, .sidebar-nav-item):not(:disabled):not([aria-disabled="true"]):hover svg {
+    transform: translateY(-1px);
+  }
+  .sidebar-nav-item:hover .sidebar-nav-icon svg { transform: rotate(-5deg) scale(1.06); }
+  .cognify-google:hover:not(.is-disabled):not(.is-pending) .cognify-google-face {
+    translate: -12px -12px;
+    box-shadow: 5px 5px #64748b, 10px 10px #a0acbb, 15px 15px #d0d8df;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.button-sweep, .web-button, .sc-btn, .student-go, .sidebar-nav-item) svg { transition: none !important; }
+}
+.cognify-google:focus-within:not(.is-disabled):not(.is-pending) .cognify-google-face {
+  translate: -12px -12px;
+  box-shadow: 5px 5px #64748b, 10px 10px #a0acbb, 15px 15px #d0d8df;
+}
+.cognify-google:active:not(.is-disabled):not(.is-pending) .cognify-google-face {
+  translate: -3px -3px;
+  box-shadow: 3px 3px #64748b;
+}
+
+@media (hover: hover) {
+  :is(.button-sweep, .web-button, .sc-btn, .student-go):not([data-day]):hover:not(:disabled):not([aria-disabled="true"]) {
+    --button-lift: -12px;
+    box-shadow: var(--tw-inset-shadow, 0 0 #0000),
+      var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+      5px 5px var(--button-stack-color, var(--button-stack-default)),
+      10px 10px color-mix(in srgb, var(--button-stack-color, var(--button-stack-default)) 65%, var(--background, white)),
+      15px 15px color-mix(in srgb, var(--button-stack-color, var(--button-stack-default)) 30%, var(--background, white));
+  }
+}
+:is(.button-sweep, .web-button, .sc-btn, .student-go):not([data-day]):focus-visible:not(:disabled):not([aria-disabled="true"]) {
+  --button-lift: -12px;
+  box-shadow: var(--tw-inset-shadow, 0 0 #0000),
+    var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    5px 5px var(--button-stack-color, var(--button-stack-default)),
+    10px 10px color-mix(in srgb, var(--button-stack-color, var(--button-stack-default)) 65%, var(--background, white)),
+    15px 15px color-mix(in srgb, var(--button-stack-color, var(--button-stack-default)) 30%, var(--background, white));
+}
+:is(.button-sweep, .web-button, .sc-btn, .student-go):not([data-day]):active:not(:disabled):not([aria-disabled="true"]) {
+  --button-lift: -3px;
+  box-shadow: 3px 3px var(--button-stack-color, var(--button-stack-default));
+}
+
+/* Calendar cells retain their grid alignment and range selection shapes. */
+.button-sweep[data-day]::before, .button-sweep[data-day]::after { content: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.button-sweep, .web-button, .sc-btn, .student-go):not([data-day]) {
+    transition: none;
+    translate: none;
+  }
+  :is(.button-sweep, .web-button, .sc-btn, .student-go):not([data-day])::after { translate: none; transition: none; }
+  .cognify-google .cognify-google-face { translate: none; transition: none; }
+  .cognify-google:is(:hover, :focus-within, :active):not(.is-disabled):not(.is-pending) .cognify-google-face { translate: none; }
+}

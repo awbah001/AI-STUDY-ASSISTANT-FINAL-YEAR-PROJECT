@@ -4,6 +4,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { WorkspacePageHeading } from "@/components/WorkspacePageHeading";
 import {
   Moon,
   Sun,
@@ -28,12 +29,7 @@ export default function Settings() {
       <div className="mx-auto max-w-2xl space-y-6">
 
         {/* Page title */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Settings</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Manage your preferences and application settings.
-          </p>
-        </div>
+        <WorkspacePageHeading title="Settings" description="Manage your preferences and application settings." icon={Palette} />
 
         {/* ── Appearance ── */}
         <SettingsSection
@@ -50,12 +46,12 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={() => theme !== "light" && toggleTheme?.()}
-                className={[
+                className={`web-button ${[
                   "flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all",
                   theme === "light"
                     ? "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm"
                     : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
-                ].join(" ")}
+                ].join(" ")}`}
               >
                 <Sun className="h-4 w-4" />
                 Light
@@ -64,12 +60,12 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={() => theme !== "dark" && toggleTheme?.()}
-                className={[
+                className={`web-button ${[
                   "flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all",
                   theme === "dark"
                     ? "border-slate-600 bg-slate-800 text-white shadow-sm"
                     : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
-                ].join(" ")}
+                ].join(" ")}`}
               >
                 <Moon className="h-4 w-4" />
                 Dark

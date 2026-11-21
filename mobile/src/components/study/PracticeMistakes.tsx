@@ -1,4 +1,6 @@
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { WifiLoader as ActivityIndicator } from "../ui/WifiLoader";
+import { SolutionCard } from "../ui/SolutionCard";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { trpc } from "../../lib/api";
@@ -35,7 +37,7 @@ export function PracticeMistakes({ source, mistakes }: { source: Source; mistake
 
   if (result) {
     return (
-      <View style={s.card} accessibilityLiveRegion="polite">
+      <SolutionCard style={s.card} accessibilityLiveRegion="polite">
         <View style={s.head}>
           <Ionicons name="checkmark-circle" size={18} color={colors.success} />
           <Text style={s.title}>{result.alreadyCreated ? "Practice set already made" : "Practice set ready"}</Text>
@@ -83,7 +85,7 @@ export function PracticeMistakes({ source, mistakes }: { source: Source; mistake
             </TouchableOpacity>
           ) : null}
         </View>
-      </View>
+      </SolutionCard>
     );
   }
 

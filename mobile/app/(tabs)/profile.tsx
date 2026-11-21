@@ -1,17 +1,8 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
+import { FormInput } from "../../src/components/ui/FormInput";
+import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { design, elevation } from "../../src/theme/design";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  TextInput,
-  ActivityIndicator,
-  Switch,
-  Modal,
-  Image,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Switch, Modal, Image } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -160,7 +151,7 @@ export default function ProfileScreen() {
         <Text style={s.eyebrow}>Your account</Text>
         <Text style={s.pageTitle}>Profile</Text>
 
-        <View style={s.idCard}>
+        <SolutionCard style={s.idCard}>
           <LinearGradient
             colors={gradients.hero}
             start={{ x: 0, y: 0 }}
@@ -201,8 +192,9 @@ export default function ProfileScreen() {
           <View style={s.idBody}>
             {editing ? (
               <View style={s.editRow}>
-                <TextInput
+                <FormInput
                   style={[s.nameInput, !!nameError && s.inputError]}
+                  personName
                   value={name}
                   onChangeText={v => {
                     setName(v);
@@ -250,7 +242,7 @@ export default function ProfileScreen() {
               <Text style={s.roleText}>Student</Text>
             </View>
           </View>
-        </View>
+        </SolutionCard>
 
         <TouchableOpacity
           style={s.progressWrap}
@@ -433,7 +425,7 @@ export default function ProfileScreen() {
 
       <Modal visible={pwOpen} animationType="slide" transparent>
         <View style={s.modalBackdrop}>
-          <View style={s.modalCard}>
+          <SolutionCard style={s.modalCard}>
             <View style={s.grabber} />
             <View style={s.modalHead}>
               <View style={s.modalIcon}>
@@ -447,7 +439,7 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             </View>
-            <TextInput
+            <FormInput
               style={[s.pwInput, !!pwErrors.current && s.inputError]}
               value={currentPw}
               onChangeText={v => {
@@ -462,7 +454,7 @@ export default function ProfileScreen() {
               maxLength={LIMITS.password.max}
             />
             <FieldError message={pwErrors.current} style={s.pwError} />
-            <TextInput
+            <FormInput
               style={[s.pwInput, !!pwErrors.next && s.inputError]}
               value={newPw}
               onChangeText={v => {
@@ -477,7 +469,7 @@ export default function ProfileScreen() {
               maxLength={LIMITS.password.max}
             />
             <FieldError message={pwErrors.next} style={s.pwError} />
-            <TextInput
+            <FormInput
               style={[s.pwInput, !!pwErrors.confirm && s.inputError]}
               value={confirmPw}
               onChangeText={v => {
@@ -510,7 +502,7 @@ export default function ProfileScreen() {
             <TouchableOpacity style={s.cancelBtn} onPress={closePassword}>
               <Text style={s.cancelText}>Cancel</Text>
             </TouchableOpacity>
-          </View>
+          </SolutionCard>
         </View>
       </Modal>
     </SafeAreaView>
@@ -668,7 +660,7 @@ function Section({
   return (
     <View style={s.section}>
       <Text style={s.sectionLabel}>{title}</Text>
-      <View style={s.sectionCard}>{children}</View>
+      <SolutionCard style={s.sectionCard}>{children}</SolutionCard>
     </View>
   );
 }

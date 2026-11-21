@@ -1,18 +1,11 @@
+import { WifiLoader as ActivityIndicator } from "../src/components/ui/WifiLoader";
 import { design, elevation } from "../src/theme/design";
 /**
  * Notification Inbox Screen
  * Route: /notifications  (pushed from dashboard bell icon)
  */
 
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "../src/lib/api";
 import { colors } from "../src/theme/colors";
 import { coachRoute } from "../src/lib/coachRoute";
+import { CognifyIcon, type CognifyIconName } from "../src/components/ui/CognifyIcon";
 
 function timeAgo(date: Date | string | number) {
   const ms = Date.now() - new Date(date).getTime();
@@ -33,7 +27,7 @@ function timeAgo(date: Date | string | number) {
   return new Date(date).toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
-function notifIcon(data: Record<string, unknown> | null | undefined) {
+function notifIcon(data: Record<string, unknown> | null | undefined): { icon: CognifyIconName; color: string; bg: string } {
   const type = data?.type as string | undefined;
   if (type === "ai_coach")
     return { icon: "sparkles", color: colors.violet, bg: colors.violetSoft };
@@ -96,7 +90,7 @@ export default function NotificationsScreen() {
           style={s.backBtn}
           accessibilityLabel="Go back"
         >
-          <Ionicons name="chevron-back" size={21} color={colors.text} />
+          <CognifyIcon name="previous" size={21} color={colors.text} motion="press" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Notifications</Text>
@@ -114,7 +108,7 @@ export default function NotificationsScreen() {
             onPress={() => markAllRead.mutate()}
             disabled={markAllRead.isPending}
           >
-            <Ionicons name="checkmark-done" size={15} color={colors.primary} />
+            <CognifyIcon name="success" size={15} color={colors.primary} motion={markAllRead.isPending ? "pulse" : "press"} />
             <Text style={s.markAllText}>Mark all read</Text>
           </TouchableOpacity>
         )}
@@ -139,8 +133,8 @@ export default function NotificationsScreen() {
             <View style={s.empty}>
               <View style={s.emptyHalo}>
                 <View style={s.emptyIcon}>
-                  <Ionicons
-                    name="notifications-outline"
+                  <CognifyIcon
+                    name="notifications"
                     size={32}
                     color={colors.primary}
                   />
@@ -183,7 +177,7 @@ export default function NotificationsScreen() {
                 {!item.isRead && <View style={s.unreadStripe} />}
 
                 <View style={[s.iconWrap, { backgroundColor: bg }]}>
-                  <Ionicons name={icon as any} size={20} color={color} />
+                  <CognifyIcon name={icon} size={20} color={color} motion={!item.isRead ? "success" : "none"} />
                 </View>
 
                 <View style={s.content}>
@@ -200,7 +194,7 @@ export default function NotificationsScreen() {
                     {item.body}
                   </Text>
                   <View style={s.timeRow}>
-                    <Ionicons name="time-outline" size={12} color={colors.textLight} />
+                    <CognifyIcon name="time-outline" size={12} color={colors.textLight} />
                     <Text style={s.notifTime}>{timeAgo(item.createdAt)}</Text>
                   </View>
                 </View>

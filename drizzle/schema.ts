@@ -61,7 +61,7 @@ export const documents = sqliteTable("documents", {
   /** When set, document belongs to a lecturer course; enrolled students may access. */
   courseId: integer("courseId"),
   materialType: text("materialType", {
-    enum: ["pdf", "docx", "pptx", "notes", "slides", "assignment", "other"],
+    enum: ["pdf", "docx", "pptx", "notes", "slides", "assignment", "other", "past_questions"],
   }).default("pdf"),
   /** Lifecycle of text extraction and vector indexing, visible to admins. */
   processingStatus: text("processingStatus", { enum: ["pending", "processing", "ready", "failed"] }).default("pending").notNull(),
@@ -78,8 +78,49 @@ export const documents = sqliteTable("documents", {
 export type Document = typeof documents.$inferSelect;
 export type InsertDocument = typeof documents.$inferInsert;
 
+// Personal PDF highlights and source-linked reader notes.
+export const documentAnnotations = sqliteTable("documentAnnotations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull(),
+  documentId: integer("documentId").notNull(),
+  revision: text("revision").notNull(),
+  page: integer("page").notNull(),
+  kind: text("kind", { enum: ["highlight", "note", "flashcards"] }).notNull(),
+  excerpt: text("excerpt").notNull(),
+  rects: text("rects", { mode: "json" }).$type<import("../shared/documentReader").ReaderRect[]>().notNull().default([]),
+  body: text("body").notNull().default(""),
+  requestId: text("requestId").notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+}, t => ({
+  ownerDoc: index("document_annotations_owner_doc").on(t.userId, t.documentId, t.revision),
+  request: uniqueIndex("document_annotations_request").on(t.userId, t.requestId),
+}));
+
 // Chat messages table
+// Free-form personal notes are separate from page-bound PDF annotations.
+export const personalNotes = sqliteTable("personalNotes", {
+  courseId: integer("courseId"),
+  topic: text("topic").notNull().default(""),
+  collection: text("collection").notNull().default(""),
+  tags: text("tags", { mode: "json" }).$type<string[]>().notNull().default([]),
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  sourceKey: text("sourceKey").notNull(),
+  documentId: integer("documentId"),
+  sourceMessageId: integer("sourceMessageId"),
+  sourceChannel: text("sourceChannel", { enum: ["document", "general"] }),
+  version: integer("version").notNull().default(1),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull(),
+}, t => ({
+  ownerUpdated: index("personal_notes_owner_updated").on(t.userId, t.updatedAt),
+  source: uniqueIndex("personal_notes_source").on(t.userId, t.sourceKey),
+}));
+
 export const chatMessages = sqliteTable("chatMessages", {
+  retrievalContext: text("retrievalContext", { mode: "json" }).$type<import("../shared/retrievalScope").StoredRetrievalContext>(),
   id: integer("id").primaryKey({ autoIncrement: true }),
   documentId: integer("documentId").notNull(),
   userId: integer("userId").notNull(),
@@ -165,12 +206,16 @@ export type InsertQuiz = typeof quizzes.$inferInsert;
 export const quizQuestions = sqliteTable("quizQuestions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   quizId: integer("quizId").notNull(),
+  /** "mcq" = multiple choice with 4 options; "essay" = open-ended written response */
+  questionType: text("questionType", { enum: ["mcq", "essay"] }).default("mcq").notNull(),
   question: text("question").notNull(),
   options: text("options", { mode: "json" }).$type<string[]>().notNull(),
   correctAnswer: text("correctAnswer").notNull(),
   explanation: text("explanation"),
   userAnswer: text("userAnswer"),
   isCorrect: integer("isCorrect", { mode: "boolean" }),
+  /** AI-generated feedback for essay answers */
+  essayFeedback: text("essayFeedback"),
 }, (table) => ({
   quizIdIdx: index("quizIdIdx").on(table.quizId),
 }));
@@ -399,6 +444,7 @@ export const assessmentTemplates = sqliteTable("assessmentTemplates", {
 
 // ── General AI chat messages (Ask AI tab — not tied to a document) ────────────
 export const generalChatMessages = sqliteTable("generalChatMessages", {
+  retrievalContext: text("retrievalContext", { mode: "json" }).$type<import("../shared/retrievalScope").StoredRetrievalContext>(),
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("userId").notNull(),
   role: text("role", { enum: ["user", "assistant"] }).notNull(),
@@ -740,3 +786,68 @@ export const courseInsightReports = sqliteTable("courseInsightReports", {
 }));
 
 export type CourseInsightReport = typeof courseInsightReports.$inferSelect;
+
+// ── AI-generated PowerPoint presentations ───────────────────────────────────
+// One deck per document, shared by everyone who can open that document
+// (same sharing model as documentSummaries / audioRecaps).
+export const generatedSlides = sqliteTable("generatedSlides", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  documentId: integer("documentId").notNull().unique(),
+  /** User who last generated the deck (lecturer or student with document access). */
+  createdBy: integer("createdBy").notNull(),
+  title: text("title").notNull(),
+  subtitle: text("subtitle"),
+  slideCount: integer("slideCount").notNull(),
+  /** Per-slide content for inline preview: [{ title, bullets, notes }] */
+  slides: text("slides", { mode: "json" }).$type<Array<{
+    title: string;
+    bullets: string[];
+    notes?: string;
+  }>>().notNull().default([]),
+  /** Public URL of the .pptx under /uploads/. */
+  fileUrl: text("fileUrl").notNull(),
+  fileKey: text("fileKey").notNull(),
+  fileSize: integer("fileSize").notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+}, (table) => ({
+  documentIdIdx: index("generated_slides_documentId_idx").on(table.documentId),
+}));
+
+export type GeneratedSlides = typeof generatedSlides.$inferSelect;
+export type InsertGeneratedSlides = typeof generatedSlides.$inferInsert;
+
+// ── AI-generated narrated videos ───────────────────────────────────────────
+// Student-only feature; one video per (student, document), regenerated overwrites.
+export const generatedVideos = sqliteTable("generatedVideos", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull(),
+  documentId: integer("documentId").notNull(),
+  title: text("title").notNull(),
+  sceneCount: integer("sceneCount").notNull(),
+  /** Total narration length in seconds. */
+  durationSeconds: integer("durationSeconds"),
+  /** URL of the self-contained HTML player under /uploads/. */
+  playerUrl: text("playerUrl").notNull(),
+  /** Combined narration audio URL under /uploads/ (null when TTS was unavailable). */
+  audioUrl: text("audioUrl"),
+  audioBytes: integer("audioBytes"),
+  voice: text("voice"),
+  /** Per-scene manifest: [{ index, imageUrl, startSeconds, durationSeconds, title, narration }]. */
+  scenes: text("scenes", { mode: "json" }).$type<Array<{
+    index: number;
+    imageUrl: string;
+    startSeconds: number;
+    durationSeconds: number;
+    title: string;
+    narration: string;
+  }>>().notNull(),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(new Date()),
+}, (table) => ({
+  userDocumentIdx: uniqueIndex("generated_videos_user_document_idx").on(table.userId, table.documentId),
+  userIdIdx: index("generated_videos_userId_idx").on(table.userId),
+}));
+
+export type GeneratedVideo = typeof generatedVideos.$inferSelect;
+export type InsertGeneratedVideo = typeof generatedVideos.$inferInsert;

@@ -1,3 +1,4 @@
+import { Spinner } from "@/components/ui/spinner";
 import { AdminHero } from "@/components/admin/AdminHero";
 import { useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -180,7 +181,7 @@ export default function AdminAudit() {
                 onClick={resetFilters}
                 className="h-10 gap-2 rounded-full px-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+                {isFetching ? <Spinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 Reset
               </Button>
               <Button
@@ -281,7 +282,7 @@ export default function AdminAudit() {
                         <button
                           type="button"
                           aria-label="Row options"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                          className="web-button inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                           onClick={() => {
                             void navigator.clipboard?.writeText(
                               JSON.stringify(
@@ -318,7 +319,7 @@ export default function AdminAudit() {
                         <button
                           type="button"
                           onClick={() => refetch()}
-                          className="mt-3 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
+                          className="web-button mt-3 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
                         >
                           Refresh
                         </button>

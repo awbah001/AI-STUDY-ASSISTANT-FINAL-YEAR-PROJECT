@@ -1,5 +1,7 @@
+import { Spinner as Loader2 } from "@/components/ui/spinner";
 import StudentAccount from "@/pages/student/StudentAccount";
 import { LecturerHero } from "@/components/lecturer/LecturerUi";
+import { WorkspacePageHeading } from "@/components/WorkspacePageHeading";
 import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,16 +12,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { storagePut } from "@/lib/storage";
 import { toast } from "sonner";
-import {
-  Camera,
-  Loader2,
-  User,
-  Lock,
-  Mail,
-  LogIn,
-  CheckCircle2,
-  Pencil,
-} from "lucide-react";
+import { Camera, User, Lock, Mail, LogIn, CheckCircle2, Pencil } from "lucide-react";
 import { Link } from "wouter";
 import { FieldError } from "@/components/FieldError";
 import { PasswordRules } from "@/components/PasswordRules";
@@ -105,7 +98,7 @@ export default function Profile() {
     <DashboardLayout>
       <div className={user?.role === "lecturer" ? "lecturer-content lecturer-profile" : "mx-auto max-w-2xl space-y-6"}>
 
-        {user?.role === "lecturer" ? <LecturerHero eyebrow="Account" title="Profile" description="Manage your personal information and account security." icon={User}/> : <div><h1 className="text-2xl font-bold">Profile</h1><p className="mt-1 text-sm text-slate-500">Manage your personal information and account security.</p></div>}
+        {user?.role === "lecturer" ? <LecturerHero eyebrow="Account" title="Profile" description="Manage your personal information and account security." icon={User}/> : <WorkspacePageHeading title="Profile" description="Manage your personal information and account security." icon={User} eyebrow="Your account" />}
 
         {/* ── Avatar & Name card ── */}
         <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
@@ -152,6 +145,7 @@ export default function Profile() {
                   <Label htmlFor="profile-name" className="text-sm font-medium text-slate-700">Display name</Label>
                   <Input
                     id="profile-name"
+                    autoComplete="name"
                     value={name}
                     onChange={(e) => { setName(e.target.value); clear("name"); }}
                     placeholder="Your name"
@@ -233,7 +227,7 @@ export default function Profile() {
               </div>
             </div>
             <div className="px-6 py-6">
-              <form onSubmit={handleChangePassword} className="space-y-4 max-w-sm">
+              <form onSubmit={handleChangePassword} className="form-surface space-y-4 max-w-sm">
                 <div className="space-y-1.5">
                   <Label htmlFor="current-password" className="text-sm font-medium text-slate-700">Current password</Label>
                   <Input

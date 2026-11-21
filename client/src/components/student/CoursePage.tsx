@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ClipboardList,
   Download,
+  FileQuestion,
   FileText,
   MessageSquareText,
   MoreVertical,
@@ -238,6 +239,8 @@ function materialLook(doc: {
   tone: Tone;
 } {
   const name = doc.fileName.toLowerCase();
+  if (doc.materialType === "past_questions")
+    return { icon: FileQuestion, tone: "orange" as Tone };
   if (
     doc.materialType === "slides" ||
     doc.materialType === "pptx" ||

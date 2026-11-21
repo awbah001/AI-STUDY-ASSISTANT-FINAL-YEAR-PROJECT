@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Spinner } from "./ui/spinner";
 
 const GSI_SRC = "https://accounts.google.com/gsi/client";
 
@@ -110,7 +111,7 @@ export function GoogleSignInButton({
     <div className={`cognify-google ${pending ? "is-pending" : ""} ${clientId ? "" : "is-disabled"}`}>
       <div className="cognify-google-face" aria-hidden={Boolean(clientId)}>
         {pending ? (
-          <span className="cognify-google-spinner" />
+          <Spinner aria-hidden="true" />
         ) : (
           <GoogleMark className="cognify-google-mark" />
         )}

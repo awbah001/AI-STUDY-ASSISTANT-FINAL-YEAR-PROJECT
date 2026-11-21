@@ -1,3 +1,4 @@
+import { FormInput } from "../../ui/FormInput";
 import { design } from "../../../theme/design";
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -110,7 +111,7 @@ export function NumberSetting({
   return (
     <View style={{ marginBottom: 12 }}>
       <Text style={st.label}>{label}</Text>
-      <TextInput
+      <FormInput
         style={st.input}
         value={text}
         keyboardType={decimal ? "decimal-pad" : "number-pad"}
@@ -282,7 +283,7 @@ export function ConfirmSheet({
 }
 
 const st = StyleSheet.create({
-  card: { marginBottom: 14, ...design.card },
+  card: { marginBottom: 14, ...design.form },
   cardTitle: { ...design.sectionTitle, fontSize: 16 },
   cardBody: { marginTop: 4, ...design.caption, fontSize: 13 },
   label: {

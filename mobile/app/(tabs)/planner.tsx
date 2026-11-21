@@ -1,3 +1,5 @@
+import { FormInput } from "../../src/components/ui/FormInput";
+import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { design, elevation } from "../../src/theme/design";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -119,7 +121,7 @@ function KeyboardSheet({
     >
       <View style={s.sheetRoot}>
         <Pressable style={s.sheetBackdrop} onPress={onClose} />
-        <View style={[s.sheetCard, { marginBottom: keyboardHeight }]}>
+        <SolutionCard style={[s.sheetCard, { marginBottom: keyboardHeight }]}>
           <View style={s.grabber} />
           <ScrollView
             keyboardShouldPersistTaps="handled"
@@ -128,7 +130,7 @@ function KeyboardSheet({
           >
             {children}
           </ScrollView>
-        </View>
+        </SolutionCard>
       </View>
     </Modal>
   );
@@ -391,7 +393,7 @@ export default function PlannerScreen() {
             </HeroGradient>
           </TouchableOpacity>
 
-          <View style={s.weekCard}>
+          <SolutionCard style={s.weekCard}>
             <View style={s.weekHead}>
               <View>
                 <Text style={s.weekTitle}>This week</Text>
@@ -464,10 +466,10 @@ export default function PlannerScreen() {
                 );
               })}
             </View>
-          </View>
+          </SolutionCard>
 
           {!!planText && (
-            <View style={s.planCard}>
+            <SolutionCard style={s.planCard}>
               <View style={s.planHead}>
                 <View style={s.planIcon}>
                   <Ionicons name="sparkles" size={13} color={colors.primary} />
@@ -486,7 +488,7 @@ export default function PlannerScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={s.planBody}>{planText}</Text>
-            </View>
+            </SolutionCard>
           )}
 
           <View style={s.sectionHead}>
@@ -512,7 +514,7 @@ export default function PlannerScreen() {
                     </Text>
                     {i < dayEvents.length - 1 ? <View style={s.timeLine} /> : null}
                   </View>
-                  <View style={[s.taskCard, s.timelineCard, { borderLeftColor: vis.color }]}>
+                  <SolutionCard style={[s.taskCard, s.timelineCard, { borderLeftColor: vis.color }]}>
                     <View style={[s.check, done && s.checkOn]}>
                       {done ? (
                         <Ionicons name="checkmark" size={13} color={colors.white} />
@@ -547,13 +549,13 @@ export default function PlannerScreen() {
                     >
                       <Ionicons name="trash-outline" size={15} color={colors.textLight} />
                     </TouchableOpacity>
-                  </View>
+                  </SolutionCard>
                 </View>
               );
             })
           ) : sameDay(selected, new Date()) && data?.tasks.length ? (
             data.tasks.map(task => (
-              <TouchableOpacity
+              <SolutionCard component="touchable"
                 key={task.id}
                 style={s.taskCard}
                 activeOpacity={0.85}
@@ -569,7 +571,7 @@ export default function PlannerScreen() {
                   <Text style={s.taskDetail}>{task.detail}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
-              </TouchableOpacity>
+              </SolutionCard>
             ))
           ) : (
             <View style={s.emptyDay}>
@@ -656,7 +658,7 @@ export default function PlannerScreen() {
       <KeyboardSheet visible={editing} onClose={() => setEditing(false)}>
         <SheetHeader icon="flag-outline" title="Set your daily goals" />
         <Text style={s.inputLabel}>Study minutes</Text>
-        <TextInput
+        <FormInput
           keyboardType="number-pad"
           value={minutes}
           onChangeText={v => {
@@ -669,7 +671,7 @@ export default function PlannerScreen() {
         />
         <FieldError message={errors.minutes} style={s.fieldError} />
         <Text style={s.inputLabel}>Flashcards to review</Text>
-        <TextInput
+        <FormInput
           keyboardType="number-pad"
           value={cards}
           onChangeText={v => {
@@ -682,7 +684,7 @@ export default function PlannerScreen() {
         />
         <FieldError message={errors.cards} style={s.fieldError} />
         <Text style={s.inputLabel}>Quizzes to complete</Text>
-        <TextInput
+        <FormInput
           keyboardType="number-pad"
           value={quizzes}
           onChangeText={v => {
@@ -727,7 +729,7 @@ export default function PlannerScreen() {
           Example: “Create a 5-day study plan for my GIS exam on 20 September at
           9am.”
         </Text>
-        <TextInput
+        <FormInput
           value={askText}
           onChangeText={v => {
             setAskText(v);
@@ -793,7 +795,7 @@ export default function PlannerScreen() {
           })}
         />
         <Text style={s.inputLabel}>Title</Text>
-        <TextInput
+        <FormInput
           value={title}
           onChangeText={v => {
             setTitle(v);
@@ -833,7 +835,7 @@ export default function PlannerScreen() {
           ))}
         </View>
         <Text style={s.inputLabel}>Time (24h)</Text>
-        <TextInput
+        <FormInput
           value={time}
           onChangeText={v => {
             setTime(v);

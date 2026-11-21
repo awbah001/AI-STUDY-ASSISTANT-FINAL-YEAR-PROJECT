@@ -10,32 +10,38 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-500 dark:hover:bg-emerald-600",
+          "bg-emerald-700 text-white shadow-sm active:bg-emerald-800 dark:bg-emerald-700",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-destructive text-white focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
-          "border border-burgundy-border bg-white text-burgundy shadow-xs hover:bg-burgundy-soft hover:text-burgundy-hover dark:bg-transparent dark:text-burgundy-foreground dark:hover:bg-burgundy-soft",
+          "border border-burgundy-border bg-white text-burgundy shadow-xs hover:text-burgundy-hover dark:bg-transparent dark:text-burgundy-foreground",
         secondary:
-          "border border-neutral-gray-border bg-neutral-gray-soft text-slate-700 hover:bg-slate-200/70 dark:text-slate-100 dark:hover:bg-slate-700/60",
+          "border border-neutral-gray-border bg-neutral-gray-soft text-slate-700 dark:text-slate-100",
         ghost:
-          "text-neutral-gray hover:bg-neutral-gray-soft hover:text-slate-800 dark:hover:text-slate-100",
+          "text-neutral-gray hover:text-slate-800 dark:hover:text-slate-100",
         link: "text-emerald-600 underline-offset-4 hover:underline hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300",
         accent:
-          "bg-burgundy text-white shadow-sm hover:bg-burgundy-hover active:bg-burgundy-hover",
+          "bg-burgundy text-white shadow-sm active:bg-burgundy-hover",
         "accent-outline":
-          "border border-burgundy-border bg-white text-burgundy shadow-xs hover:bg-burgundy-soft hover:text-burgundy-hover dark:bg-transparent dark:text-burgundy-foreground",
+          "border border-burgundy-border bg-white text-burgundy shadow-xs hover:text-burgundy-hover dark:bg-transparent dark:text-burgundy-foreground",
         neutral:
-          "border border-neutral-gray-border bg-white text-neutral-gray shadow-xs hover:bg-neutral-gray-soft hover:text-slate-700 dark:bg-transparent dark:hover:text-slate-200",
+          "border border-neutral-gray-border bg-white text-neutral-gray shadow-xs hover:text-slate-700 dark:bg-transparent dark:hover:text-slate-200",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
+        default: "h-10 px-4 py-2 has-[>svg]:px-3",
+        sm: "h-9 gap-1.5 px-3 has-[>svg]:px-2.5",
+        lg: "h-11 px-6 has-[>svg]:px-4",
+        icon: "size-10",
+        "icon-sm": "size-9",
+        "icon-lg": "size-11",
       },
     },
+    compoundVariants: [
+      {
+        variant: ["default", "destructive", "outline", "secondary", "ghost", "link", "accent", "accent-outline", "neutral"],
+        className: "button-sweep",
+      },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",
@@ -59,6 +65,7 @@ function Button({
     <Comp
       data-slot="button"
       data-variant={variant ?? "default"}
+      data-size={size ?? "default"}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

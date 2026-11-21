@@ -1,7 +1,8 @@
+import { Spinner as Loader2 } from "@/components/ui/spinner";
 import { useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
-import { CalendarCheck, CalendarPlus, Loader2, Plus, Trash2 } from "lucide-react";
+import { CalendarCheck, CalendarPlus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -111,7 +112,7 @@ export function AddPlanToPlanner({ content }: { content: string }) {
     <>
       <button
         type="button"
-        className={chip}
+        className={`web-button ${chip}`}
         disabled={draft.isPending}
         title="Turn this plan into planner sessions"
         onClick={() => {

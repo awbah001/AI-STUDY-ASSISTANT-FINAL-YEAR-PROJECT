@@ -28,7 +28,8 @@ import {
   XCircle,
   Zap,
 } from "lucide-react";
-import { useEffect, useState, type ComponentType } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link } from "wouter";
 import "../landing.css";
 
@@ -187,6 +188,83 @@ const faqs = [
 
 function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function SlideTabs({ active, onNavigate }: { active: string; onNavigate: (href: string) => void }) {
+  const navRef = useRef<HTMLElement>(null);
+  const highlightedRef = useRef<HTMLAnchorElement | null>(null);
+  const reducedMotion = useReducedMotion();
+  const [position, setPosition] = useState({ left: 0, width: 0, opacity: 0 });
+
+  const highlight = (element: HTMLAnchorElement) => {
+    highlightedRef.current = element;
+    setPosition({ left: element.offsetLeft, width: element.getBoundingClientRect().width, opacity: 1 });
+  };
+
+  const restoreActive = () => {
+    const selected = navRef.current?.querySelector<HTMLAnchorElement>('a[aria-current="location"]');
+    if (selected) {
+      highlight(selected);
+      return;
+    }
+    highlightedRef.current = null;
+    setPosition((previous) => ({ ...previous, opacity: 0 }));
+  };
+
+  useEffect(() => {
+    if (!navRef.current?.matches(":hover, :focus-within")) restoreActive();
+  }, [active]);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const observer = new ResizeObserver(() => {
+      const element = highlightedRef.current;
+      if (element) {
+        setPosition({ left: element.offsetLeft, width: element.getBoundingClientRect().width, opacity: 1 });
+      }
+    });
+    observer.observe(nav);
+    nav.querySelectorAll("a").forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <nav
+      ref={navRef}
+      className="lp-links"
+      aria-label="Main"
+      onMouseLeave={() => {
+        const focused = navRef.current?.querySelector<HTMLAnchorElement>("a:focus-visible");
+        if (focused) highlight(focused);
+        else restoreActive();
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) restoreActive();
+      }}
+    >
+      {NAV.map((item) => (
+        <a
+          key={item.href}
+          className={active === item.href.slice(1) ? "active" : undefined}
+          href={item.href}
+          aria-current={active === item.href.slice(1) ? "location" : undefined}
+          onMouseEnter={(event) => highlight(event.currentTarget)}
+          onFocus={(event) => highlight(event.currentTarget)}
+          onClick={(event) => { event.preventDefault(); onNavigate(item.href); }}
+        >
+          {item.label}
+        </a>
+      ))}
+      <motion.span
+        className="lp-tab-cursor"
+        aria-hidden="true"
+        initial={false}
+        animate={position}
+        transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 450, damping: 35 }}
+      />
+    </nav>
+  );
 }
 
 function HeroChat() {
@@ -361,21 +439,10 @@ export default function Home() {
             <small>AI Learning Assistant</small>
           </span>
         </a>
-        <nav className="lp-links" aria-label="Main">
-          {NAV.map((item) => (
-            <a
-              key={item.href}
-              className={active === item.href.slice(1) ? "active" : undefined}
-              href={item.href}
-              onClick={(e) => { e.preventDefault(); go(item.href); }}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
+        <SlideTabs active={active} onNavigate={go} />
         <div className="lp-nav-actions">
-          <Link href={getLoginUrl()} className="lp-btn lp-btn-quiet">Sign in</Link>
-          <Link href={getLoginUrl()} className="lp-btn lp-btn-primary">Get started</Link>
+          <Link href={getLoginUrl()} className="lp-btn lp-btn-quiet"><span className="lp-btn-face">Sign in</span></Link>
+          <Link href={getLoginUrl()} className="lp-btn lp-btn-primary"><span className="lp-btn-face">Get started</span></Link>
           <button type="button" className="lp-menu" onClick={() => setMenuOpen((v) => !v)} aria-label="Menu" aria-expanded={menuOpen}>
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -386,7 +453,7 @@ export default function Home() {
           {NAV.map((item) => (
             <a key={item.href} href={item.href} onClick={(e) => { e.preventDefault(); go(item.href); }}>{item.label}</a>
           ))}
-          <Link href={getLoginUrl()} className="lp-btn lp-btn-primary">Sign in</Link>
+          <Link href={getLoginUrl()} className="lp-btn lp-btn-primary"><span className="lp-btn-face">Sign in</span></Link>
         </div>
       )}
 
@@ -403,10 +470,10 @@ export default function Home() {
           </p>
           <div className="lp-hero-actions">
             <Link href={getLoginUrl()} className="lp-btn lp-btn-primary lp-btn-lg">
-              Get started <ArrowRight size={18} />
+              <span className="lp-btn-face">Get started <ArrowRight size={18} /></span>
             </Link>
             <button type="button" className="lp-btn lp-btn-outline lp-btn-lg" onClick={() => scrollToId("how")}>
-              See how it works
+              <span className="lp-btn-face">See how it works</span>
             </button>
           </div>
           <ul className="lp-trust">
@@ -602,10 +669,10 @@ export default function Home() {
           <p>Sign in to open your courses, ask your first question and let the study coach keep you on track.</p>
           <div className="lp-cta-actions">
             <Link href={getLoginUrl()} className="lp-btn lp-btn-light lp-btn-lg">
-              Get started <ArrowRight size={18} />
+              <span className="lp-btn-face">Get started <ArrowRight size={18} /></span>
             </Link>
             <button type="button" className="lp-btn lp-btn-ghost-light lp-btn-lg" onClick={() => scrollToId("features")}>
-              Explore features
+              <span className="lp-btn-face">Explore features</span>
             </button>
           </div>
         </div>

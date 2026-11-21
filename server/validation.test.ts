@@ -17,6 +17,8 @@ import {
   zNewPassword,
   zPersonName,
   zText,
+  capitalizeNameInput,
+  normalizePersonName,
 } from "../shared/validation";
 import { describeZodError } from "./_core/validationErrors";
 import { DEFAULT_SYSTEM_SETTINGS, findSystemSettingsError } from "../shared/adminSettings";
@@ -86,6 +88,12 @@ describe("shared form validators", () => {
     expect(validateEmail("maya@gmail.com")).toMatch(/central\.edu\.sl/);
     expect(validateEmail(" Maya@Central.edu.sl ")).toBeNull();
     expect(validateEmail("maya@gmail.com", { requireSchoolDomain: false })).toBeNull();
+    expect(validateEmail("12345")).toBe(MESSAGES.emailInvalid);
+    expect(validateEmail("12345@central.edu.sl")).toBe(MESSAGES.emailNeedsLetters);
+    expect(validateEmail("123.456@central.edu.sl")).toBe(MESSAGES.emailNeedsLetters);
+    expect(validateEmail("john123@central.edu.sl")).toBeNull();
+    expect(zEmail.safeParse("12345@central.edu.sl").error?.issues[0]?.message).toBe(MESSAGES.emailNeedsLetters);
+    expect(zEmail.parse("John123@Central.edu.sl")).toBe("john123@central.edu.sl");
   });
 
   it("requires a reasonably strong new password", () => {
@@ -111,6 +119,14 @@ describe("shared form validators", () => {
 });
 
 describe("shared zod schemas", () => {
+  it("capitalizes name initials while keeping deliberate spelling and typing spaces", () => {
+    expect(capitalizeNameInput("maya ")).toBe("Maya ");
+    expect(normalizePersonName("  maya   chen ")).toBe("Maya Chen");
+    expect(normalizePersonName("anne-marie o'neill")).toBe("Anne-Marie O'Neill");
+    expect(normalizePersonName("élise McDonald")).toBe("Élise McDonald");
+    expect(zPersonName().parse("maya chen")).toBe("Maya Chen");
+    expect(zPersonName().safeParse("Maya123").success).toBe(false);
+  });
   it("trims, normalises and rejects with the same messages", () => {
     expect(zText("Title", { max: 10 }).safeParse("   ").error?.issues[0]?.message).toBe("Title is required.");
     expect(zText("Title", { max: 10 }).parse("  Week 1 ")).toBe("Week 1");

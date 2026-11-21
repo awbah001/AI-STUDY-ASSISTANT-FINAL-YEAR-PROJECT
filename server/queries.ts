@@ -45,6 +45,12 @@ import {
   InsertNotification,
   InsertPasswordResetToken,
   systemEvents,
+  generatedSlides,
+  generatedVideos,
+  GeneratedSlides,
+  GeneratedVideo,
+  InsertGeneratedSlides,
+  InsertGeneratedVideo,
 } from "../drizzle/schema";
 import { getDb } from "./db";
 
@@ -196,12 +202,9 @@ export async function createChatMessage(data: InsertChatMessage): Promise<ChatMe
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.insert(chatMessages).values(data);
-  
-  // Get the last inserted message
-  const msgs = await db.select().from(chatMessages).orderBy(desc(chatMessages.id)).limit(1);
-  if (!msgs[0]) throw new Error("Failed to create chat message");
-  return msgs[0];
+  const [message] = await db.insert(chatMessages).values(data).returning();
+  if (!message) throw new Error("Failed to create chat message");
+  return message;
 }
 
 export async function getDocumentChatHistory(
@@ -566,6 +569,21 @@ export async function updateQuizQuestionAnswer(
     .where(eq(quizQuestions.id, questionId))
     .limit(1)
     .then((r) => r[0]);
+}
+
+export async function updateQuizQuestionAnswerWithFeedback(
+  questionId: number,
+  userAnswer: string,
+  isCorrect: boolean,
+  essayFeedback?: string
+): Promise<QuizQuestion | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  await db
+    .update(quizQuestions)
+    .set({ userAnswer, isCorrect, essayFeedback: essayFeedback ?? null })
+    .where(eq(quizQuestions.id, questionId));
+  return db.select().from(quizQuestions).where(eq(quizQuestions.id, questionId)).limit(1).then(r => r[0]);
 }
 
 // ============ PROGRESS TRACKING ============
@@ -1257,4 +1275,74 @@ export async function consumeResetToken(tokenId: number): Promise<void> {
     .update(passwordResetTokens)
     .set({ usedAt: new Date() })
     .where(eq(passwordResetTokens.id, tokenId));
+}
+
+// ============ GENERATED PRESENTATIONS (.pptx) ============
+
+export async function getGeneratedSlides(documentId: number): Promise<GeneratedSlides | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(generatedSlides)
+    .where(eq(generatedSlides.documentId, documentId))
+    .orderBy(desc(generatedSlides.id))
+    .limit(1);
+  return rows[0];
+}
+
+/** Replace any existing deck for this document (one deck per doc, shared). */
+export async function replaceGeneratedSlides(data: InsertGeneratedSlides): Promise<GeneratedSlides> {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  await database.delete(generatedSlides).where(eq(generatedSlides.documentId, data.documentId));
+  const now = new Date();
+  await database.insert(generatedSlides).values({
+    ...data,
+    createdAt: data.createdAt ?? now,
+    updatedAt: now,
+  });
+  const row = await database
+    .select()
+    .from(generatedSlides)
+    .where(eq(generatedSlides.documentId, data.documentId))
+    .orderBy(desc(generatedSlides.id))
+    .limit(1);
+  if (!row[0]) throw new Error("Failed to save presentation");
+  return row[0];
+}
+
+// ============ GENERATED VIDEOS (narrated slideshow) ============
+
+export async function getGeneratedVideo(userId: number, documentId: number): Promise<GeneratedVideo | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(generatedVideos)
+    .where(and(eq(generatedVideos.userId, userId), eq(generatedVideos.documentId, documentId)))
+    .limit(1);
+  return rows[0];
+}
+
+/** Replace any existing video for this (student, document) pair. */
+export async function replaceGeneratedVideo(data: InsertGeneratedVideo): Promise<GeneratedVideo> {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  await database
+    .delete(generatedVideos)
+    .where(and(eq(generatedVideos.userId, data.userId), eq(generatedVideos.documentId, data.documentId)));
+  const now = new Date();
+  await database.insert(generatedVideos).values({
+    ...data,
+    createdAt: data.createdAt ?? now,
+    updatedAt: now,
+  });
+  const row = await database
+    .select()
+    .from(generatedVideos)
+    .where(and(eq(generatedVideos.userId, data.userId), eq(generatedVideos.documentId, data.documentId)))
+    .limit(1);
+  if (!row[0]) throw new Error("Failed to save video");
+  return row[0];
 }

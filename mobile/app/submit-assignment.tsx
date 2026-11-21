@@ -1,3 +1,6 @@
+import { WifiLoader as ActivityIndicator } from "../src/components/ui/WifiLoader";
+import { FormInput } from "../src/components/ui/FormInput";
+import { SolutionCard } from "../src/components/ui/SolutionCard";
 import { design, elevation } from "../src/theme/design";
 /**
  * Submit Assignment Screen
@@ -9,18 +12,7 @@ import { design, elevation } from "../src/theme/design";
  *  - Re-submit if they already submitted (updates the existing row)
  */
 
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Animated,
-  Linking,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, Animated, Linking } from "react-native";
 import { useState, useRef, useEffect } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -247,7 +239,7 @@ export default function SubmitAssignmentScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={s.infoCard}>
+        <SolutionCard style={s.infoCard}>
           <View style={s.infoTop}>
             <View style={s.infoIcon}>
               <Ionicons name="clipboard" size={20} color={colors.primary} />
@@ -306,12 +298,12 @@ export default function SubmitAssignmentScreen() {
               </View>
             )}
           </View>
-        </View>
+        </SolutionCard>
 
         {/* Note field */}
         <View style={s.field}>
           <Text style={s.label}>Your answer</Text>
-          <TextInput
+          <FormInput
             style={[s.textarea, !!noteError && { borderColor: FIELD_ERROR_COLOR }]}
             value={note}
             onChangeText={v => {
@@ -438,7 +430,7 @@ export default function SubmitAssignmentScreen() {
           (existing.feedback ||
             existing.grade ||
             existing.rubricScores?.length) && (
-            <View style={s.feedbackCard}>
+            <SolutionCard style={s.feedbackCard}>
               <View style={s.feedbackHead}>
                 <View style={s.feedbackIcon}>
                   <Ionicons name="ribbon" size={18} color={colors.info} />
@@ -462,7 +454,7 @@ export default function SubmitAssignmentScreen() {
                   ))}
                 </View>
               ) : null}
-            </View>
+            </SolutionCard>
           )}
 
         <View style={{ height: 32 }} />

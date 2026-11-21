@@ -1,0 +1,51 @@
+/* Form treatment adapted from Uiverse.io by Smit-Prajapati.
+   Existing brand, validation and semantic colors remain in place. */
+.form-surface, .auth-form-panel, .settings-form-panel,
+[data-slot="dialog-content"]:has(> form) {
+  border-radius: 32px;
+  background: linear-gradient(0deg, var(--card, #fff),
+    color-mix(in srgb, var(--card, #fff) 94%, var(--primary, #047857)));
+  border: 3px solid var(--card, #fff);
+  box-shadow: 0 30px 30px -20px color-mix(in srgb, var(--primary, #047857) 24%, transparent);
+}
+.form-surface { padding: clamp(16px, 2.5vw, 28px); }
+.settings-form-panel[class*="border-red-"] { border-color: color-mix(in srgb, var(--destructive, #b91c1c) 25%, var(--card, #fff)); }
+.auth-form-panel { border-width: 5px; border-radius: 40px; padding: 26px 24px; }
+.auth-form-panel h1 { text-align: center; font-size: 30px; line-height: 1.2; font-weight: 900; }
+.auth-form-panel h1 + p { text-align: center; }
+.auth-form-panel form { margin-top: 20px; }
+.auth-form-panel label { font-weight: 600; }
+
+/* Keep existing field dimensions and icon padding; change only the surface. */
+form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]), textarea, select),
+.settings-form-panel :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select),
+.dashboard-shell .dashboard-page :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]),
+.auth-form-panel :is([data-slot="input"], [data-slot="textarea"]) {
+  border-radius: 20px;
+  background-color: var(--card, #fff);
+  border-inline-width: 2px;
+  border-inline-color: transparent;
+  box-shadow: 0 10px 10px -5px color-mix(in srgb, var(--primary, #047857) 12%, transparent);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+form :is(input, textarea, select):focus-visible,
+.settings-form-panel :is(input, textarea, select):focus-visible,
+.dashboard-shell .dashboard-page :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]):focus-visible {
+  border-inline-color: var(--ring, var(--primary, #047857));
+  outline: 2px solid color-mix(in srgb, var(--ring, #047857) 25%, transparent);
+  outline-offset: 2px;
+}
+form :is(input, textarea, select)[aria-invalid="true"],
+.settings-form-panel :is(input, textarea, select)[aria-invalid="true"],
+.dashboard-shell .dashboard-page :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"])[aria-invalid="true"] {
+  border-color: var(--destructive, #b91c1c);
+  outline-color: color-mix(in srgb, var(--destructive, #b91c1c) 25%, transparent);
+}
+/* Buttons use the shared web treatment, including submit and cancel actions. */
+form button:focus-visible { outline: 2px solid var(--ring, #047857); outline-offset: 3px; }
+@media (max-width: 480px) {
+  .auth-form-panel { padding: 24px 16px; border-radius: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  form :is(input, textarea, select, button) { transition: none; }
+}

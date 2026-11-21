@@ -1,0 +1,53 @@
+{
+    "submission_id":  41777769,
+    "language":  "Python3",
+    "in_progress":  true,
+    "percentage":  0,
+    "score":  0.0,
+    "rank":  236494,
+    "total":  236792,
+    "league":  "Wood 3",
+    "league_rank":  13,
+    "league_total":  312,
+    "eligible_for_promotion":  false,
+    "next_promotion_in_seconds":  11,
+    "league_boss":  {
+                        "name":  "Boss 1",
+                        "rank":  6,
+                        "score":  4.45,
+                        "agent_id":  415878
+                    },
+    "league_history":  [
+                           {
+                               "league":  "Wood 3",
+                               "entered_at":  "2026-11-21T13:54:48.474Z"
+                           }
+                       ],
+    "promotion_mode":  "rank_above_boss",
+    "limits":  {
+                   "submits":  {
+                                   "name":  "submits_5m",
+                                   "limit":  5,
+                                   "used":  1,
+                                   "remaining":  4,
+                                   "window_seconds":  300,
+                                   "resets_in_seconds":  284
+                               },
+                   "test_games":  {
+                                      "name":  "test_games_1m",
+                                      "limit":  10,
+                                      "used":  1,
+                                      "remaining":  9,
+                                      "window_seconds":  60,
+                                      "resets_in_seconds":  18
+                                  },
+                   "requests":  {
+                                    "name":  "requests_1m",
+                                    "limit":  120,
+                                    "used":  1,
+                                    "remaining":  119,
+                                    "window_seconds":  60,
+                                    "resets_in_seconds":  60
+                                }
+               }
+}

@@ -1,0 +1,7 @@
+
+> ai-learning-assistant@1.0.0 check C:\Users\DEVNET\Desktop\AI_LEARNING_ASSISTANT
+> tsc --noEmit
+
+client/src/pages/AdminAcademic.tsx(5,10): error TS2300: Duplicate identifier 'Input'.
+client/src/pages/AdminAcademic.tsx(7,10): error TS2300: Duplicate identifier 'Input'.
+ ELIFECYCLE  Command failed with exit code 2.

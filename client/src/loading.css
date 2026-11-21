@@ -1,0 +1,26 @@
+/* Animated ring loader adapted from Uiverse.io by Erasmus001. */
+.wifi-loader { display: inline-block; flex-shrink: 0; overflow: visible; }
+.wifi-ring circle { fill: none; stroke: currentColor; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; transform: rotate(-100deg); transform-origin: 43px 43px; }
+.wifi-ring .wifi-back { opacity: 0.22; }
+.wifi-ring-outer circle { animation: wifi-outer 1.8s ease infinite; }
+.wifi-ring-middle circle { animation: wifi-middle 1.8s ease infinite; }
+.wifi-ring-inner circle { animation: wifi-inner 1.8s ease infinite; }
+.wifi-ring-outer .wifi-back { animation-delay: .3s; }
+.wifi-ring-outer .wifi-front { animation-delay: .15s; }
+.wifi-ring-middle .wifi-back { animation-delay: .25s; }
+.wifi-ring-middle .wifi-front { animation-delay: .1s; }
+.wifi-ring-inner .wifi-back { animation-delay: .2s; }
+.wifi-ring-inner .wifi-front { animation-delay: .05s; }
+.wifi-loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 164px; padding: 24px; color: var(--primary, #0a6e52); }
+.wifi-loading-text { position: relative; color: var(--muted-foreground, #6b7280); font-size: 14px; font-weight: 500; letter-spacing: .2px; text-align: center; }
+.wifi-loading-text::after { content: attr(data-text); position: absolute; inset: 0; color: var(--primary, #0a6e52); animation: wifi-text 3.6s ease infinite; pointer-events: none; }
+@keyframes wifi-outer { 0% { stroke-dashoffset: 25; } 25% { stroke-dashoffset: 0; } 65% { stroke-dashoffset: 301; } 80%, 100% { stroke-dashoffset: 276; } }
+@keyframes wifi-middle { 0% { stroke-dashoffset: 17; } 25% { stroke-dashoffset: 0; } 65% { stroke-dashoffset: 204; } 80%, 100% { stroke-dashoffset: 187; } }
+@keyframes wifi-inner { 0% { stroke-dashoffset: 9; } 25% { stroke-dashoffset: 0; } 65% { stroke-dashoffset: 106; } 80%, 100% { stroke-dashoffset: 97; } }
+@keyframes wifi-text { 0% { clip-path: inset(0 100% 0 0); } 50% { clip-path: inset(0); } 100% { clip-path: inset(0 0 0 100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .wifi-ring circle, .wifi-loading-text::after { animation: none; }
+  .wifi-ring-outer circle { stroke-dashoffset: 25; }
+  .wifi-ring-middle circle { stroke-dashoffset: 17; }
+  .wifi-ring-inner circle { stroke-dashoffset: 9; }
+}

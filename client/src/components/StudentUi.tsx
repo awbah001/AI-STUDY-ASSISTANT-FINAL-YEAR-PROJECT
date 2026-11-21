@@ -46,7 +46,7 @@ export function StudentHero({
   const Icon = icons[kind as keyof typeof icons] || BookOpen;
   return (
     <header
-      className={`student-hero ${kind ? `student-hero-${kind}` : "student-hero-plain"}`}
+      className={`student-hero ${kind ? `student-hero-${kind}` : "student-hero-plain"}${kind !== "dashboard" ? " workspace-banner" : ""}`}
     >
       <div className="student-hero-copy">
         {kind && ["courses", "library", "planner"].includes(kind) && (

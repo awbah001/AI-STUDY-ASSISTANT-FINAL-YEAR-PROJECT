@@ -1,3 +1,6 @@
+import { WifiLoader as ActivityIndicator } from "../src/components/ui/WifiLoader";
+import { FormInput } from "../src/components/ui/FormInput";
+import { SolutionCard } from "../src/components/ui/SolutionCard";
 import { design, elevation } from "../src/theme/design";
 /**
  * Upload Document Screen — lets students upload their own study materials.
@@ -14,17 +17,7 @@ import { design, elevation } from "../src/theme/design";
  *   6. On success, navigate back to Library.
  */
 
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Animated,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, Animated } from "react-native";
 import { useState, useRef } from "react";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -333,7 +326,7 @@ export default function UploadDocumentScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── File picker card ── */}
-        <TouchableOpacity
+        <SolutionCard component="touchable"
           style={[s.pickCard, file && s.pickCardFilled]}
           onPress={isUploading ? undefined : pickFile}
           activeOpacity={0.8}
@@ -375,13 +368,13 @@ export default function UploadDocumentScreen() {
               <Text style={s.pickSub}>PDF, DOCX, PPTX, TXT · Max 50 MB</Text>
             </View>
           )}
-        </TouchableOpacity>
+        </SolutionCard>
 
         {/* ── Form fields ── */}
         <View style={s.form}>
           <View style={s.field}>
             <Text style={s.label}>Title *</Text>
-            <TextInput
+            <FormInput
               style={[s.input, isUploading && s.inputDisabled, !!errors.title && { borderColor: FIELD_ERROR_COLOR }]}
               value={title}
               onChangeText={v => {
@@ -399,7 +392,7 @@ export default function UploadDocumentScreen() {
 
           <View style={s.field}>
             <Text style={s.label}>Description (optional)</Text>
-            <TextInput
+            <FormInput
               style={[s.input, s.inputMulti, isUploading && s.inputDisabled, !!errors.description && { borderColor: FIELD_ERROR_COLOR }]}
               value={description}
               onChangeText={v => {

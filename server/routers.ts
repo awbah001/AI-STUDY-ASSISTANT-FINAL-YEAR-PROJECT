@@ -30,6 +30,10 @@ import { googleOpenId, verifyGoogleIdToken } from "./_core/googleAuth";
 import { ENV } from "./_core/env";
 import type { User } from "../drizzle/schema";
 import * as documentAi from "./documentAiService";
+import * as presentationService from "./presentationService";
+import * as videoService from "./videoService";
+import { documentReaderRouter } from "./documentReaderRouter";
+import { retrievalScopeSchema } from "../shared/retrievalScope";
 import { runLearningAgent } from "./agent";
 import * as calendar from "./calendar";
 import { PLAN_LIMITS, PLAN_SESSION_TYPES } from "../shared/studyPlan";
@@ -90,7 +94,11 @@ async function assertDocumentAccess(userId: number, documentId: number) {
   return doc;
 }
 
+import { personalNotesRouter } from "./personalNotesRouter";
+
 export const appRouter = router({
+  personalNotes: personalNotesRouter,
+  documentReader: documentReaderRouter,
   system: systemRouter,
   auth: router({
     me: publicProcedure.query((opts) => {
@@ -384,7 +392,7 @@ export const appRouter = router({
   documents: router({
     extractDocumentText: protectedProcedure
       .input(z.object({ fileUrl: z.string().trim().min(1, "File URL is required.").max(2048) }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         const fileUrl = input.fileUrl.trim();
         if (!fileUrl.startsWith("/uploads/")) {
           throw new TRPCError({
@@ -392,6 +400,8 @@ export const appRouter = router({
             message: "Only local uploaded files can be extracted.",
           });
         }
+        const { assertUploadExtractionAccess } = await import("./uploadAccess");
+        await assertUploadExtractionAccess(ctx.user.id, fileUrl);
         try {
           const extractedText = await llmUtils.extractDocumentText(fileUrl);
           return extractedText;
@@ -580,6 +590,7 @@ export const appRouter = router({
         documentId: z.number(),
         message: zText("Message", { max: LIMITS.chatMessage }),
         courseId: z.number().int().positive().optional(),
+        retrievalScope: retrievalScopeSchema.optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const flags = await getFeatureFlags();
@@ -597,6 +608,11 @@ export const appRouter = router({
             code: "TOO_MANY_REQUESTS",
             message: rateErr instanceof Error ? rateErr.message : "Too many AI requests.",
           });
+        }
+        if (input.retrievalScope) {
+          if (ctx.user.role !== "user") throw new TRPCError({ code: "FORBIDDEN", message: "Scoped tutoring is for student accounts." });
+          const { runScopedChat } = await import("./rag/scopedChat");
+          return runScopedChat(ctx.user, { documentId: input.documentId, message: input.message, retrievalScope: input.retrievalScope });
         }
         // documentId === 0 → general Ask AI (no document context, no RAG)
         const isGeneral = input.documentId === 0;
@@ -925,27 +941,59 @@ export const appRouter = router({
         // Lecturer quizzes stay clean; each student's attempt is tracked via progress.
         let quiz = existingQuiz;
         if (existingQuiz.userId === ctx.user.id) {
-          const updated = await queries.updateQuizScore(input.quizId, input.score, new Date());
-          if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
-          quiz = updated;
-
           if (input.answers && Object.keys(input.answers).length > 0) {
             const questions = await queries.getQuizQuestions(input.quizId);
+
+            // Grade each question, with AI grading for essay questions
+            const { gradeEssayAnswer } = await import("./essayGrader");
+            let totalScore = 0;
+            let gradedCount = 0;
+
             await Promise.all(
-              questions.map((q) => {
+              questions.map(async (q) => {
                 const userAnswer = input.answers![String(q.id)];
-                if (userAnswer === undefined) return Promise.resolve();
-                const isCorrect = userAnswer === q.correctAnswer;
-                return queries.updateQuizQuestionAnswer(q.id, userAnswer, isCorrect);
+                if (userAnswer === undefined) return;
+
+                if (q.questionType === "essay") {
+                  // AI-grade the essay answer
+                  const keyPoints = q.explanation ?? "";
+                  const { score, feedback } = await gradeEssayAnswer(
+                    q.question,
+                    q.correctAnswer,
+                    keyPoints,
+                    userAnswer
+                  );
+                  const isCorrect = score >= 50;
+                  totalScore += score;
+                  gradedCount++;
+                  await queries.updateQuizQuestionAnswerWithFeedback(q.id, userAnswer, isCorrect, feedback);
+                } else {
+                  // MCQ: exact match
+                  const isCorrect = userAnswer === q.correctAnswer;
+                  totalScore += isCorrect ? 100 : 0;
+                  gradedCount++;
+                  await queries.updateQuizQuestionAnswerWithFeedback(q.id, userAnswer, isCorrect);
+                }
               })
             );
+
+            // Override client score with server-computed score for accuracy
+            const computedScore = gradedCount > 0 ? Math.round(totalScore / gradedCount) : input.score;
+            const updated = await queries.updateQuizScore(input.quizId, computedScore, new Date());
+            if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+            quiz = updated;
+          } else {
+            const updated = await queries.updateQuizScore(input.quizId, input.score, new Date());
+            if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+            quiz = updated;
           }
         }
 
         const progress = await queries.getOrCreateProgress(quiz.documentId, ctx.user.id);
         const newAttempts = (progress.quizzesAttempted || 0) + 1;
         const currentAvg = parseFloat(progress.averageQuizScore?.toString() || "0");
-        const newAvg = (currentAvg * (newAttempts - 1) + input.score) / newAttempts;
+        const finalScore = typeof quiz.score === "string" ? parseFloat(quiz.score) : (quiz.score ?? input.score);
+        const newAvg = (currentAvg * (newAttempts - 1) + finalScore) / newAttempts;
 
         await queries.logStudyActivity({
           userId: ctx.user.id,
@@ -965,10 +1013,70 @@ export const appRouter = router({
           type: "QUIZ_COMPLETED",
           courseId: doc?.courseId,
           documentId: quiz.documentId,
-          metadata: { quizId: quiz.id, score: input.score },
+          metadata: { quizId: quiz.id, score: finalScore },
         });
 
         return quiz;
+      }),
+  }),
+
+  // ── AI-generated PowerPoint presentations (.pptx) ─────────────────────────
+  // Shared by everyone who can open the document (lecturers and students).
+  presentations: router({
+    get: protectedProcedure
+      .input(z.object({ documentId: z.number().int().positive() }))
+      .query(({ ctx, input }) =>
+        presentationService.getPresentation(ctx.user.id, input.documentId)
+      ),
+    generate: protectedProcedure
+      .input(
+        z.object({
+          documentId: z.number().int().positive(),
+          slideCount: z.number().int().min(5).max(20).optional(),
+          topic: z.string().trim().min(2).max(120).optional(),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        presentationService.generatePresentation(
+          ctx.user.id,
+          input.documentId,
+          input.slideCount ?? 10,
+          input.topic
+        )
+      ),
+  }),
+
+  // ── AI-generated narrated videos (student-only) ────────────────────────────
+  videos: router({
+    get: studentProcedure
+      .input(z.object({ documentId: z.number().int().positive() }))
+      .query(({ ctx, input }) =>
+        videoService.getVideo(ctx.user.id, input.documentId)
+      ),
+    generate: studentProcedure
+      .input(
+        z.object({
+          documentId: z.number().int().positive(),
+          sceneCount: z.number().int().min(4).max(12).optional(),
+          topic: z.string().trim().min(2).max(120).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const { assertAiRateLimit } = await import("./ai");
+          assertAiRateLimit(ctx.user.id);
+        } catch (rateErr) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: rateErr instanceof Error ? rateErr.message : "Too many AI requests. Please wait a moment.",
+          });
+        }
+        return videoService.generateVideo(
+          ctx.user.id,
+          input.documentId,
+          input.sceneCount ?? 6,
+          input.topic
+        );
       }),
   }),
 

@@ -26,15 +26,14 @@ import LecturerAnnouncements from "./pages/lecturer/LecturerAnnouncements";
 import LecturerReports from "./pages/lecturer/LecturerReports";
 import LecturerAssessments from "./pages/lecturer/LecturerAssessments";
 import { lazy, Suspense } from "react";
+import { LoadingIndicator } from "./components/ui/spinner";
 const StudentPortal = lazy(() => import("./pages/student/StudentPortal"));
 
 function Router() {
   return (
     <Suspense
       fallback={
-        <p className="p-8" role="status">
-          Loading workspace...
-        </p>
+        <LoadingIndicator label="Loading workspace..." className="min-h-screen" />
       }
     >
       <Switch>

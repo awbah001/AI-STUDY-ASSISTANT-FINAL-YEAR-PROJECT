@@ -8,12 +8,12 @@ import {
   type ViewStyle,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
 import { colors, gradients } from "../../theme/colors";
 import { design, elevation, radius } from "../../theme/design";
 import { ICON_TONES, solidIcon, toneForIcon, withAlpha, type IconToneName } from "./icons";
+import { CognifyIcon, resolveCognifyIcon, type CognifyIconMotion, type CognifyIconName } from "./CognifyIcon";
 
-type IconName = React.ComponentProps<typeof Ionicons>["name"];
+type IconName = CognifyIconName;
 
 /** Emerald gradient surface with soft decorative rings. */
 export function HeroGradient({
@@ -109,7 +109,7 @@ export function HeaderIconButton({
       accessibilityLabel={label}
       activeOpacity={0.75}
     >
-      <Ionicons name={icon} size={20} color={colors.text} />
+      <CognifyIcon name={icon} size={20} color={colors.text} motion="press" />
       {badge && badge > 0 ? (
         <View style={k.badge}>
           <Text style={k.badgeText}>{badge > 9 ? "9+" : badge}</Text>
@@ -136,7 +136,7 @@ export function SectionHeader({
       {action && onAction ? (
         <TouchableOpacity onPress={onAction} hitSlop={10} style={k.sectionAction}>
           <Text style={k.sectionActionText}>{action}</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+          <CognifyIcon name="next" size={14} color={colors.primary} motion="press" />
         </TouchableOpacity>
       ) : null}
     </View>
@@ -150,6 +150,7 @@ export function IconTile({
   size = 44,
   iconSize,
   tone,
+  motion = "none",
 }: {
   icon: IconName;
   color?: string;
@@ -157,6 +158,7 @@ export function IconTile({
   size?: number;
   iconSize?: number;
   tone?: IconToneName;
+  motion?: CognifyIconMotion;
 }) {
   const auto = tone
     ? ICON_TONES[tone]
@@ -166,7 +168,10 @@ export function IconTile({
   const color = colorProp ?? auto?.fg ?? colors.primary;
   const bg = bgProp ?? auto?.bg ?? colors.primaryLight;
   return (
-    <View
+    <LinearGradient
+      colors={[colors.white, bg, withAlpha(color, 0.16, bg)]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={[
         k.iconTile,
         {
@@ -176,11 +181,16 @@ export function IconTile({
           backgroundColor: bg,
           borderWidth: 1,
           borderColor: withAlpha(color, 0.16),
+          shadowColor: color,
+          shadowOpacity: 0.14,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 3 },
+          elevation: 3,
         },
       ]}
     >
-      <Ionicons name={solidIcon(icon)} size={iconSize ?? Math.round(size * 0.45)} color={color} />
-    </View>
+      <CognifyIcon name={solidIcon(resolveCognifyIcon(icon))} size={iconSize ?? Math.round(size * 0.45)} color={color} motion={motion} />
+    </LinearGradient>
   );
 }
 
@@ -223,7 +233,7 @@ export function Pill({
 }) {
   return (
     <View style={[k.pill, { backgroundColor: bg }]}>
-      {icon ? <Ionicons name={icon} size={11} color={color} /> : null}
+      {icon ? <CognifyIcon name={icon} size={11} color={color} /> : null}
       <Text style={[k.pillText, { color }]} numberOfLines={1}>
         {label}
       </Text>

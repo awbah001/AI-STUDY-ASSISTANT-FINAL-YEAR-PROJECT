@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from "@/components/ui/spinner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import {
@@ -33,11 +34,7 @@ import {
   validateTotpCode,
 } from "@shared/validation";
 import { useTheme } from "@/contexts/ThemeContext";
-import {
-  Bell, LockKeyhole, Laptop, KeyRound, FileText, Server, Menu, Search, User, Shield, Users, SlidersHorizontal, Sparkles,
-  FileStack, HardDrive, Plug, Activity, Code2, X,
-  Mail, Phone, Briefcase, Calendar, Camera, Pencil, Save, Loader2, ChevronDown,
-} from "lucide-react";
+import { Bell, LockKeyhole, Laptop, KeyRound, FileText, Server, Menu, Search, User, Shield, Users, SlidersHorizontal, Sparkles, FileStack, HardDrive, Plug, Activity, Code2, X, Mail, Phone, Briefcase, Calendar, Camera, Pencil, Save, ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useLocation, useRoute } from "wouter";
@@ -162,7 +159,7 @@ export default function AdminSettings() {
           <button
             type="button"
             onClick={() => setNavOpen((v) => !v)}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
+            className="web-button inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
           >
             {navOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             Settings menu
@@ -354,7 +351,7 @@ function SectionBody({
       <SettingsSection title="Audit Logs" description="Immutable privileged-action history.">
         <SettingsCard>
           <p className="text-sm text-slate-600">Use the dedicated Audit page for search and full history. Records cannot be edited here.</p>
-          <button type="button" className="rounded-xl border border-burgundy-border px-4 py-2 text-sm font-medium text-burgundy transition hover:bg-burgundy-soft" onClick={() => setLocation("/admin/audit")}>
+          <button type="button" className="web-button rounded-xl border border-burgundy-border px-4 py-2 text-sm font-medium text-burgundy transition hover:bg-burgundy-soft" onClick={() => setLocation("/admin/audit")}>
             Open audit log
           </button>
         </SettingsCard>
@@ -671,6 +668,7 @@ function IconField({
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{icon}</span>
         <Input
           type={type}
+          autoComplete={label === "Full name" ? "name" : undefined}
           value={value}
           onChange={onChange ? (e) => onChange(e.target.value) : undefined}
           placeholder={placeholder}
@@ -709,7 +707,7 @@ function PreferencesSection({
     <SettingsSection title="Preferences" description="Personal display and navigation preferences for this account.">
       <SettingsCard>
         <SettingRow label="Theme">
-          <button type="button" className="rounded-xl border px-3 py-2 text-sm" onClick={() => toggleTheme?.()}>
+          <button type="button" className="web-button rounded-xl border px-3 py-2 text-sm" onClick={() => toggleTheme?.()}>
             {theme === "dark" ? "Dark" : "Light"}
           </button>
         </SettingRow>
@@ -806,7 +804,7 @@ function PasswordSection({ minLength }: { minLength: number }) {
         </SettingRow>
         <button
           type="button"
-          className="rounded-xl bg-[#033c35] px-4 py-2 text-sm text-white disabled:opacity-40"
+          className="web-button rounded-xl bg-[#033c35] px-4 py-2 text-sm text-white disabled:opacity-40"
           disabled={change.isPending}
           onClick={submit}
         >
@@ -860,22 +858,22 @@ function TwoFactorSection({ enabled }: { enabled: boolean }) {
     <SettingsSection title="Two-Factor Authentication" description="Authenticator-app TOTP. Recovery codes are shown once.">
       <SettingsCard title={enabled ? "Enabled" : "Not enabled"}>
         {!enabled && !start.data ? (
-          <button type="button" className="rounded-xl bg-[#033c35] px-4 py-2 text-sm text-white" onClick={() => start.mutate()}>Begin setup</button>
+          <button type="button" className="web-button rounded-xl bg-[#033c35] px-4 py-2 text-sm text-white" onClick={() => start.mutate()}>Begin setup</button>
         ) : null}
         {start.data ? (
           <div className="space-y-2 text-sm">
             <p>Add this secret in your authenticator app (shown once):</p>
             <code className="block break-all rounded-lg bg-slate-50 p-2">{start.data.secret}</code>
             {codeInput("6-digit code")}
-            <button type="button" className="rounded-xl bg-[#033c35] px-4 py-2 text-white" onClick={() => withCode((c) => confirm.mutate({ code: c }), true)}>Verify and enable</button>
+            <button type="button" className="web-button rounded-xl bg-[#033c35] px-4 py-2 text-white" onClick={() => withCode((c) => confirm.mutate({ code: c }), true)}>Verify and enable</button>
           </div>
         ) : null}
         {enabled ? (
           <div className="space-y-3">
             {codeInput("Authenticator or recovery code")}
             <div className="flex flex-wrap gap-2">
-              <button type="button" className="rounded-xl border px-4 py-2 text-sm" onClick={() => withCode((c) => regen.mutate({ code: c }), true)}>Regenerate recovery codes</button>
-              <button type="button" className="rounded-xl border border-red-200 px-4 py-2 text-sm text-red-700" onClick={() => withCode((c) => disable.mutate({ code: c }))}>Disable 2FA</button>
+              <button type="button" className="web-button rounded-xl border px-4 py-2 text-sm" onClick={() => withCode((c) => regen.mutate({ code: c }), true)}>Regenerate recovery codes</button>
+              <button type="button" className="web-button rounded-xl border border-red-200 px-4 py-2 text-sm text-red-700" onClick={() => withCode((c) => disable.mutate({ code: c }))}>Disable 2FA</button>
             </div>
           </div>
         ) : null}
@@ -905,7 +903,7 @@ function SessionsSection() {
         <p className="text-sm text-slate-600">Device: {q.data?.current.device}</p>
         <p className="text-sm text-slate-600">Method: {q.data?.current.loginMethod}</p>
         <p className="text-sm text-slate-600">Last active: {q.data?.current.lastActive ? new Date(q.data.current.lastActive).toLocaleString() : "—"}</p>
-        <button type="button" className="rounded-xl border px-4 py-2 text-sm" onClick={() => revoke.mutate()}>Sign out all other sessions</button>
+        <button type="button" className="web-button rounded-xl border px-4 py-2 text-sm" onClick={() => revoke.mutate()}>Sign out all other sessions</button>
       </SettingsCard>
     </SettingsSection>
   );
@@ -942,7 +940,7 @@ function UsersSettingsSection({ onOpenUsers }: { onOpenUsers: () => void }) {
   return (
     <SettingsSection title="Users" description="Create, suspend, and search users in User Management. Force logout is available here.">
       <SettingsCard>
-        <button type="button" className="rounded-xl border border-burgundy-border px-4 py-2 text-sm font-medium text-burgundy transition hover:bg-burgundy-soft" onClick={onOpenUsers}>Open user management</button>
+        <button type="button" className="web-button rounded-xl border border-burgundy-border px-4 py-2 text-sm font-medium text-burgundy transition hover:bg-burgundy-soft" onClick={onOpenUsers}>Open user management</button>
       </SettingsCard>
       <DangerZone>
         <SettingRow label="User ID">
@@ -955,7 +953,7 @@ function UsersSettingsSection({ onOpenUsers }: { onOpenUsers: () => void }) {
         </SettingRow>
         <button
           type="button"
-          className="rounded-xl border border-red-200 px-4 py-2 text-sm text-red-700"
+          className="web-button rounded-xl border border-red-200 px-4 py-2 text-sm text-red-700"
           onClick={() => {
             const ok = check({
               userId: validateNumber(userId, { label: "User ID", min: 1, integer: true }),
@@ -1067,7 +1065,7 @@ function AcademicSection({ settings, save, onOpen }: { settings: SystemSettings;
         <SettingRow label="Pass mark"><Input type="number" value={draft.passMark} onChange={(e) => setDraft({ ...draft, passMark: Number(e.target.value) })} /></SettingRow>
         <SettingRow label="Grading system"><Input value={draft.gradingSystem} onChange={(e) => setDraft({ ...draft, gradingSystem: e.target.value })} /></SettingRow>
         <SettingRow label="Assessment types"><Input value={draft.assessmentTypes} onChange={(e) => setDraft({ ...draft, assessmentTypes: e.target.value })} /></SettingRow>
-        <button type="button" className="rounded-xl border px-4 py-2 text-sm" onClick={onOpen}>Open course allocation</button>
+        <button type="button" className="web-button rounded-xl border px-4 py-2 text-sm" onClick={onOpen}>Open course allocation</button>
       </SettingsCard>
       <SaveBar dirty={dirty} saving={save.isPending} onCancel={() => setDraft(settings.academic)} onSave={() => save.mutate({ patch: { academic: draft } })} />
     </SettingsSection>
@@ -1133,7 +1131,7 @@ function AiProvidersSection() {
           </div>
         )}
         <div className="flex flex-wrap gap-2">
-          <button type="button" className="rounded-xl border px-4 py-2 text-sm" onClick={() => testGroq.mutate()} disabled={testGroq.isPending}>
+          <button type="button" className="web-button rounded-xl border px-4 py-2 text-sm" onClick={() => testGroq.mutate()} disabled={testGroq.isPending}>
             {testGroq.isPending ? "Testing…" : "Test Groq"}
           </button>
         </div>
@@ -1407,15 +1405,15 @@ function BackupsSection({ superAdmin }: { superAdmin: boolean }) {
   return (
     <SettingsSection title="Backups" description="Copies of the SQLite database. Restore stages a file; you must restart the server.">
       <SettingsCard>
-        <button type="button" className="rounded-xl bg-burgundy px-4 py-2 text-sm text-white transition hover:bg-burgundy-hover" onClick={() => create.mutate()}>Create backup</button>
+        <button type="button" className="web-button rounded-xl bg-burgundy px-4 py-2 text-sm text-white transition hover:bg-burgundy-hover" onClick={() => create.mutate()}>Create backup</button>
         {q.data?.length ? (
           <ul className="space-y-2 text-sm">
             {q.data.map((b) => (
               <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3">
                 <span>{b.fileName} · {(b.sizeBytes / 1024).toFixed(0)} KB · {new Date(b.createdAt).toLocaleString()}</span>
                 <span className="flex gap-2">
-                  <button type="button" className="text-red-600" onClick={() => del.mutate({ id: b.id, confirm: "DELETE" })}>Delete</button>
-                  {superAdmin ? <button type="button" onClick={() => restore.mutate({ id: b.id, confirm: "RESTORE" })}>Restore</button> : null}
+                  <button type="button" className="web-button text-red-600" onClick={() => del.mutate({ id: b.id, confirm: "DELETE" })}>Delete</button>
+                  {superAdmin ? <button className="web-button" type="button" onClick={() => restore.mutate({ id: b.id, confirm: "RESTORE" })}>Restore</button> : null}
                 </span>
               </li>
             ))}
@@ -1451,8 +1449,8 @@ function ExportSection() {
     <SettingsSection title="Import / Export" description="JSON exports omit password hashes and secrets. Dataset import is not implemented.">
       <SettingsCard>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className="rounded-xl border border-burgundy-border px-4 py-2 text-sm font-medium text-burgundy transition hover:bg-burgundy-soft" onClick={() => users.mutate()}>Export users</button>
-          <button type="button" className="rounded-xl border border-burgundy-border px-4 py-2 text-sm font-medium text-burgundy transition hover:bg-burgundy-soft" onClick={() => courses.mutate()}>Export courses</button>
+          <button type="button" className="web-button rounded-xl border border-burgundy-border px-4 py-2 text-sm font-medium text-burgundy transition hover:bg-burgundy-soft" onClick={() => users.mutate()}>Export users</button>
+          <button type="button" className="web-button rounded-xl border border-burgundy-border px-4 py-2 text-sm font-medium text-burgundy transition hover:bg-burgundy-soft" onClick={() => courses.mutate()}>Export courses</button>
         </div>
       </SettingsCard>
     </SettingsSection>
@@ -1478,7 +1476,7 @@ function RetentionSection({ settings, save, superAdmin }: { settings: SystemSett
       {superAdmin ? (
         <DangerZone>
           <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder='Type APPLY RETENTION' />
-          <button type="button" disabled={confirm !== "APPLY RETENTION"} className="rounded-xl bg-red-700 px-4 py-2 text-sm text-white disabled:opacity-40" onClick={() => apply.mutate({ confirm: "APPLY RETENTION" })}>Apply retention now</button>
+          <button type="button" disabled={confirm !== "APPLY RETENTION"} className="web-button rounded-xl bg-red-700 px-4 py-2 text-sm text-white disabled:opacity-40" onClick={() => apply.mutate({ confirm: "APPLY RETENTION" })}>Apply retention now</button>
         </DangerZone>
       ) : null}
     </SettingsSection>
@@ -1505,7 +1503,7 @@ function IntegrationsSection({ focus }: { focus: string }) {
             <Input type="email" placeholder="you@university.edu" aria-invalid={Boolean(toError)} value={to} onChange={(e) => { setTo(e.target.value); setToError(null); }} />
             <button
               type="button"
-              className="rounded-xl border px-3 text-sm"
+              className="web-button rounded-xl border px-3 text-sm"
               onClick={() => {
                 const error = validateEmail(to, { requireSchoolDomain: false });
                 setToError(error);
@@ -1589,11 +1587,11 @@ function DeveloperSection({ superAdmin }: { superAdmin: boolean }) {
     <SettingsSection title="Developer Settings" description="Environment diagnostics. JWT secrets and API keys are never displayed.">
       <SettingsCard title="Environment">
         <p className="text-sm text-slate-600">Node environment is reported by the process, not by this UI. Vector re-index uses stored extracted text.</p>
-        <button type="button" className="rounded-xl border px-4 py-2 text-sm" onClick={() => reindex.mutate()}>Re-index documents</button>
+        <button type="button" className="web-button rounded-xl border px-4 py-2 text-sm" onClick={() => reindex.mutate()}>Re-index documents</button>
       </SettingsCard>
       <DangerZone>
         <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Type RESET SETTINGS" />
-        <button type="button" disabled={confirm !== "RESET SETTINGS"} className="rounded-xl bg-red-700 px-4 py-2 text-sm text-white disabled:opacity-40" onClick={() => reset.mutate({ confirm: "RESET SETTINGS" })}>Reset configuration</button>
+        <button type="button" disabled={confirm !== "RESET SETTINGS"} className="web-button rounded-xl bg-red-700 px-4 py-2 text-sm text-white disabled:opacity-40" onClick={() => reset.mutate({ confirm: "RESET SETTINGS" })}>Reset configuration</button>
       </DangerZone>
     </SettingsSection>
   );

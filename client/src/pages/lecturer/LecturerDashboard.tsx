@@ -1,12 +1,14 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState, ErrorState, LoadingState } from "@/components/QueryState";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { trpc } from "@/lib/trpc";
 import { StaffWelcomeBanner } from "@/components/StaffWelcomeBanner";
+import { DashboardHeading, DashboardShortcuts } from "@/components/DashboardOverview";
 import {
   BookMarked, Users, FileText, ClipboardList,
   Megaphone, Brain, Layers,
-  TrendingUp, ChevronRight,
+  TrendingUp,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { EngagementChart, ENGAGEMENT_HINT } from "@/components/lecturer/EngagementChart";
@@ -15,8 +17,11 @@ export default function LecturerDashboard() {
   const { user, isAllowed } = useRoleGuard("lecturer");
   const [, setLocation] = useLocation();
 
-  const { data: stats, isLoading } = trpc.lecturer.dashboardStats.useQuery(undefined, { enabled: isAllowed });
-  const { data: engagement } = trpc.lecturer.analytics.engagement.useQuery(undefined, { enabled: isAllowed });
+  const statsQuery = trpc.lecturer.dashboardStats.useQuery(undefined, { enabled: isAllowed });
+  const engagementQuery = trpc.lecturer.analytics.engagement.useQuery(undefined, { enabled: isAllowed });
+  const { data: stats, isLoading } = statsQuery;
+  const { data: engagement } = engagementQuery;
+  const metricValue = (value: number | undefined) => isLoading || statsQuery.isError ? null : value ?? 0;
 
   if (!isAllowed || !user) return null;
 
@@ -24,7 +29,7 @@ export default function LecturerDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="w-full space-y-6">
+      <div className="lecturer-dashboard w-full space-y-6">
 
         <StaffWelcomeBanner
           name={firstName}
@@ -33,23 +38,26 @@ export default function LecturerDashboard() {
           onAction={() => setLocation("/lecturer/courses")}
         />
 
+        <DashboardHeading title="Your teaching at a glance" description="A clear view of your courses, students, and learning resources." />
+
         {/* ── Stats row 1 ── */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="Courses"   value={isLoading ? null : stats?.courseCount ?? 0}    icon={<BookMarked className="h-5 w-5 text-white" />}    color="bg-emerald-600"  border="border-t-emerald-500" tint="from-emerald-50 via-white to-white" />
-          <StatCard label="Students"  value={isLoading ? null : stats?.studentCount ?? 0}   icon={<Users className="h-5 w-5 text-white" />}         color="bg-violet-500"  border="border-t-violet-500" tint="from-violet-50 via-white to-white" />
-          <StatCard label="Materials" value={isLoading ? null : stats?.documentCount ?? 0}  icon={<FileText className="h-5 w-5 text-white" />}      color="bg-teal-500"    border="border-t-teal-500" tint="from-teal-50 via-white to-white" />
-          <StatCard label="Assignments" value={isLoading ? null : stats?.assignmentCount ?? 0} icon={<ClipboardList className="h-5 w-5 text-white" />} color="bg-amber-500" border="border-t-amber-500" tint="from-amber-50 via-white to-white" />
+        {statsQuery.error && <ErrorState message={statsQuery.error.message} onRetry={() => statsQuery.refetch()} />}
+        <div className="dashboard-stat-grid" aria-busy={isLoading}>
+          <StatCard label="Courses" value={metricValue(stats?.courseCount)} icon={<BookMarked />} loading={isLoading} />
+          <StatCard label="Students" value={metricValue(stats?.studentCount)} icon={<Users />} loading={isLoading} />
+          <StatCard label="Materials" value={metricValue(stats?.documentCount)} icon={<FileText />} loading={isLoading} />
+          <StatCard label="Assignments" value={metricValue(stats?.assignmentCount)} icon={<ClipboardList />} loading={isLoading} />
         </div>
 
         {/* ── Stats row 2 ── */}
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard label="AI Quizzes"     value={isLoading ? null : stats?.quizCount ?? 0}         icon={<Brain className="h-5 w-5 text-white" />}    color="bg-purple-500"  border="border-t-purple-500" tint="from-purple-50 via-white to-white" />
-          <StatCard label="Flashcard sets" value={isLoading ? null : stats?.flashcardCount ?? 0}    icon={<Layers className="h-5 w-5 text-white" />}   color="bg-fuchsia-500" border="border-t-fuchsia-500" tint="from-fuchsia-50 via-white to-white" />
-          <StatCard label="Announcements"  value={isLoading ? null : stats?.announcementCount ?? 0} icon={<Megaphone className="h-5 w-5 text-white" />} color="bg-rose-500"    border="border-t-rose-500" tint="from-rose-50 via-white to-white" />
+        <div className="dashboard-stat-grid dashboard-stat-grid--three" aria-busy={isLoading}>
+          <StatCard label="AI quizzes" value={metricValue(stats?.quizCount)} icon={<Brain />} loading={isLoading} />
+          <StatCard label="Flashcard sets" value={metricValue(stats?.flashcardCount)} icon={<Layers />} loading={isLoading} />
+          <StatCard label="Announcements" value={metricValue(stats?.announcementCount)} icon={<Megaphone />} loading={isLoading} />
         </div>
 
         {/* ── Engagement chart ── */}
-        <div className="overflow-hidden rounded-2xl border border-emerald-100/80 bg-gradient-to-b from-emerald-50/60 to-white shadow-sm">
+        <div className="dashboard-panel overflow-hidden rounded-2xl border shadow-sm">
           <div className="flex items-center gap-3 border-b border-emerald-100/70 px-6 py-4">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
               <TrendingUp className="h-4 w-4 text-emerald-700" />
@@ -59,68 +67,46 @@ export default function LecturerDashboard() {
               <p className="text-xs text-slate-500">{ENGAGEMENT_HINT}</p>
             </div>
           </div>
-          <div className="p-6 h-[260px]">
-            {engagement && engagement.length > 0 ? (
+          <div className="min-h-[260px] p-4 sm:p-6">
+            {engagementQuery.isLoading ? <LoadingState label="Loading course engagement" /> : engagementQuery.error ? <ErrorState message={engagementQuery.error.message} onRetry={() => engagementQuery.refetch()} /> : engagement && engagement.length > 0 ? (
+              <div className="h-[220px]" role="region" aria-label="Average engagement points by course">
               <EngagementChart data={engagement} color="#047857" />
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-                <TrendingUp className="h-10 w-10 text-slate-200" />
-                <p className="text-sm text-slate-500">Create a course and enroll students to see engagement analytics.</p>
               </div>
+            ) : (
+              <EmptyState action={<button type="button" onClick={() => setLocation("/lecturer/courses")} className="web-button font-semibold text-emerald-700 underline underline-offset-4">Manage courses</button>}>Create a course and enroll students to see engagement analytics.</EmptyState>
             )}
           </div>
         </div>
 
         {/* ── Quick nav cards ── */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <QuickNav icon={<BookMarked className="h-5 w-5 text-emerald-700" />} bg="bg-emerald-100" accent="border-l-emerald-500 hover:border-emerald-200 hover:bg-emerald-50/50" title="Course Management" desc="Create subjects, upload notes, and share enrollment codes." path="/lecturer/courses" setLocation={setLocation} />
-          <QuickNav icon={<Brain className="h-5 w-5 text-violet-700" />} bg="bg-violet-100" accent="border-l-violet-500 hover:border-violet-200 hover:bg-violet-50/50" title="Student Performance" desc="Track quiz scores, study time, and participation." path="/lecturer/analytics" setLocation={setLocation} />
-          <QuickNav icon={<ClipboardList className="h-5 w-5 text-amber-700" />} bg="bg-amber-100" accent="border-l-amber-500 hover:border-amber-200 hover:bg-amber-50/50" title="Progress Reports" desc="Generate detailed per-student progress reports." path="/lecturer/reports" setLocation={setLocation} />
-        </div>
+        <DashboardShortcuts items={[
+          { title: "Course management", description: "Materials, subjects, and enrollment", href: "/lecturer/courses", icon: BookMarked },
+          { title: "Student performance", description: "Quiz scores and participation", href: "/lecturer/analytics", icon: Brain },
+          { title: "Progress reports", description: "Individual learning insights", href: "/lecturer/reports", icon: ClipboardList },
+        ]} />
       </div>
     </DashboardLayout>
   );
 }
-
-function StatCard({ label, value, icon, color, border, tint }: {
-  label: string; value: number | null; icon: React.ReactNode; color: string; border: string; tint: string;
+function StatCard({ label, value, icon, loading }: {
+  label: string; value: number | null; icon: React.ReactNode; loading: boolean;
 }) {
   return (
-    <div className={`overflow-hidden rounded-2xl border border-slate-100/90 bg-gradient-to-br ${tint} shadow-sm border-t-4 ${border}`}>
+    <div className="dashboard-metric overflow-hidden rounded-2xl border shadow-sm">
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</p>
-            {value === null
+            {loading
               ? <Skeleton className="mt-2 h-8 w-14 rounded-lg" />
-              : <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">{value}</p>
+              : <p className="mt-1 text-3xl font-bold tabular-nums text-foreground" aria-label={value === null ? "Unavailable" : undefined}>{value === null ? "—" : value.toLocaleString()}</p>
             }
           </div>
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color} shadow-md shadow-slate-900/10`}>
+          <div className="dashboard-metric-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
             {icon}
           </div>
         </div>
       </div>
     </div>
-  );
-}
-
-function QuickNav({ icon, bg, accent, title, desc, path, setLocation }: {
-  icon: React.ReactNode; bg: string; accent: string; title: string; desc: string;
-  path: string; setLocation: (p: string) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => setLocation(path)}
-      className={`group rounded-2xl border border-slate-100 bg-white p-5 text-left shadow-sm border-l-4 transition-all hover:shadow-md hover:-translate-y-0.5 ${accent}`}
-    >
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${bg}`}>{icon}</div>
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="font-semibold text-slate-900">{title}</h3>
-        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
-      </div>
-      <p className="mt-1 text-sm text-slate-500">{desc}</p>
-    </button>
   );
 }

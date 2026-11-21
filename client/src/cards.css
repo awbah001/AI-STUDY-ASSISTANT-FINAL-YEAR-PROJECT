@@ -1,0 +1,94 @@
+/* Card treatment adapted from Uiverse.io by Admin12121.
+   Decorative layers retain each surface's background, text and status colors. */
+:is([data-slot="card"], .student-panel, .sc-card, .lecturer-panel,
+    .lecturer-course-card, .lecturer-stat, .admin-stat-card,
+    .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li) {
+  --solution-accent: var(--fg, var(--primary, #0a6e52));
+  position: relative;
+  isolation: isolate;
+  border-radius: 15px;
+  box-shadow: 0 2px 4px rgb(11 47 44 / 6%), 0 5px 15px rgb(11 47 44 / 9%);
+  transition: box-shadow 700ms ease, scale 700ms ease;
+}
+.dashboard-shell .dashboard-page [data-slot="card"] { border-radius: 15px; }
+:is([data-slot="card"], .student-panel, .sc-card, .lecturer-panel,
+    .lecturer-course-card, .lecturer-stat, .admin-stat-card,
+    .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li)::before,
+:is([data-slot="card"], .student-panel, .sc-card, .lecturer-panel,
+    .lecturer-course-card, .lecturer-stat, .admin-stat-card,
+    .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  transform: none;
+}
+:is([data-slot="card"], .student-panel, .sc-card, .lecturer-panel,
+    .lecturer-course-card, .lecturer-stat, .admin-stat-card,
+    .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li)::before {
+  background: linear-gradient(48deg, transparent 62%,
+    color-mix(in srgb, var(--solution-accent) 5%, transparent) 62%,
+    color-mix(in srgb, var(--solution-accent) 5%, transparent) 86%, transparent 86%);
+}
+:is([data-slot="card"], .student-panel, .sc-card, .lecturer-panel,
+    .lecturer-course-card, .lecturer-stat, .admin-stat-card,
+    .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li)::after {
+  background: radial-gradient(ellipse at 10% 120%,
+    color-mix(in srgb, var(--solution-accent) 10%, transparent) 0 60%, transparent 60.5%);
+  background-size: 100% 160%;
+  background-position: 0 80px;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: background-position 700ms ease, opacity 700ms ease;
+}
+.admin-stat-card:nth-child(2) { --solution-accent: #0284c7; }
+.admin-stat-card:nth-child(3), .sc-card:has(.sc-btn--rose) { --solution-accent: var(--burgundy, #800020); }
+.admin-stat-card:nth-child(4) { --solution-accent: #b45309; }
+@media (hover: hover) {
+  :is([data-slot="card"], .student-panel, .sc-card, .lecturer-panel,
+      .lecturer-course-card, .lecturer-stat, .admin-stat-card,
+      .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li):hover {
+    box-shadow: 0 4px 8px rgb(11 47 44 / 8%), 0 10px 24px rgb(11 47 44 / 13%);
+  }
+  :is([data-slot="card"], .student-panel, .sc-card, .lecturer-panel,
+      .lecturer-course-card, .lecturer-stat, .admin-stat-card,
+      .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li):hover::after {
+    opacity: 1;
+    background-position: 0 0;
+  }
+  :is(.student-course-card, .lecturer-course-card, .lecturer-stat,
+      .admin-stat-card, .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li,
+      [data-slot="card"][role="button"], [data-slot="card"][tabindex="0"]):hover {
+    scale: 1.025;
+    z-index: 2;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is([data-slot="card"], .student-panel, .sc-card, .lecturer-panel,
+      .lecturer-course-card, .lecturer-stat, .admin-stat-card,
+      .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li) {
+    transition-duration: 0.01ms !important;
+    scale: 1 !important;
+  }
+}
+:is([data-slot="card"], .student-panel, .sc-card, .lecturer-panel,
+    .lecturer-course-card, .lecturer-stat, .admin-stat-card,
+    .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li):focus-within::after {
+  opacity: 1;
+  background-position: 0 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is([data-slot="card"], .student-panel, .sc-card, .lecturer-panel,
+      .lecturer-course-card, .lecturer-stat, .admin-stat-card,
+      .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li) {
+    transition: none;
+    scale: none !important;
+  }
+  :is([data-slot="card"], .student-panel, .sc-card, .lecturer-panel,
+      .lecturer-course-card, .lecturer-stat, .admin-stat-card,
+      .lp-feature, .lp-role, .lp-compare-card, .lp-steps > li)::after { transition: none; }
+}

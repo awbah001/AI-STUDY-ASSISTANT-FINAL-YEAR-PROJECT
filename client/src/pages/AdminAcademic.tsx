@@ -13,6 +13,7 @@ import {
   GraduationCap,
   List,
   Pencil,
+  Search,
   Plus,
   Tag,
   User,
@@ -58,6 +59,8 @@ export default function AdminAcademic() {
   const [reason, setReason] = useState("Assigned as module lecturer");
   const [tags, setTags] = useState<CourseTags>(NO_TAGS);
   const [tagging, setTagging] = useState<{ courseId: number; title: string; code: string } | null>(null);
+  const [courseSearch, setCourseSearch] = useState("");
+  const [atRiskSearch, setAtRiskSearch] = useState("");
   const { errors, check, clear, reset: resetErrors } = useFieldErrors<"title" | "lecturerId" | "subject" | "reason" | "description">();
   const catalogue = trpc.academics.admin.catalogue.useQuery(undefined, { enabled: user?.role === "admin" });
   const courseTags = trpc.academics.admin.courseTags.useQuery(undefined, { enabled: user?.role === "admin" });
@@ -299,9 +302,24 @@ export default function AdminAcademic() {
               Reassign lecturers when module ownership changes.
             </p>
           </div>
+          <div className="flex items-center gap-2 border-b border-slate-50 px-5 py-3 bg-slate-50/60 sm:px-6">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <Input
+                aria-label="Search courses"
+                placeholder="Search by code, title, or lecturer…"
+                value={courseSearch}
+                onChange={e => setCourseSearch(e.target.value)}
+                className="h-8 rounded-xl border-slate-200 pl-8 text-xs"
+              />
+            </div>
+            {courseSearch && <button type="button" onClick={() => setCourseSearch("")} className="text-xs text-slate-400 hover:text-slate-700 underline">Clear</button>}
+          </div>
           <Table
             heads={["Course", "Programmes", "Lecturer", "Enrolled", "Average quiz score", "Reassign"]}
-            rows={(data?.courses ?? []).map((c) => [
+            rows={(data?.courses ?? [])
+              .filter(c => !courseSearch || `${c.code} ${c.title} ${c.lecturerName ?? ""}`.toLowerCase().includes(courseSearch.toLowerCase()))
+              .map((c) => [
               <>
                 {c.code} — {c.title}
               </>,
@@ -350,9 +368,24 @@ export default function AdminAcademic() {
           <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
             <h2 className="text-base font-semibold text-slate-900">Students requiring follow-up</h2>
           </div>
+          <div className="flex items-center gap-2 border-b border-slate-50 px-5 py-3 bg-slate-50/60 sm:px-6">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <Input
+                aria-label="Search at-risk students"
+                placeholder="Search by name or email…"
+                value={atRiskSearch}
+                onChange={e => setAtRiskSearch(e.target.value)}
+                className="h-8 rounded-xl border-slate-200 pl-8 text-xs"
+              />
+            </div>
+            {atRiskSearch && <button type="button" onClick={() => setAtRiskSearch("")} className="text-xs text-slate-400 hover:text-slate-700 underline">Clear</button>}
+          </div>
           <Table
             heads={["Student", "Last activity", "Quiz average", "Late submissions"]}
-            rows={(data?.atRisk ?? []).map((s) => [
+            rows={(data?.atRisk ?? [])
+              .filter(s => !atRiskSearch || `${s.name} ${s.email}`.toLowerCase().includes(atRiskSearch.toLowerCase()))
+              .map((s) => [
               <>
                 <b>{s.name}</b>
                 <br />
@@ -381,7 +414,7 @@ function CourseTagSummary({ tags, faculties, onEdit }: { tags?: CourseTags; facu
         {names.length ? <p className="text-slate-700">{names.join(", ")}</p> : <p className="text-slate-400">Not tagged</p>}
         {detail && <p className="text-slate-500">{detail}</p>}
       </div>
-      <button type="button" onClick={onEdit} aria-label="Edit programmes, year and semester" className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+      <button type="button" onClick={onEdit} aria-label="Edit programmes, year and semester" className="web-button rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
         <Pencil className="h-3.5 w-3.5" />
       </button>
     </div>
@@ -431,7 +464,7 @@ function StatusCard({
         type="button"
         aria-label={`Open ${label}`}
         onClick={onOpen}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+        className="web-button flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
       >
         <ChevronRight className="h-4 w-4" />
       </button>

@@ -39,6 +39,22 @@
 .admin-shell .dashboard-account p:last-child { font-size: 12px; }
 .admin-shell .dashboard-page { padding: 15.3px 20.4px 20.4px; background: linear-gradient(125deg, #f5faf9, #f2faf7 60%, #f7faf9); }
 .admin-content { width: 100%; max-width: none; }
+/* Dashboard grids follow the space remaining beside the sidebar. */
+.admin-dashboard { container: admin-dashboard / inline-size; }
+.admin-dashboard-stats { grid-template-columns: minmax(0, 1fr); }
+.admin-dashboard-panels { grid-template-columns: minmax(0, 1fr); }
+.admin-dashboard-stats > *, .admin-dashboard-panels > * { min-width: 0; }
+@container admin-dashboard (min-width: 480px) {
+  .admin-dashboard-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container admin-dashboard (min-width: 900px) {
+  .admin-dashboard-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .admin-dashboard-panels { grid-template-columns: minmax(0, 1fr) minmax(280px, .65fr); }
+}
+@container admin-dashboard (max-width: 600px) {
+  .admin-dashboard .staff-welcome { grid-template-columns: minmax(0, 1fr); }
+  .admin-dashboard .staff-welcome-mascot { display: none; }
+}
 .admin-content > * + * { margin-top: 17px; }
 .admin-content h2, .admin-profile h2 { font-size: 17px; letter-spacing: -.6px; }
 .admin-content :is(section, form, div)[class*="shadow-"] { border-color: #e1ecef; box-shadow: 0 1px 4px #163e4d09; }

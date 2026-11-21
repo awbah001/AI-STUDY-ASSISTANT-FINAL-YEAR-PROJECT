@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import AuthLayout from "@/pages/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Label } from "@/components/ui/label";
 import { FieldError } from "@/components/FieldError";
 import { trpc } from "@/lib/trpc";
@@ -25,9 +26,9 @@ export default function ForgotPassword() {
 
   return (
     <AuthLayout title="Reset your password" subtitle={`Enter your @${ALLOWED_EMAIL_DOMAIN} email and we will send a secure reset link.`}>
-      <form className="space-y-5" onSubmit={submit} noValidate>
+      <form className="space-y-5" onSubmit={submit} noValidate aria-busy={request.isPending}>
         {sent ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
             If an account uses this email, a reset link has been sent. Check your inbox and spam folder.
           </div>
         ) : (
@@ -48,13 +49,14 @@ export default function ForgotPassword() {
                   onBlur={() => email && setEmailError(validateEmail(email))}
                   placeholder={`name@${ALLOWED_EMAIL_DOMAIN}`}
                   aria-invalid={Boolean(emailError)}
+                  aria-describedby={emailError ? "reset-email-error" : undefined}
                   className="h-12 rounded-2xl pl-11"
                 />
               </div>
-              <FieldError message={emailError} />
+              <FieldError id="reset-email-error" message={emailError} />
             </div>
             <Button className="h-12 w-full rounded-2xl bg-emerald-700" disabled={request.isPending}>
-              {request.isPending ? "Sending…" : "Send reset link"}
+              {request.isPending ? <><Spinner aria-hidden="true" />Sending…</> : "Send reset link"}
             </Button>
             {request.error && <FieldError message={request.error.message || "Unable to request a reset. Please try again."} />}
           </>

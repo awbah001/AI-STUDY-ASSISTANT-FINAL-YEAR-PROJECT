@@ -18,7 +18,17 @@ export function processDocument(documentId: number, autoIndex = true): Promise<v
       const text = doc.extractedText?.trim() || await llmUtils.extractDocumentText(doc.fileUrl);
       if (!text.trim()) throw new Error("No readable text was found in this document.");
       await queries.updateDocument(documentId, { extractedText: text });
-      if (autoIndex) await llmUtils.indexDocumentForRag(documentId, text);
+      if (autoIndex) {
+        if (doc.fileName?.toLowerCase().endsWith(".pdf") && doc.fileUrl.startsWith("/uploads/")) {
+          const { pdfIndexSource } = await import("./documentReader");
+          await llmUtils.indexDocumentForRag(documentId, text, await pdfIndexSource(doc));
+        } else if (doc.fileName && doc.fileUrl.startsWith("/uploads/")) {
+          const { localMaterialRevision } = await import("./rag/materialRevision");
+          const revision = await localMaterialRevision(doc);
+          if (!revision) throw new Error("The document is too large to index with source verification.");
+          await llmUtils.indexDocumentForRag(documentId, text, { revision });
+        } else await llmUtils.indexDocumentForRag(documentId, text);
+      }
       await queries.updateDocument(documentId, { processingStatus: "ready", processingError: null });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Document processing failed.";
@@ -124,7 +134,7 @@ export async function generateQuizForDocument(documentId: number, userId: number
   const doc = await ensureDocumentText(documentId);
   assertDocumentHasExtractedText(doc);
   const n = Math.min(20, Math.max(3, questionCount));
-  const questions = await llmUtils.generateQuiz(documentId, doc.extractedText || "", doc.title, n);
+  const questions = await llmUtils.generateMixedQuiz(documentId, doc.extractedText || "", doc.title, n);
   const quiz = await queries.createQuiz({
     documentId,
     userId,
@@ -134,6 +144,7 @@ export async function generateQuizForDocument(documentId: number, userId: number
   for (const q of questions) {
     await queries.createQuizQuestion({
       quizId: quiz.id,
+      questionType: q.questionType,
       question: q.question,
       options: q.options,
       correctAnswer: q.correctAnswer,

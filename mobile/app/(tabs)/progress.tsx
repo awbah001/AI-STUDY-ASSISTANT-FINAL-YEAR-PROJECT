@@ -1,12 +1,7 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
+import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { design } from "../../src/theme/design";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, RefreshControl } from "react-native";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -217,7 +212,7 @@ export default function ProgressScreen() {
 
             <View style={s.statsGrid}>
               {stats.map(st => (
-                <View key={st.label} style={s.statCard}>
+                <SolutionCard key={st.label} style={s.statCard}>
                   <IconTile
                     icon={st.icon}
                     color={st.fg}
@@ -227,12 +222,12 @@ export default function ProgressScreen() {
                   />
                   <Text style={s.statValue}>{st.value}</Text>
                   <Text style={s.statLabel}>{st.label}</Text>
-                </View>
+                </SolutionCard>
               ))}
             </View>
 
             {(dash?.insights?.length ?? 0) > 0 && (
-              <View style={s.infoCard}>
+              <SolutionCard style={s.infoCard}>
                 <View style={s.infoHead}>
                   <IconTile
                     icon="bulb-outline"
@@ -253,11 +248,11 @@ export default function ProgressScreen() {
                     <Text style={s.infoText}>{line}</Text>
                   </View>
                 ))}
-              </View>
+              </SolutionCard>
             )}
 
             {(dash?.weakTopics?.length ?? 0) > 0 && (
-              <View style={s.infoCard}>
+              <SolutionCard style={s.infoCard}>
                 <View style={s.infoHead}>
                   <IconTile
                     icon="alert-circle-outline"
@@ -285,10 +280,10 @@ export default function ProgressScreen() {
                     )}
                   </View>
                 ))}
-              </View>
+              </SolutionCard>
             )}
 
-            <View style={s.chartCard}>
+            <SolutionCard style={s.chartCard}>
               <View style={s.chartHeader}>
                 <View>
                   <Text style={s.chartTitle}>Study time</Text>
@@ -342,7 +337,7 @@ export default function ProgressScreen() {
                   );
                 })}
               </View>
-            </View>
+            </SolutionCard>
 
             <SectionHeader title="Materials" />
 
@@ -353,7 +348,7 @@ export default function ProgressScreen() {
                 body="Study a document or take a quiz to see progress here."
               />
             ) : (
-              <View style={s.topicsCard}>
+              <SolutionCard style={s.topicsCard}>
                 {topics.map((t, i) => (
                   <View
                     key={t.name + i}
@@ -382,7 +377,7 @@ export default function ProgressScreen() {
                     </Text>
                   </View>
                 ))}
-              </View>
+              </SolutionCard>
             )}
           </>
         )}

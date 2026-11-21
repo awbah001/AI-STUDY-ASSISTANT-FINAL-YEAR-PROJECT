@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Intro to Simple Linear Regression</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 16px; }
+  h1 { font-size: 1.05rem; font-weight: 600; margin: 4px 0 12px; text-align: center; }
+  .stage { position: relative; width: 100%; max-width: 960px; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  .stage img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 14px; background: linear-gradient(transparent, rgba(0,0,0,0.7)); font-size: 0.85rem; }
+  .controls { display: flex; align-items: center; gap: 12px; margin-top: 14px; width: 100%; max-width: 960px; }
+  button { background: #1E3A5F; color: #fff; border: 0; border-radius: 999px; width: 46px; height: 46px; font-size: 20px; cursor: pointer; display: grid; place-items: center; flex: 0 0 auto; }
+  button:hover { background: #2a507d; }
+  .bar { flex: 1; height: 8px; background: #1e293b; border-radius: 999px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: #4F8AC4; transition: width 0.1s linear; }
+  .time { font-variant-numeric: tabular-nums; font-size: 0.8rem; color: #94a3b8; flex: 0 0 auto; min-width: 84px; text-align: right; }
+  .scenes { width: 100%; max-width: 960px; margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .thumb { cursor: pointer; border-radius: 8px; overflow: hidden; border: 2px solid transparent; background: #1e293b; }
+  .thumb.active { border-color: #4F8AC4; }
+  .thumb img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
+  .note { margin-top: 16px; font-size: 0.78rem; color: #64748b; text-align: center; }
+</style>
+</head>
+<body>
+<h1>Intro to Simple Linear Regression</h1>
+<div class="stage"><img id="slide" alt="scene" /><div class="caption" id="cap"></div></div>
+<div class="controls">
+  <button id="play" aria-label="Play/Pause">▶</button>
+  <div class="bar"><div id="fill"></div></div>
+  <div class="time" id="time">0:00 / 0:00</div>
+  <button id="restart" aria-label="Restart">↺</button>
+</div>
+<div class="scenes" id="thumbs"></div>
+<div class="note">Narrated study video generated from your material. Use Play to start.</div>
+<script>
+const SCENES = [{"index":0,"imageUrl":"scene-1.png","startSeconds":0,"durationSeconds":16,"title":"What is Linear Regression?","narration":"Linear regression is a basic machine learning algorithm that predicts a continuous numerical value. It does this by fitting a straight line to data points. The line represents a mathematical relationship between input features and the output target."},{"index":1,"imageUrl":"scene-2.png","startSeconds":16.22,"durationSeconds":19,"title":"Notation and the Best‑Fit Line","narration":"We use the notation hθ(x)=θ0+θ1x to describe the line. Here θ0 is the intercept, the point where the line crosses the y‑axis when weight is zero. θ1 is the slope, showing how much the height changes for each unit change in weight."},{"index":2,"imageUrl":"scene-3.png","startSeconds":35.44,"durationSeconds":13,"title":"Visualizing Data and the Line","narration":"Imagine a graph where the x‑axis represents weight and the y‑axis represents height. We plot some data points on this graph. Our goal is to draw a line that best fits these points."},{"index":3,"imageUrl":"scene-4.png","startSeconds":48.66,"durationSeconds":14,"title":"Error and Cost Function","narration":"The error for a single point is the difference between the actual height y and the predicted height ŷ. We square these errors and average them across all points to get the mean squared error, which we call the cost function."},{"index":4,"imageUrl":"scene-5.png","startSeconds":62.88,"durationSeconds":15,"title":"Finding the Best Parameters","narration":"We start with initial guesses for θ0 and θ1 and iteratively adjust them to reduce the cost. This process is called gradient descent. The goal is to reach the global minimum of the cost function, where the line best fits the data."},{"index":5,"imageUrl":"scene-6.png","startSeconds":78.1,"durationSeconds":15,"title":"Example with Simple Data","narration":"Consider data points where weight and height are equal. If we set θ1 to 1 and θ0 to 0, the line passes through all points and the cost is zero. This demonstrates how the correct parameters produce a perfect fit."}];
+const HAS_AUDIO = true;
+const slide = document.getElementById("slide");
+const cap = document.getElementById("cap");
+const fill = document.getElementById("fill");
+const timeEl = document.getElementById("time");
+const playBtn = document.getElementById("play");
+const restartBtn = document.getElementById("restart");
+const thumbs = document.getElementById("thumbs");
+let total = SCENES.length ? SCENES[SCENES.length-1].startSeconds + SCENES[SCENES.length-1].durationSeconds : 0;
+let playing = false;
+let virtualT = 0;
+let lastTs = 0;
+let raf = 0;
+const audio = HAS_AUDIO ? new Audio("narration.wav") : null;
+function fmt(s){ s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function sceneAt(t){ for(const sc of SCENES){ if(t>=sc.startSeconds && t<sc.startSeconds+sc.durationSeconds) return sc; } return SCENES[SCENES.length-1]; }
+function render(t){
+  const sc = sceneAt(t);
+  if(sc){ slide.src = sc.imageUrl; cap.textContent = sc.title; }
+  fill.style.width = total ? Math.min(100,(t/total)*100)+"%" : "0%";
+  timeEl.textContent = fmt(t)+" / "+fmt(total);
+  [...thumbs.children].forEach((el,i)=>el.classList.toggle("active", SCENES[i]===sc));
+}
+function tick(ts){
+  if(!playing) return;
+  if(!lastTs) lastTs = ts;
+  const dt = (ts - lastTs)/1000; lastTs = ts;
+  if(HAS_AUDIO){ virtualT = audio.currentTime; }
+  else { virtualT += dt; if(virtualT >= total){ virtualT = total; stop(); } }
+  render(virtualT);
+  if(playing) raf = requestAnimationFrame(tick);
+}
+function play(){
+  if(total<=0) return;
+  playing = true; lastTs = 0;
+  playBtn.textContent = "❚❚";
+  if(HAS_AUDIO){ audio.play().catch(()=>{}); }
+  raf = requestAnimationFrame(tick);
+}
+function stop(){ playing=false; playBtn.textContent="▶"; if(raf) cancelAnimationFrame(raf); if(HAS_AUDIO) audio.pause(); raf=0; }
+function toggle(){ playing ? stop() : play(); }
+playBtn.addEventListener("click", toggle);
+restartBtn.addEventListener("click", ()=>{ if(HAS_AUDIO) audio.currentTime=0; virtualT=0; lastTs=0; render(0); if(!playing) play(); });
+if(HAS_AUDIO){ audio.addEventListener("ended", ()=>{ stop(); }); audio.addEventListener("timeupdate", ()=>{ if(playing){ render(audio.currentTime); } }); }
+SCENES.forEach((sc,i)=>{
+  const d=document.createElement("div"); d.className="thumb"; d.innerHTML='<img src="'+sc.imageUrl+'" alt="scene '+(i+1)+'">';
+  d.addEventListener("click", ()=>{ if(HAS_AUDIO) audio.currentTime=sc.startSeconds+0.01; else { virtualT=sc.startSeconds; } render(HAS_AUDIO?sc.startSeconds:virtualT); });
+  thumbs.appendChild(d);
+});
+render(0);
+</script>
+</body>
+</html>

@@ -2,6 +2,8 @@ import AuthLayout from "@/pages/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -95,8 +97,9 @@ export default function Login() {
       subtitle="Sign in to your Course-Specific AI Learning Assistant account."
       noScroll
     >
-      <form onSubmit={onSubmit} className="space-y-3">
+      <form onSubmit={onSubmit} className="space-y-4" noValidate aria-busy={login.isPending || googleLogin.isPending}>
         <div className="space-y-1.5">
+          <Label htmlFor="email">Email address</Label>
           <div className="relative group">
             <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-emerald-600">
               <Mail className="h-4 w-4" />
@@ -116,6 +119,7 @@ export default function Login() {
         </div>
 
         <div className="space-y-1.5">
+          <Label htmlFor="password">Password</Label>
           <div className="relative group">
             <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-emerald-600">
               <Lock className="h-4 w-4" />
@@ -133,6 +137,7 @@ export default function Login() {
             <button
               type="button"
               aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
               onClick={() => setShowPassword((v) => !v)}
               className="absolute right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             >
@@ -144,16 +149,19 @@ export default function Login() {
 
         {needsTotp ? (
           <div className="space-y-1.5">
+            <Label htmlFor="totp-code">Authenticator code</Label>
             <Input
+              id="totp-code"
               autoComplete="one-time-code"
               inputMode="numeric"
               maxLength={64}
               className="h-11 rounded-xl border-slate-200 bg-slate-50/50"
               placeholder="6-digit authenticator code"
               aria-invalid={Boolean(errors.totpCode)}
+              aria-describedby={errors.totpCode ? "totp-error" : undefined}
               {...form.register("totpCode")}
             />
-            <FieldError message={errors.totpCode?.message} />
+            <FieldError id="totp-error" message={errors.totpCode?.message} />
           </div>
         ) : null}
 
@@ -169,12 +177,13 @@ export default function Login() {
         </div>
 
         <Button
-          className="h-11 w-full gap-2 rounded-xl bg-[#07855f] text-sm text-white shadow-md shadow-emerald-700/15 hover:bg-[#057554]"
+          className="h-11 w-full gap-2 rounded-xl text-sm"
           type="submit"
           disabled={login.isPending || googleLogin.isPending}
         >
-          {login.isPending ? "Signing in..." : <><span>Sign In</span><ArrowRight className="h-4 w-4" /></>}
+          {login.isPending ? <><Spinner aria-hidden="true" />Signing in...</> : <><span>Sign In</span><ArrowRight className="h-4 w-4" /></>}
         </Button>
+        {login.error && !needsTotp && <FieldError message={login.error.message || "Could not sign in. Please try again."} />}
 
         <div className="flex items-center gap-3">
           <span className="h-px flex-1 bg-slate-200" />

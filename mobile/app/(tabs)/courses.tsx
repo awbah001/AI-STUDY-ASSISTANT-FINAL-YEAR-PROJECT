@@ -1,15 +1,8 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
+import { FormInput } from "../../src/components/ui/FormInput";
+import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { design, elevation } from "../../src/theme/design";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  RefreshControl,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, RefreshControl } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -137,7 +130,7 @@ export default function CoursesScreen() {
 
       {/* ── Enroll drawer ── */}
       {showEnroll && (
-        <View style={s.enrollCard}>
+        <SolutionCard style={s.enrollCard}>
           <View style={s.enrollHead}>
             <IconTile icon="key" size={36} />
             <View style={{ flex: 1 }}>
@@ -147,7 +140,7 @@ export default function CoursesScreen() {
           </View>
           <View style={s.enrollRow}>
             <View style={[s.codeWrap, !!codeError && { borderColor: FIELD_ERROR_COLOR }]}>
-              <TextInput
+              <FormInput
                 style={s.codeInput}
                 value={code}
                 onChangeText={v => {
@@ -177,7 +170,7 @@ export default function CoursesScreen() {
             </TouchableOpacity>
           </View>
           <FieldError message={codeError} />
-        </View>
+        </SolutionCard>
       )}
 
       <ScrollView
@@ -214,7 +207,7 @@ export default function CoursesScreen() {
             const { bg, accent } = COURSE_COLORS[idx % COURSE_COLORS.length];
             const pct = 20 + ((idx * 19 + 10) % 65);
             return (
-              <TouchableOpacity
+              <SolutionCard component="touchable"
                 key={course.id}
                 style={[s.card, menuOpen === course.id && { zIndex: 10 }]}
                 onPress={() => {
@@ -299,7 +292,7 @@ export default function CoursesScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
-              </TouchableOpacity>
+              </SolutionCard>
             );
           })
         )}

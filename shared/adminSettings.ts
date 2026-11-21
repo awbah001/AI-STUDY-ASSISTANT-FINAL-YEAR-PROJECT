@@ -122,6 +122,8 @@ export const DEFAULT_SYSTEM_SETTINGS = {
     voiceInput: true,
     voiceOutput: true,
     summarization: true,
+    presentationGeneration: true,
+    videoGeneration: true,
     mobile: true,
     beta: false,
     debugMode: false,

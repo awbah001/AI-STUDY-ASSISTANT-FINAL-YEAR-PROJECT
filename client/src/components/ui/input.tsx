@@ -2,6 +2,7 @@ import { useDialogComposition } from "@/components/ui/dialog";
 import { useComposition } from "@/hooks/useComposition";
 import { cn } from "@/lib/utils";
 import * as React from "react";
+import { capitalizeNameInput } from "@shared/validation";
 
 function Input({
   className,
@@ -9,6 +10,7 @@ function Input({
   onKeyDown,
   onCompositionStart,
   onCompositionEnd,
+  onChange,
   ...props
 }: React.ComponentProps<"input">) {
   // Get dialog composition context if available (will be no-op if not inside Dialog)
@@ -62,6 +64,12 @@ function Input({
       onCompositionStart={handleCompositionStart}
       onCompositionEnd={handleCompositionEnd}
       onKeyDown={handleKeyDown}
+      onChange={event => {
+        if (props.autoComplete === "name" || props.name === "name") {
+          event.currentTarget.value = capitalizeNameInput(event.currentTarget.value);
+        }
+        onChange?.(event);
+      }}
       {...props}
     />
   );

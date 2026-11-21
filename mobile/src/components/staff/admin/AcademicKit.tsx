@@ -1,18 +1,8 @@
+import { WifiLoader as ActivityIndicator } from "../../ui/WifiLoader";
+import { FormInput } from "../../ui/FormInput";
 import { design } from "../../../theme/design";
 import { useState, type ReactNode } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  type StyleProp,
-  type TextStyle,
-} from "react-native";
+import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, type StyleProp, type TextStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "../../../lib/api";
 import { validateText } from "../../../lib/validation";
@@ -180,7 +170,7 @@ function NameInput({
   autoFocus?: boolean;
 }) {
   return (
-    <TextInput
+    <FormInput
       style={[st.nameInput, !!error && { borderColor: FIELD_ERROR_COLOR }]}
       value={value}
       onChangeText={onChangeText}

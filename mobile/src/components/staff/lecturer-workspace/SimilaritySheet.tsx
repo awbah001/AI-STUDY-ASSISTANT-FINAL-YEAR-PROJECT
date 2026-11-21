@@ -1,3 +1,4 @@
+import { SolutionCard } from "../../ui/SolutionCard";
 import { design } from "../../../theme/design";
 import { useStaffStyles } from "../../../contexts/StaffAppearance";
 import { useEffect } from "react";
@@ -76,7 +77,7 @@ export function SimilaritySheet({
           <Text style={st.heading}>Between students</Text>
           {data.pairs.length ? (
             data.pairs.map(pair => (
-              <View key={`${pair.a.submissionId}-${pair.b.submissionId}`} style={st.card}>
+              <SolutionCard key={`${pair.a.submissionId}-${pair.b.submissionId}`} style={st.card}>
                 <Text style={st.names}>
                   {pair.a.studentName} <Text style={st.muted}>and</Text> {pair.b.studentName}
                 </Text>
@@ -87,7 +88,7 @@ export function SimilaritySheet({
                   {pair.percent}% of the shorter submission appears word for word in the other.
                 </Text>
                 <Passages items={pair.passages} />
-              </View>
+              </SolutionCard>
             ))
           ) : (
             <Text style={st.empty}>No noticeable shared wording between submissions.</Text>
@@ -95,7 +96,7 @@ export function SimilaritySheet({
 
           <Text style={st.heading}>Copied from course notes</Text>
           {data.submissions.map(s => (
-            <View key={s.submissionId} style={st.card}>
+            <SolutionCard key={s.submissionId} style={st.card}>
               <View style={st.rowBetween}>
                 <Text style={[st.names, { flex: 1 }]} numberOfLines={1}>
                   {s.studentName}
@@ -112,7 +113,7 @@ export function SimilaritySheet({
               ) : (
                 <Text style={st.muted}>Too short or not readable (scan or photo)</Text>
               )}
-            </View>
+            </SolutionCard>
           ))}
         </>
       )}

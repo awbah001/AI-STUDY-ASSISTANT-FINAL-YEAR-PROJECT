@@ -1,17 +1,8 @@
+import { Spinner as Loader2 } from "@/components/ui/spinner";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
-import {
-  ArrowLeft,
-  BadgeCheck,
-  Bot,
-  CheckCircle2,
-  Loader2,
-  MessageCircleQuestion,
-  MessagesSquare,
-  RefreshCw,
-  Trash2,
-} from "lucide-react";
+import { ArrowLeft, BadgeCheck, Bot, CheckCircle2, MessageCircleQuestion, MessagesSquare, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -176,7 +167,7 @@ function AskForm({
   });
   return (
     <form
-      className="space-y-3 rounded-xl border bg-card p-4"
+      className="form-surface space-y-3 rounded-xl border bg-card p-4"
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
@@ -390,7 +381,7 @@ export function DiscussionThread({ threadId, onBack }: { threadId: number; onBac
           </div>
         ))}
         <form
-          className="space-y-2"
+          className="form-surface space-y-2"
           noValidate
           onSubmit={(e) => {
             e.preventDefault();

@@ -7,9 +7,22 @@ import { mkdirSync } from "fs";
 import { dirname } from "path";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _initializing: Promise<ReturnType<typeof drizzle> | null> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
+  // Do not expose the connection before startup migrations (including annotations) finish.
+  if (_initializing) return _initializing;
+  if (_db) return _db;
+  _initializing = initializeDb();
+  try {
+    return await _initializing;
+  } finally {
+    _initializing = null;
+  }
+}
+
+async function initializeDb() {
   if (!_db) {
     try {
       let dbPath = process.env.DATABASE_URL || "file:./data/app.db";
@@ -34,6 +47,12 @@ export async function getDb() {
       // Run schema migrations using the raw libSQL client (not the Drizzle wrapper)
       const { runOfflineStudyMigration } = await import("./migrations/addOfflineStudy");
       await runOfflineStudyMigration(client);
+      const { runDocumentReaderMigration } = await import("./migrations/addDocumentReader");
+      await runDocumentReaderMigration(client);
+      const { runScopedRagMigration } = await import("./migrations/addScopedRag");
+      await runScopedRagMigration(client);
+      const { runPersonalNotesMigration } = await import("./migrations/addPersonalNotes");
+      await runPersonalNotesMigration(client);
       try {
         const { runSm2Migration } = await import("./migrations/addSm2Fields");
         await runSm2Migration(client);
@@ -87,6 +106,18 @@ export async function getDb() {
         await runAcademicStructureMigration(client);
       } catch (migErr) {
         console.warn("[migration] Academic structure migration skipped:", migErr);
+      }
+      try {
+        const { runPresentationsMigration } = await import("./migrations/addPresentations");
+        await runPresentationsMigration(client);
+      } catch (migErr) {
+        console.warn("[migration] Presentations migration skipped:", migErr);
+      }
+      try {
+        const { runQuestionTypesMigration } = await import("./migrations/addQuestionTypes");
+        await runQuestionTypesMigration(client);
+      } catch (migErr) {
+        console.warn("[migration] Question types migration skipped:", migErr);
       }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);

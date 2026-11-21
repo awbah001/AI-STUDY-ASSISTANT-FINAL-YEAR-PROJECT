@@ -1,3 +1,5 @@
+import { WifiLoader as ActivityIndicator } from "../src/components/ui/WifiLoader";
+import { SolutionCard } from "../src/components/ui/SolutionCard";
 import { design, elevation } from "../src/theme/design";
 /**
  * Flashcard Study Session — SM-2 spaced-repetition review screen.
@@ -14,15 +16,7 @@ import { design, elevation } from "../src/theme/design";
  *   5. When all cards in the queue are done, a summary screen is shown.
  */
 
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-  Dimensions,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -92,7 +86,7 @@ export default function FlashcardStudyScreen() {
     { staleTime: 0 } // always re-fetch so the queue is fresh
   );
 
-  const [queue, setQueue] = useState<typeof dueCards>([]);
+  const [queue, setQueue] = useState<NonNullable<typeof dueCards>>([]);
   const [current, setCurrent] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [results, setResults] = useState<CardResult[]>([]);
@@ -214,7 +208,7 @@ export default function FlashcardStudyScreen() {
             </Text>
           </LinearGradient>
 
-          <View style={s.breakdownCard}>
+          <SolutionCard style={s.breakdownCard}>
             <Text style={s.breakdownTitle}>Rating breakdown</Text>
             {[
               { label: "Again", count: again, color: colors.error },
@@ -242,10 +236,10 @@ export default function FlashcardStudyScreen() {
                 <Text style={s.breakdownCount}>{r.count}</Text>
               </View>
             ))}
-          </View>
+          </SolutionCard>
 
           {again > 0 && (
-            <View style={s.nextDueCard}>
+            <SolutionCard style={s.nextDueCard}>
               <View style={s.nextDueIcon}>
                 <Ionicons name="alarm" size={18} color="#d97706" />
               </View>
@@ -253,7 +247,7 @@ export default function FlashcardStudyScreen() {
                 {again} card{again !== 1 ? "s" : ""} marked "Again" will be due
                 again tomorrow.
               </Text>
-            </View>
+            </SolutionCard>
           )}
 
           <TouchableOpacity style={s.doneBtn} onPress={() => router.back()}>

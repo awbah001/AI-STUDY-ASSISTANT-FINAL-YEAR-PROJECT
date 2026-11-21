@@ -1,3 +1,4 @@
+import { FormInput } from "../../ui/FormInput";
 import { design } from "../../../theme/design";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
@@ -184,7 +185,7 @@ export function PasswordField({
     <View style={{ marginBottom: 12 }}>
       <Text style={st.fieldLabel}>{label}</Text>
       <View style={[st.passwordWrap, error ? { borderColor: FIELD_ERROR_COLOR } : null]}>
-        <TextInput
+        <FormInput
           style={st.passwordInput}
           value={value}
           onChangeText={onChangeText}

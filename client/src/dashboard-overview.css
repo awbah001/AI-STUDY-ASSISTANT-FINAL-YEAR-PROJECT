@@ -1,0 +1,264 @@
+/* Dashboard-only detail: depth, section hierarchy, and purposeful color. */
+:is(.admin-dashboard, .lecturer-dashboard, .student-page-dashboard) {
+  --overview-green: #087f68;
+  --overview-blue: #2563a6;
+  --overview-plum: #8b4566;
+  --overview-amber: #a66b12;
+}
+.dashboard-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 8px 2px 0;
+}
+.dashboard-section-heading .dashboard-section-eyebrow {
+  margin: 0 0 5px;
+  color: var(--overview-green);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 1.8px;
+}
+.dashboard-section-heading h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: clamp(19px, 1.5vw, 24px);
+  font-weight: 750;
+  line-height: 1.3;
+  letter-spacing: -.65px;
+}
+.dashboard-section-heading p:last-child {
+  margin: 5px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.dashboard-date {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 2px 5px rgb(15 55 47 / 3%);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+.dashboard-date svg { width: 15px; height: 15px; color: var(--overview-green); }
+
+/* Color distinguishes the metrics without suggesting a change or trend. */
+:is(.admin-dashboard, .lecturer-dashboard) .dashboard-metric,
+.student-page-dashboard .student-stat {
+  --metric-accent: var(--overview-green);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 19px;
+  border-top: 3px solid var(--metric-accent);
+  background: radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--metric-accent) 9%, transparent), transparent 70%), var(--card);
+  box-shadow: 0 3px 6px rgb(19 57 47 / 3%), 0 10px 24px rgb(19 57 47 / 5%);
+}
+:is(.admin-dashboard, .lecturer-dashboard) .dashboard-metric:nth-child(2),
+.student-page-dashboard .student-stat:nth-child(2) { --metric-accent: var(--overview-blue); }
+:is(.admin-dashboard, .lecturer-dashboard) .dashboard-metric:nth-child(3),
+.student-page-dashboard .student-stat:nth-child(3) { --metric-accent: var(--overview-plum); }
+:is(.admin-dashboard, .lecturer-dashboard) .dashboard-metric:nth-child(4),
+.student-page-dashboard .student-stat:nth-child(4) { --metric-accent: var(--overview-amber); }
+:is(.admin-dashboard, .lecturer-dashboard) .dashboard-metric .dashboard-metric-icon,
+.student-page-dashboard .student-stat .student-icon {
+  background: color-mix(in srgb, var(--metric-accent) 11%, var(--card));
+  color: var(--metric-accent);
+  border: 1px solid color-mix(in srgb, var(--metric-accent) 15%, transparent);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 45%);
+}
+:is(.admin-dashboard, .lecturer-dashboard) .dashboard-metric .text-3xl { font-size: 32px; letter-spacing: -1.1px; }
+.student-page-dashboard .student-stat strong { font-size: 32px; }
+.student-page-dashboard .student-stat small { display: block; margin-top: 3px; line-height: 1.5; }
+.student-page-dashboard .student-stat::before { display: none; }
+
+.dashboard-launchpad { padding-bottom: 6px; }
+.dashboard-launchpad-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 20px; margin-bottom: 15px; }
+.dashboard-launchpad-heading > span { color: var(--overview-green); font-size: 10px; font-weight: 750; letter-spacing: 1.8px; }
+.dashboard-launchpad-heading p { color: var(--muted-foreground); font-size: 12px; }
+.dashboard-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; padding-right: 5px; }
+.dashboard-shortcut {
+  --shortcut-accent: var(--overview-green);
+  --tool-ink: var(--foreground);
+  --tool-muted: var(--muted-foreground);
+  --tool-paper: var(--card);
+  display: block;
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  border-radius: 20px;
+  color: var(--tool-ink);
+  text-decoration: none;
+  outline-offset: 7px;
+}
+.dashboard-shortcut::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--shortcut-accent) 18%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--shortcut-accent) 25%, var(--border));
+  transform: translate(5px, 5px);
+  transition: transform 240ms ease;
+  pointer-events: none;
+}
+.dashboard-shortcut:nth-child(2) { --shortcut-accent: var(--overview-blue); }
+.dashboard-shortcut:nth-child(3) { --shortcut-accent: var(--overview-plum); }
+.dashboard-shortcut:nth-child(4) { --shortcut-accent: var(--overview-amber); }
+.dashboard-shortcut:first-child {
+  --tool-paper: #075246;
+  --tool-ink: #f2fff9;
+  --tool-muted: #c0e2d5;
+  --shortcut-accent: #75e1b5;
+}
+.dashboard-tool-surface {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  min-width: 0;
+  padding: 19px 22px 16px;
+  border: 1px solid color-mix(in srgb, var(--shortcut-accent) 24%, var(--border));
+  border-radius: inherit;
+  background: radial-gradient(circle at 95% 0%, color-mix(in srgb, var(--shortcut-accent) 13%, transparent), transparent 62%), var(--tool-paper);
+  box-shadow: 0 3px 12px rgb(19 57 47 / 5%);
+  transition: transform 240ms ease, box-shadow 240ms ease;
+}
+.dashboard-tool-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .25;
+  background-image: radial-gradient(color-mix(in srgb, var(--shortcut-accent) 60%, transparent) .7px, transparent .7px);
+  background-size: 12px 12px;
+  mask-image: linear-gradient(100deg, transparent 45%, #000);
+}
+.dashboard-tool-topline { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; color: var(--tool-muted); font-size: 10px; font-weight: 650; letter-spacing: 1.5px; }
+.dashboard-tool-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--shortcut-accent); opacity: .7; }
+.dashboard-tool-watermark { position: absolute; right: 20px; top: 32px; width: 90px; height: 90px; stroke-width: .8; color: var(--shortcut-accent); opacity: .1; transform: rotate(-14deg); pointer-events: none; transition: transform 300ms ease; }
+.dashboard-shortcut-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  margin-bottom: 14px;
+  border-radius: 13px;
+  border: 1px solid color-mix(in srgb, var(--shortcut-accent) 22%, transparent);
+  background: color-mix(in srgb, var(--shortcut-accent) 12%, var(--tool-paper));
+  color: var(--shortcut-accent);
+}
+.dashboard-shortcut-icon svg { width: 21px; height: 21px; }
+.dashboard-shortcut-icon.cognify-icon-badge {
+  color: var(--shortcut-accent);
+  border-color: color-mix(in srgb, var(--shortcut-accent) 28%, transparent);
+  background: linear-gradient(145deg, #fff, color-mix(in srgb, var(--shortcut-accent) 9%, #fff) 55%, color-mix(in srgb, var(--shortcut-accent) 19%, #fff));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.96), inset 0 -2px 3px color-mix(in srgb, var(--shortcut-accent) 11%, transparent), 0 4px 10px color-mix(in srgb, var(--shortcut-accent) 18%, transparent);
+}
+.dashboard-shortcut-copy { position: relative; display: grid; gap: 5px; min-width: 0; margin-bottom: 18px; }
+.dashboard-shortcut-copy strong { color: var(--tool-ink); font-size: 17px; font-weight: 650; line-height: 1.35; letter-spacing: -.4px; }
+.dashboard-shortcut-copy > span { color: var(--tool-muted); font-size: 12px; line-height: 1.6; }
+.dashboard-tool-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 11px; margin-top: auto; border-top: 1px solid color-mix(in srgb, var(--shortcut-accent) 19%, transparent); color: var(--tool-ink); font-size: 11px; font-weight: 650; }
+.dashboard-tool-arrow-wrap { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: color-mix(in srgb, var(--shortcut-accent) 13%, var(--tool-paper)); transition: background 200ms ease, color 200ms ease; }
+.dashboard-shortcut-arrow { width: 15px; height: 15px; color: var(--shortcut-accent); transition: transform 200ms ease; }
+.dashboard-shortcut:focus-visible .dashboard-tool-surface { outline: 2px solid var(--shortcut-accent); outline-offset: -4px; }
+@media (hover: hover) {
+  .dashboard-shortcut:hover .dashboard-tool-surface { transform: translate(-3px, -3px); box-shadow: 0 10px 25px rgb(19 57 47 / 12%); }
+  .dashboard-shortcut:hover::before { transform: translate(7px, 7px); }
+  .dashboard-shortcut:hover .dashboard-tool-watermark { transform: rotate(0deg) scale(1.08); }
+  .dashboard-shortcut:hover .dashboard-shortcut-arrow { transform: translate(1px, -1px); }
+}
+.student-page-dashboard > .dashboard-launchpad .dashboard-shortcuts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.student-page-dashboard .student-dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.student-page-dashboard .student-dashboard-grid > section:last-child { grid-column: auto; }
+@media (max-width: 1100px) {
+  .student-page-dashboard > .dashboard-launchpad .dashboard-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .student-page-dashboard .student-dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+  .student-page-dashboard > .dashboard-launchpad .dashboard-tool-surface { padding: 15px; }
+  .student-page-dashboard > .dashboard-launchpad .dashboard-shortcut-copy strong { font-size: 14px; }
+  .student-page-dashboard > .dashboard-launchpad .dashboard-shortcuts { gap: 16px; }
+}
+
+:is(.admin-dashboard, .lecturer-dashboard) .staff-welcome {
+  min-height: 216px;
+  padding: 26px 32px;
+  border-radius: 22px;
+  border: 1px solid rgb(167 243 208 / 20%);
+  background: radial-gradient(ellipse at 85% 5%, #29887370, transparent 55%), linear-gradient(115deg, #0a6050, #043c35 70%, #032f2b);
+  box-shadow: 0 12px 28px rgb(2 40 34 / 13%);
+}
+:is(.admin-dashboard, .lecturer-dashboard) .staff-welcome h1 { font-size: clamp(24px, 2.2vw, 32px); letter-spacing: -.9px; }
+:is(.admin-dashboard, .lecturer-dashboard) .staff-welcome-body { max-width: 460px; font-size: 13px; line-height: 1.7; }
+:is(.admin-dashboard, .lecturer-dashboard) .dashboard-panel { border-radius: 20px; box-shadow: 0 4px 18px rgb(19 57 47 / 5%); }
+:is(.admin-dashboard, .lecturer-dashboard) .dashboard-panel > div:first-child { background: color-mix(in srgb, var(--overview-green) 3%, var(--card)); }
+
+.student-shell .student-page-dashboard .student-hero-dashboard {
+  border-radius: 22px;
+  border: 1px solid #bee6d9;
+  border-left: 5px solid #0a9473;
+  padding-top: 25px;
+  padding-bottom: 25px;
+  background: radial-gradient(ellipse at 80% 0%, #a6ead880, transparent 55%), linear-gradient(115deg, #fcfefd, #e6f7f1 65%, #c7ecdf);
+  box-shadow: 0 8px 24px rgb(19 57 47 / 7%);
+}
+.student-page-dashboard .student-hero-dashboard blockquote { border: 1px solid #ffffffb0; box-shadow: 0 6px 18px #12664c08; }
+.student-page-dashboard .student-dashboard-grid > .student-panel { border-radius: 20px; padding-top: 22px; }
+.student-page-dashboard .student-dashboard-grid .student-panel-title { padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.student-page-dashboard .student-recent-course { transition: border-color 180ms ease, background 180ms ease; }
+.student-page-dashboard .student-recent-course:hover { border-color: #82c8b3; background: color-mix(in srgb, var(--overview-green) 3%, var(--card)); }
+.student-page-dashboard .student-quick-actions > a { border: 1px solid color-mix(in srgb, var(--overview-green) 8%, transparent); border-radius: 15px; }
+
+.dark :is(.admin-dashboard, .lecturer-dashboard, .student-page-dashboard) {
+  --overview-green: #6ee7b7;
+  --overview-blue: #8dbcf5;
+  --overview-plum: #e4a7c1;
+  --overview-amber: #edc472;
+}
+.dark .student-shell .student-page-dashboard .student-hero-dashboard {
+  background: radial-gradient(ellipse at 90% 0%, #18644f88, transparent 65%), #102e2a;
+  border-color: #285b4c;
+}
+.dark .student-page-dashboard .student-hero-dashboard :is(h1, .student-eyebrow) { color: #e2f5ed; }
+.dark .student-page-dashboard .student-hero-dashboard .student-description { color: #b1cfc3; }
+.dark .student-page-dashboard .student-hero-dashboard blockquote { background: #163e35; color: #c5dfd3; border-color: #366353; }
+.dark .student-page-dashboard .student-art-dashboard .student-art-picture {
+  mask-image: radial-gradient(ellipse 58% 62% at 50% 55%, #000 43%, transparent 78%);
+}
+.dark .student-page-dashboard .student-view { color: var(--overview-green); }
+.dark .student-page-dashboard .student-recent-course { border-color: var(--border); }
+.dark .student-page-dashboard .student-go--primary { color: #f4bfd1; border-color: #88566a; }
+
+@container dashboard (max-width: 780px) { .dashboard-shortcuts { grid-template-columns: 1fr; } }
+@container admin-dashboard (max-width: 780px) { .dashboard-shortcuts { grid-template-columns: 1fr; } }
+@media (max-width: 600px) {
+  .dashboard-section-heading { padding-top: 2px; gap: 10px; }
+  .dashboard-section-heading p:last-child { font-size: 12px; }
+  .dashboard-date { padding: 7px 10px; font-size: 11px; }
+  :is(.admin-dashboard, .lecturer-dashboard) .staff-welcome { padding: 22px; min-height: 0; }
+  .student-shell .student-page-dashboard .student-hero-dashboard { padding: 22px; }
+  .dashboard-shortcuts { grid-template-columns: 1fr; }
+  .dashboard-tool-surface { padding: 17px 20px 14px; }
+  .dashboard-launchpad .dashboard-tool-watermark { right: 30px; top: 38px; width: 100px; height: 100px; }
+  .student-page-dashboard .student-stat strong { font-size: 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-shortcut::before, .dashboard-tool-surface, .dashboard-tool-watermark, .dashboard-shortcut-arrow, .dashboard-tool-arrow-wrap, .student-page-dashboard .student-recent-course { transition: none; }
+  .dashboard-shortcut:hover::before { transform: translate(5px, 5px); }
+  .dashboard-shortcut:hover .dashboard-tool-surface { transform: none; }
+  .dashboard-shortcut:hover .dashboard-tool-watermark { transform: rotate(-14deg); }
+  .dashboard-shortcut:hover .dashboard-shortcut-arrow { transform: none; }
+}

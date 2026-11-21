@@ -65,6 +65,8 @@ export function FlashcardComponent({ card, onReviewMarked, documentId }: Flashca
             aria-hidden={isFlipped}
             className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-emerald-50 to-slate-50 dark:from-slate-800 dark:to-slate-950 border-2 border-emerald-200/60 dark:border-emerald-800/50 shadow-sm"
             style={{
+              // Keep both faces stacked when shared card styles set position: relative.
+              position: "absolute",
               backfaceVisibility: "hidden",
             }}
           >
@@ -83,6 +85,7 @@ export function FlashcardComponent({ card, onReviewMarked, documentId }: Flashca
             aria-hidden={!isFlipped}
             className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-white to-emerald-50 dark:from-slate-900 dark:to-slate-800 border-2 border-emerald-300 dark:border-emerald-700 shadow-md"
             style={{
+              position: "absolute",
               backfaceVisibility: "hidden",
               transform: "rotateY(180deg)",
             }}

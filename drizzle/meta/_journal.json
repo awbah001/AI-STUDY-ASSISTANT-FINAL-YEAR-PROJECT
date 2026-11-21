@@ -113,6 +113,20 @@
       "when": 1789520000000,
       "tag": "0015_calendar_events",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1792627200000,
+      "tag": "0016_document_annotations",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1792663200000,
+      "tag": "0017_personal_notes",
+      "breakpoints": true
     }
   ]
 }

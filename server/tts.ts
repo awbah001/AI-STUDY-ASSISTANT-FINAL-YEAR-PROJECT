@@ -186,7 +186,7 @@ async function speakPiece(input: string, model: string, voice: string): Promise<
 export async function synthesizeSpeech(text: string): Promise<{ wav: Buffer; durationSeconds: number; voice: string }> {
   const { model, voice, enabled } = ttsConfig();
   if (!enabled) throw new Error("Server speech is not configured.");
-  const pieces = splitForSpeech(text).slice(0, 40);
+  const pieces = splitForSpeech(text);
   if (!pieces.length) throw new Error("Nothing to read aloud.");
   const clips: Buffer[] = new Array(pieces.length);
   let next = 0;

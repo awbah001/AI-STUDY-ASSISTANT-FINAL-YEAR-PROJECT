@@ -1,0 +1,469 @@
+:root {
+  font:
+    15px/1.5 system-ui,
+    sans-serif;
+  color: #153e32;
+  background: #f4f7f5;
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  height: 100dvh;
+  overflow: hidden;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid #b8ccc0;
+  border-radius: 8px;
+  background: white;
+  color: #164d39;
+  cursor: pointer;
+}
+button:hover {
+  background: #e6f2ea;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #65a881;
+  outline-offset: 2px;
+}
+button[aria-pressed="true"] {
+  background: #175a3b;
+  color: white;
+}
+input,
+select,
+textarea {
+  border: 1px solid #b8ccc0;
+  border-radius: 6px;
+  padding: 8px;
+  max-width: 100%;
+  min-width: 0;
+  color: inherit;
+  background: white;
+}
+select {
+  min-height: 44px;
+  background: white;
+  color: inherit;
+}
+label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+h1 {
+  font-size: 14px;
+  margin: 0 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+h2 {
+  font-size: 16px;
+  margin: 0;
+}
+header {
+  padding: 12px 16px 10px;
+  background: white;
+  border-bottom: 1px solid #d3dfd7;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 12px;
+}
+header > h1 {
+  margin: 0;
+}
+header > .toolbar {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+header > #searchForm {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+}
+header > #status {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0;
+}
+.controlGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.studyControls {
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+#openTutor,
+#askForm button[type="submit"] {
+  background: #087f68;
+  color: white;
+  border-color: #087f68;
+  font-weight: 600;
+}
+#openTutor:hover,
+#askForm button[type="submit"]:hover {
+  background: #066653;
+}
+#zoom {
+  min-width: 42px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+#searchForm {
+  margin-top: 10px;
+  gap: 8px;
+}
+#searchForm label {
+  font-size: 12px;
+  color: #61756a;
+}
+#searchForm input {
+  padding: 6px 10px;
+  height: 36px;
+}
+#page {
+  width: 54px;
+  height: 36px;
+  text-align: center;
+  padding: 4px;
+}
+#search {
+  width: 180px;
+}
+#status {
+  font-size: 13px;
+  margin: 8px 0 0;
+  color: #486255;
+  min-height: 20px;
+}
+#status.error {
+  color: #a32626;
+}
+.reader {
+  height: 100dvh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+#viewport {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 10px;
+  overscroll-behavior: contain;
+  background: #edf2f1;
+  scrollbar-gutter: stable;
+}
+#sheet {
+  position: relative;
+  overflow: clip;
+  background: white;
+  box-shadow: 0 3px 18px #14392a20;
+  margin: 0 auto;
+  isolation: isolate;
+}
+.reader > header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 8px 12px;
+  gap: 8px;
+}
+.reader > header > h1,
+.reader[data-ready="true"] > header > #status:not(.error) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Status changes must not resize the observed PDF viewport and trigger a refit. */
+.reader > header > #status {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 4;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 2px 8px #14392a20;
+}
+#extraTools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e7eeea;
+}
+#extraTools > #searchForm {
+  margin: 0;
+}
+#pdfCanvas {
+  display: block;
+}
+#textLayer {
+  z-index: 2;
+}
+#highlights {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.highlightRect {
+  position: absolute;
+  background: #ffdf5690;
+  mix-blend-mode: multiply;
+}
+#snipLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+#snipLayer.active {
+  pointer-events: auto;
+  touch-action: none;
+  cursor: crosshair;
+}
+.snipRect {
+  position: absolute;
+  border: 2px solid #15643f;
+  background: #23814d20;
+  pointer-events: none;
+}
+#panel {
+  flex: 0 0 320px;
+  width: 320px;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  overflow: auto;
+  padding: 16px;
+  background: white;
+  border-left: 1px solid #d3dfd7;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.panelTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  position: sticky;
+  top: -16px;
+  z-index: 4;
+  background: white;
+  padding: 12px 0;
+  margin-top: -12px;
+  border-bottom: 1px solid #e7eeea;
+}
+.panelTitle button {
+  font-size: 13px;
+}
+#sourceLabel {
+  font-size: 13px;
+  color: #547360;
+}
+blockquote {
+  margin: 12px 0;
+  padding: 12px;
+  border-left: 3px solid #3c8861;
+  background: #f0f6f2;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 190px;
+  overflow: auto;
+}
+#visualNotice {
+  font-size: 13px;
+  color: #725719;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.actions button {
+  flex: 1 0 40%;
+  font-size: 13px;
+}
+#question {
+  resize: vertical;
+  min-height: 90px;
+}
+#askForm {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+#askForm label {
+  font-weight: 600;
+}
+#response {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+#returnSource {
+  margin: 12px 0;
+}
+#saved {
+  margin-top: 18px;
+}
+.savedItem {
+  padding: 12px 0;
+  border-bottom: 1px solid #d3dfd7;
+}
+.savedItem p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.savedItem button {
+  margin: 4px;
+}
+.deleteAnnotation,
+#removeHighlight {
+  border-color: #e5bcbc;
+  color: #9c2929;
+  background: #fff6f6;
+}
+.deleteAnnotation:hover,
+#removeHighlight:hover {
+  background: #ffe8e8;
+}
+.empty {
+  color: #61756a;
+  font-size: 14px;
+}
+[hidden] {
+  display: none !important;
+}
+@media (max-width: 760px) {
+  header {
+    display: block;
+  }
+  header > h1 {
+    margin-bottom: 8px;
+  }
+  header > #searchForm {
+    margin-top: 8px;
+  }
+  header > #status {
+    margin-top: 6px;
+  }
+  .workspace {
+    position: static;
+  }
+  header {
+    padding: 10px;
+  }
+  #viewport {
+    padding: 10px;
+  }
+  #panel {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    width: 100%;
+    max-height: 80%;
+    box-shadow: 0 -4px 24px #14392a28;
+    border-radius: 16px 16px 0 0;
+    border: 1px solid #d3dfd7;
+  }
+  h1 {
+    font-size: 15px;
+  }
+  .toolbar {
+    gap: 5px;
+  }
+  .toolbar button {
+    padding: 7px 9px;
+  }
+  #search {
+    width: 140px;
+  }
+  .studyControls {
+    margin-left: 0;
+  }
+  .toolbar {
+    gap: 8px;
+  }
+  #status {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+}
+@media (max-width: 420px) {
+  header {
+    padding: 8px;
+  }
+  .controlGroup {
+    gap: 4px;
+  }
+  .toolbar button {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+  #page {
+    width: 44px;
+  }
+  #searchForm {
+    flex-wrap: nowrap;
+  }
+  #search {
+    width: 100%;
+    flex: 1;
+  }
+  #searchForm label,
+  #searchForm button {
+    flex-shrink: 0;
+  }
+}

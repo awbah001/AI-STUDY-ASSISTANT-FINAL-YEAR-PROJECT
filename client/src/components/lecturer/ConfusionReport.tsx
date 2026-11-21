@@ -1,6 +1,7 @@
+import { Spinner as Loader2 } from "@/components/ui/spinner";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Lightbulb, Loader2, MessageCircleQuestion, RefreshCw, ShieldCheck } from "lucide-react";
+import { ChevronDown, ChevronUp, Lightbulb, MessageCircleQuestion, RefreshCw, ShieldCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { INSIGHT_PERIODS, type ConfusionTopic, type InsightPeriod } from "@shared/lecturerInsights";
@@ -35,7 +36,7 @@ function TopicCard({ topic, rank, max }: { topic: ConfusionTopic; rank: number; 
               <button
                 type="button"
                 onClick={() => setOpen(v => !v)}
-                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:underline"
+                className="web-button mt-2 inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:underline"
               >
                 {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                 Example questions
@@ -104,7 +105,7 @@ export function ConfusionReport({ courseId }: { courseId: number }) {
             type="button"
             disabled={generate.isPending}
             onClick={() => generate.mutate({ courseId, days })}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            className="web-button inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
           >
             {generate.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             {generate.isPending ? "Analysing…" : data ? "Refresh" : "Build report"}

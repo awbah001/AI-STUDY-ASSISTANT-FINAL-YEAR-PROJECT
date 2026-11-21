@@ -1,3 +1,4 @@
+import { Spinner } from "@/components/ui/spinner";
 import { AdminHero } from "@/components/admin/AdminHero";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -18,9 +19,11 @@ import {
   Hexagon,
   MoreVertical,
   RotateCw,
+  Search,
   Server,
   Settings2,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -55,7 +58,11 @@ export default function AdminOperations() {
   });
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [failedSearch, setFailedSearch] = useState("");
   const failedItems = failures?.items ?? [];
+  const filteredFailed = failedSearch
+    ? failedItems.filter(d => `${d.title ?? ""} ${d.fileName ?? ""} ${d.ownerName ?? ""}`.toLowerCase().includes(failedSearch.toLowerCase()))
+    : failedItems;
   const allSelected = failedItems.length > 0 && failedItems.every((d) => selected.has(d.id));
 
   const bytes = overview?.storageBytes ?? 0;
@@ -171,17 +178,32 @@ export default function AdminOperations() {
                 onClick={() => void retrySelected()}
                 className="h-9 gap-2 rounded-full border-emerald-200 bg-white px-3.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
               >
-                <RotateCw className={`h-3.5 w-3.5 ${retry.isPending ? "animate-spin" : ""}`} />
+                {retry.isPending ? <Spinner className="h-3.5 w-3.5" /> : <RotateCw className="h-3.5 w-3.5" />}
                 Retry selected
               </Button>
               <button
                 type="button"
                 aria-label="More options"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"
+                className="web-button flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"
               >
                 <MoreVertical className="h-4 w-4" />
               </button>
             </div>
+          </div>
+
+          {/* Search bar for failed docs */}
+          <div className="flex items-center gap-2 border-b border-slate-50 px-5 py-3 bg-slate-50/60 sm:px-6">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <Input
+                aria-label="Search failed documents"
+                placeholder="Search by title, file name, or owner…"
+                value={failedSearch}
+                onChange={e => setFailedSearch(e.target.value)}
+                className="h-8 rounded-xl border-slate-200 pl-8 text-xs"
+              />
+            </div>
+            {failedSearch && <button type="button" onClick={() => setFailedSearch("")} className="text-xs text-slate-400 hover:text-slate-700 underline">Clear</button>}
           </div>
 
           <div className="overflow-x-auto">
@@ -216,8 +238,8 @@ export default function AdminOperations() {
                       ))}
                     </tr>
                   ))
-                ) : failedItems.length ? (
-                  failedItems.map((doc) => (
+                ) : filteredFailed.length ? (
+                  filteredFailed.map((doc) => (
                     <tr
                       key={doc.id}
                       className="border-b border-slate-50 transition-colors hover:bg-slate-50/60"
@@ -244,7 +266,7 @@ export default function AdminOperations() {
                           type="button"
                           disabled={retry.isPending}
                           onClick={() => retryOne(doc.id)}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                          className="web-button inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                         >
                           <RotateCw className="h-3.5 w-3.5" />
                           Retry

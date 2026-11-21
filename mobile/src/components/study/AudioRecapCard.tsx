@@ -1,5 +1,7 @@
+import { WifiLoader as ActivityIndicator } from "../ui/WifiLoader";
+import { SolutionCard } from "../ui/SolutionCard";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Speech from "expo-speech";
 import * as FileSystem from "expo-file-system/legacy";
@@ -10,6 +12,7 @@ import { colors } from "../../theme/colors";
 import { design, radius } from "../../theme/design";
 import { ProgressBar } from "../ui/Kit";
 import { formatBytesShort, formatCountdown, formatDuration } from "../../../../shared/studentFeatures";
+import { splitRecapSpeech } from "../../../../shared/audioRecap";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5] as const;
 const RECAP_DIR = `${FileSystem.documentDirectory ?? ""}recaps/`;
@@ -90,12 +93,13 @@ export function AudioRecapCard({ documentId }: { documentId: number }) {
       return;
     }
     setSpeaking(true);
-    Speech.speak(recap.script, {
+    const parts = splitRecapSpeech(recap.script, Math.min(3500, Speech.maxSpeechInputLength));
+    parts.forEach((part, index) => Speech.speak(part, {
       rate: speed,
-      onDone: () => setSpeaking(false),
+      onDone: index === parts.length - 1 ? () => setSpeaking(false) : undefined,
       onStopped: () => setSpeaking(false),
-      onError: () => setSpeaking(false),
-    });
+      onError: () => { void Speech.stop(); setSpeaking(false); },
+    }));
   };
 
   const saveOffline = async () => {
@@ -129,14 +133,14 @@ export function AudioRecapCard({ documentId }: { documentId: number }) {
   const position = status.currentTime || 0;
 
   return (
-    <View style={s.card}>
+    <SolutionCard style={s.card}>
       <View style={s.head}>
         <View style={s.icon}>
           <Ionicons name="headset" size={20} color={colors.white} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.title}>Audio recap</Text>
-          <Text style={s.caption}>A short spoken revision for the bus, the gym or a walk.</Text>
+          <Text style={s.caption}>Around 6–12 minutes of revision, depending on your document.</Text>
         </View>
       </View>
 
@@ -236,7 +240,7 @@ export function AudioRecapCard({ documentId }: { documentId: number }) {
           {showScript ? <Text style={s.script}>{recap.script}</Text> : null}
         </View>
       ) : null}
-    </View>
+    </SolutionCard>
   );
 }
 

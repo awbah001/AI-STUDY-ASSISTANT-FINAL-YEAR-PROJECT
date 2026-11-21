@@ -1,3 +1,6 @@
+import { WifiLoader as ActivityIndicator } from "../ui/WifiLoader";
+import { FormInput } from "../ui/FormInput";
+import { SolutionCard } from "../ui/SolutionCard";
 import { design } from "../../theme/design";
 import {
   useStaffStyles,
@@ -5,26 +8,13 @@ import {
   useStaffColor,
 } from "../../contexts/StaffAppearance";
 import { useState, type ReactNode } from "react";
-import {
-  ActivityIndicator,
-  Image,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  type ColorValue,
-  type StyleProp,
-  type ViewStyle,
-} from "react-native";
+import { Image, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type ColorValue, type StyleProp, type ViewStyle } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { CognifyIcon } from "../ui/CognifyIcon";
 import { LinearGradient } from "expo-linear-gradient";
 import type { Tabs } from "expo-router";
 import { colors, gradients } from "../../theme/colors";
@@ -85,10 +75,11 @@ export function tabIcon(active: IconName, inactive: IconName, toneName?: IconTon
         borderColor: focused ? withAlpha(accent ?? colors.primary, 0.22) : "transparent",
       }}
     >
-      <Ionicons
+      <CognifyIcon
         name={focused ? active : inactive}
         size={focused ? 22 : 20}
         color={focused && accent ? accent : color}
+        motion={focused ? "success" : "none"}
       />
     </View>
   );
@@ -136,7 +127,7 @@ export function useWorkspaceTabOptions() {
 export function centerTabOptions(title: string, icon: IconName): TabOptions {
   return {
     title,
-    tabBarIcon: () => <Ionicons name={icon} size={24} color={colors.white} />,
+    tabBarIcon: () => <CognifyIcon name={icon} size={24} color={colors.white} />,
     tabBarLabel: () => null,
     tabBarButton: (props: BottomTabBarButtonProps) => (
       <CenterTabButton icon={icon} label={title} props={props} />
@@ -172,7 +163,7 @@ function CenterTabButton({
           end={{ x: 1, y: 1 }}
           style={fabStyles.fab}
         >
-          <Ionicons name={icon} size={22} color={colors.white} />
+          <CognifyIcon name={icon} size={22} color={colors.white} motion="press" />
         </LinearGradient>
       </View>
       <Text
@@ -410,7 +401,7 @@ export function StatTile({
   const bg = tone(accentBg);
 
   return (
-    <View style={s.statTile}>
+    <SolutionCard style={s.statTile} accent={accent}>
       <View style={[s.statAccent, { backgroundColor: accent }]} />
       <View style={s.statTopRow}>
         <View style={[s.statIcon, { backgroundColor: bg }]}>
@@ -426,7 +417,7 @@ export function StatTile({
       </View>
       <Text style={s.statValue}>{value}</Text>
       <Text style={s.statLabel}>{label}</Text>
-    </View>
+    </SolutionCard>
   );
 }
 
@@ -443,7 +434,7 @@ export function GroupSection({
   return (
     <View style={s.group}>
       <Text style={s.groupLabel}>{title}</Text>
-      <View style={s.groupCard}>{children}</View>
+      <SolutionCard style={s.groupCard}>{children}</SolutionCard>
     </View>
   );
 }
@@ -571,16 +562,16 @@ export function Card({
 
   if (onPress) {
     return (
-      <TouchableOpacity
+      <SolutionCard component="touchable"
         style={[s.card, style]}
         onPress={onPress}
         activeOpacity={0.8}
       >
         {children}
-      </TouchableOpacity>
+      </SolutionCard>
     );
   }
-  return <View style={[s.card, style]}>{children}</View>;
+  return <SolutionCard style={[s.card, style]}>{children}</SolutionCard>;
 }
 
 export function ListItem({
@@ -677,7 +668,7 @@ export function Loading() {
   const s = useStaffStyles(baseStyles);
 
   return (
-    <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+    <ActivityIndicator color={colors.primary} size="large" label="Loading..." style={{ marginVertical: 20 }} />
   );
 }
 
@@ -801,7 +792,8 @@ export function FormField({
   return (
     <View style={{ marginBottom: 12 }}>
       {label ? <Text style={s.fieldLabel}>{label}</Text> : null}
-      <TextInput
+      <FormInput
+        personName={/^(full name|display name|name|your name)$/i.test(label ?? placeholder ?? "")}
         style={[s.input, multiline && s.inputMultiline, !!error && { borderColor: FIELD_ERROR_COLOR }]}
         value={value}
         onChangeText={onChangeText}

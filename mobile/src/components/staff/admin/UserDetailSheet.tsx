@@ -1,13 +1,7 @@
+import { WifiLoader as ActivityIndicator } from "../../ui/WifiLoader";
 import { design } from "../../../theme/design";
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../../contexts/AuthContext";
 import { trpc } from "../../../lib/api";

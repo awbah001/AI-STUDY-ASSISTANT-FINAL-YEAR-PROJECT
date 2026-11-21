@@ -1,16 +1,8 @@
+import { WifiLoader as ActivityIndicator } from "../src/components/ui/WifiLoader";
+import { FormInput } from "../src/components/ui/FormInput";
+import { SolutionCard } from "../src/components/ui/SolutionCard";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
@@ -194,9 +186,9 @@ export default function OnboardingScreen() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>Complete your student profile</Text>
           <Text style={styles.copy}>Choose your programme and current term to continue to your dashboard.</Text>
-          <View style={styles.card}>
+          <SolutionCard style={styles.card}>
             <Field label="Student ID" error={errors.studentNumber}>
-              <TextInput
+              <FormInput
                 style={[styles.input, errors.studentNumber ? { borderColor: FIELD_ERROR_COLOR } : null]}
                 accessibilityLabel="Student ID"
                 value={studentNumber}
@@ -261,7 +253,7 @@ export default function OnboardingScreen() {
               <>
                 {TEXT_FIELDS.map(({ key, label }) => (
                   <Field key={key} label={label} error={errors[key]}>
-                    <TextInput
+                    <FormInput
                       style={[styles.input, errors[key] ? { borderColor: FIELD_ERROR_COLOR } : null]}
                       accessibilityLabel={label}
                       value={text[key]}
@@ -276,7 +268,7 @@ export default function OnboardingScreen() {
                   </Field>
                 ))}
                 <Field label="Year" error={errors.academicLevel}>
-                  <TextInput
+                  <FormInput
                     style={[styles.input, errors.academicLevel ? { borderColor: FIELD_ERROR_COLOR } : null]}
                     accessibilityLabel="Year"
                     placeholder="e.g. 300"
@@ -379,7 +371,7 @@ export default function OnboardingScreen() {
             >
               <Text style={styles.buttonText}>{busy ? "Saving..." : "Save and continue"}</Text>
             </Pressable>
-          </View>
+          </SolutionCard>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

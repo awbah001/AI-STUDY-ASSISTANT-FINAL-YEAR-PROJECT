@@ -1,17 +1,10 @@
+import { Spinner as Loader2 } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import {
-  Loader2,
-  Mic,
-  Send,
-  Sparkles,
-  Square,
-  User,
-  Volume2,
-  Volume1,
-} from "lucide-react";
+import { Mic, Square, User, Volume2, Volume1 } from "lucide-react";
+import { AppIcon } from "@/components/icons/AppIcon";
 import { lazy, Suspense, useState, useEffect, useRef, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
 import { toast } from "sonner";
@@ -26,7 +19,7 @@ import {
 /** Errors where the browser's speech service is unusable but recording + server transcription still works. */
 const RECOGNITION_FALLBACK_ERRORS = new Set(["network", "service-not-allowed", "language-not-supported"]);
 const AIOrb3D = lazy(() => import("./motion/AIOrb3D"));
-const OrbFallback = ({ compact = false }: { compact?: boolean }) => <div aria-hidden="true" className={`ai-orb ai-orb--static ${compact ? "ai-orb--compact" : ""}`}><div className="ai-orb-core"><Sparkles /></div></div>;
+const OrbFallback = ({ compact = false }: { compact?: boolean }) => <div aria-hidden="true" className={`ai-orb ai-orb--static ${compact ? "ai-orb--compact" : ""}`}><div className="ai-orb-core"><AppIcon name="Sparkles" size={24} /></div></div>;
 
 function joinDictation(base: string, spoken: string) {
   return [base.trimEnd(), spoken.trim()].filter(Boolean).join(" ");
@@ -536,7 +529,7 @@ export function AIChatBox({
                       key={index}
                       onClick={() => onSendMessage(prompt)}
                       disabled={isLoading}
-                      className="ai-suggestion rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                      className="web-button ai-suggestion rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {prompt}
                     </button>
@@ -571,7 +564,7 @@ export function AIChatBox({
                   >
                     {message.role === "assistant" && (
                       <div className="size-8 shrink-0 mt-1 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Sparkles className="size-4 text-primary" />
+                        <AppIcon name="Sparkles" size={16} className="text-primary" />
                       </div>
                     )}
 
@@ -605,7 +598,7 @@ export function AIChatBox({
                               <button
                                 type="button"
                                 onClick={stopSpeaking}
-                                className="inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-accent hover:text-foreground"
+                                className="web-button inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-accent hover:text-foreground"
                                 title="Stop playback"
                               >
                                 <Square className="size-3" />
@@ -616,7 +609,7 @@ export function AIChatBox({
                             <button
                               type="button"
                               onClick={() => speakText(message.content, index)}
-                              className="inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-accent hover:text-foreground"
+                              className="web-button inline-flex items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-accent hover:text-foreground"
                               disabled={!speechSynthesisSupported}
                               title="Read this answer aloud"
                             >
@@ -648,7 +641,7 @@ export function AIChatBox({
                   }
                 >
                   <div className="size-8 shrink-0 mt-1 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Sparkles className="size-4 text-primary" />
+                    <AppIcon name="Sparkles" size={16} trigger={isGenerating ? "none" : "hover"} className={cn("text-primary", isGenerating && "ai-thinking-icon")} />
                   </div>
                   <div className="ai-typing rounded-lg bg-muted px-4 py-2.5" role="status" aria-label={isGenerating ? "AI is processing your request" : "Loading conversation"}>
                     <span /><span /><span />
@@ -740,11 +733,12 @@ export function AIChatBox({
           size="icon"
           disabled={!input.trim() || isLoading}
           className="shrink-0 h-[38px] w-[38px]"
+          aria-label={isLoading ? "AI is responding" : "Send message"}
         >
           {isLoading ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
-            <Send className="size-4" />
+            <AppIcon name="ArrowUp" size={18} />
           )}
         </Button>
       </form>

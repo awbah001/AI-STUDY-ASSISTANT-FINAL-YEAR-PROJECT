@@ -1,17 +1,9 @@
+import { WifiLoader as ActivityIndicator } from "../ui/WifiLoader";
+import { FormInput } from "../ui/FormInput";
 import { design } from "../../theme/design";
 import { useStaffStyles } from "../../contexts/StaffAppearance";
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, Image, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -343,7 +335,7 @@ function PasswordInput({
 
   return (
     <>
-      <TextInput
+      <FormInput
         style={[s.pwInput, !!error && { borderColor: FIELD_ERROR_COLOR }]}
         secureTextEntry
         autoCapitalize="none"

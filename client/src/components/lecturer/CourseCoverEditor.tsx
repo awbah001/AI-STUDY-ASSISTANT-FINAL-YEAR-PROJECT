@@ -1,6 +1,7 @@
+import { Spinner as Loader2 } from "@/components/ui/spinner";
 import { useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { storagePut } from "@/lib/storage";

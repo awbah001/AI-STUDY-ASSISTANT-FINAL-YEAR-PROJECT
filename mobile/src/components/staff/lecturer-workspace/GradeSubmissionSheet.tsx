@@ -1,3 +1,4 @@
+import { FormInput } from "../../ui/FormInput";
 import { design } from "../../../theme/design";
 import { useStaffStyles } from "../../../contexts/StaffAppearance";
 import { useState } from "react";
@@ -210,7 +211,7 @@ function GradeForm({
                   {item.criterion}{" "}
                   <Text style={st.criterionMax}>/ {item.maxPoints}</Text>
                 </Text>
-                <TextInput
+                <FormInput
                   style={[st.scoreInput, over && st.scoreInputError]}
                   value={raw}
                   onChangeText={value => {

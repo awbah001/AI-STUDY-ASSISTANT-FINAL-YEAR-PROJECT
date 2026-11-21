@@ -1,16 +1,8 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
 import { design, elevation } from "../../src/theme/design";
 import { LinearGradient } from "expo-linear-gradient";
 import { EmptyCard, IconTile } from "../../src/components/ui/Kit";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  FlatList,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, RefreshControl } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -94,7 +86,7 @@ export default function LibraryScreen() {
           </Text>
           <Text style={s.title}>Library</Text>
         </View>
-        <TouchableOpacity onPress={() => router.push("/offline-study" as any)}><Text style={{ color: colors.primary }}>Downloads</Text></TouchableOpacity>
+        <View style={{flexDirection:"row",gap:12}}><TouchableOpacity style={{minHeight:44,justifyContent:"center"}} onPress={() => router.push("/personal-notes" as any)}><Text style={{ color: colors.primary }}>Personal notes</Text></TouchableOpacity><TouchableOpacity style={{minHeight:44,justifyContent:"center"}} onPress={() => router.push("/offline-study" as any)}><Text style={{ color: colors.primary }}>Downloads</Text></TouchableOpacity></View>
       </View>
 
       {/* ── Search ── */}

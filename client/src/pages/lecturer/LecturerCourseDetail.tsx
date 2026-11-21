@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from "@/components/ui/spinner";
 import { getLecturerQuizLength } from "@/lib/lecturerPreferences";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -29,13 +30,9 @@ import { SimilarityDialog } from "@/components/lecturer/SimilarityCheck";
 import { ConfusionReport } from "@/components/lecturer/ConfusionReport";
 import { CourseCoverEditor } from "@/components/lecturer/CourseCoverEditor";
 import { useFieldErrors } from "@/lib/formValidation";
-import {
-  Upload, Users, FileText, Megaphone, ClipboardList,
-  Brain, Layers, Trash2, ArrowLeft, HelpCircle,
-  ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader2, ScanSearch,
-} from "lucide-react";
+import { Upload, Users, FileText, Megaphone, ClipboardList, Brain, Layers, Trash2, ArrowLeft, HelpCircle, ChevronDown, ChevronUp, CheckCircle2, XCircle, ScanSearch, Presentation, FileQuestion, Download, Search } from "lucide-react";
 
-type StudyFormat = "pdf" | "docx" | "pptx";
+type StudyFormat = "pdf" | "docx" | "pptx" | "past_questions";
 
 export default function LecturerCourseDetail() {
   const { isAllowed, user } = useRoleGuard("lecturer");
@@ -69,6 +66,14 @@ export default function LecturerCourseDetail() {
   const { errors, check, clear } = useFieldErrors<
     "material" | "enroll" | "quizTitle" | "quizDue" | "assignTitle" | "assignDesc" | "assignRubric" | "assignDue" | "annTitle" | "annContent"
   >();
+
+  // ── Per-tab search/filter state ──────────────────────────────────────────
+  const [materialSearch, setMaterialSearch] = useState("");
+  const [materialTypeFilter, setMaterialTypeFilter] = useState("");
+  const [quizSearch, setQuizSearch] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
+  const [assignmentSearch, setAssignmentSearch] = useState("");
+  const [pqSearch, setPqSearch] = useState("");
 
   const utils = trpc.useUtils();
 
@@ -178,6 +183,72 @@ export default function LecturerCourseDetail() {
   const genSummary = trpc.lecturer.materials.generateSummary.useMutation({
     onSuccess: () => toast.success("Summary generated"),
   });
+  const genPresentation = trpc.lecturer.materials.generatePresentation.useMutation({
+    onSuccess: (deck) => {
+      toast.success(`Presentation generated (${deck.slideCount} slides)`);
+      window.open(deck.fileUrl, "_blank");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // ── Past Questions state + mutations ────────────────────────────────────────
+  const [pqTitle, setPqTitle] = useState("");
+  const [pqYear, setPqYear] = useState("");
+  const [pqType, setPqType] = useState("");
+  const [pqUploading, setPqUploading] = useState(false);
+  const pqFileRef = useRef<HTMLInputElement>(null);
+
+  const { data: pastQuestions } = trpc.lecturer.pastQuestions.list.useQuery(
+    { courseId },
+    { enabled: isAllowed && !Number.isNaN(courseId) }
+  );
+  const uploadPastQuestion = trpc.lecturer.pastQuestions.upload.useMutation({
+    onSuccess: () => {
+      toast.success("Past question paper uploaded");
+      void utils.lecturer.pastQuestions.list.invalidate({ courseId });
+      setPqTitle(""); setPqYear(""); setPqType("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const deletePastQuestion = trpc.lecturer.pastQuestions.delete.useMutation({
+    onSuccess: () => void utils.lecturer.pastQuestions.list.invalidate({ courseId }),
+    onError: (e) => toast.error(e.message),
+  });
+  const genPqQuiz = trpc.lecturer.pastQuestions.generateQuiz.useMutation({
+    onSuccess: (quiz) => {
+      toast.success(`Practice quiz created — ${quiz.totalQuestions} questions`);
+      void utils.lecturer.quizzes.list.invalidate({ courseId });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handlePqUpload = async (file: File) => {
+    if (!pqTitle.trim()) { toast.error("Enter a title for this past question paper."); return; }
+    if (!isAllowedStudyDocument(file.name, file.type)) { toast.error(STUDY_DOC_ERROR); return; }
+    if (file.size > 60 * 1024 * 1024) { toast.error("File is too large. Maximum size is 60 MB."); return; }
+    setPqUploading(true);
+    try {
+      const fileKey = `courses/${courseId}/pq-${Date.now()}-${file.name}`;
+      const buffer = await file.arrayBuffer();
+      const { url, key } = await storagePut(fileKey, new Uint8Array(buffer), file.type);
+      await uploadPastQuestion.mutateAsync({
+        courseId,
+        title: pqTitle.trim(),
+        fileName: file.name,
+        fileSize: file.size,
+        fileUrl: url,
+        fileKey: key,
+        mimeType: file.type || "application/pdf",
+        examYear: pqYear.trim() || undefined,
+        examType: pqType.trim() || undefined,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setPqUploading(false);
+      if (pqFileRef.current) pqFileRef.current.value = "";
+    }
+  };
 
   const materialTitleError = () => validateText(materialTitle, { label: "Title", ...LIMITS.title });
 
@@ -334,6 +405,7 @@ export default function LecturerCourseDetail() {
             <TabsTrigger value="announcements" className="rounded-xl">Announcements</TabsTrigger>
             <TabsTrigger value="discussion" className="rounded-xl">Discussion</TabsTrigger>
             <TabsTrigger value="insights" className="rounded-xl">Class insights</TabsTrigger>
+            <TabsTrigger value="past-questions" className="rounded-xl">Past Questions</TabsTrigger>
           </TabsList>
 
           <TabsContent value="materials" className="space-y-4 mt-4">
@@ -387,8 +459,40 @@ export default function LecturerCourseDetail() {
                   </div>
                   <p className="text-sm font-semibold text-slate-800">Uploaded Materials ({materials.length})</p>
                 </div>
+                {/* Filter bar */}
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-50 px-6 py-3 bg-slate-50/60">
+                  <div className="relative flex-1 min-w-[180px]">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      aria-label="Search materials"
+                      placeholder="Search by title or filename…"
+                      value={materialSearch}
+                      onChange={e => setMaterialSearch(e.target.value)}
+                      className="h-8 rounded-xl border-slate-200 pl-8 text-xs"
+                    />
+                  </div>
+                  <select
+                    aria-label="Filter by format"
+                    value={materialTypeFilter}
+                    onChange={e => setMaterialTypeFilter(e.target.value)}
+                    className="h-8 rounded-xl border border-slate-200 bg-white px-2 text-xs text-slate-700"
+                  >
+                    <option value="">All formats</option>
+                    <option value="pdf">PDF</option>
+                    <option value="docx">Word (.docx)</option>
+                    <option value="pptx">PowerPoint (.pptx)</option>
+                  </select>
+                  {(materialSearch || materialTypeFilter) && (
+                    <button type="button" onClick={() => { setMaterialSearch(""); setMaterialTypeFilter(""); }} className="text-xs text-slate-400 hover:text-slate-700 underline">Clear</button>
+                  )}
+                </div>
                 <div className="divide-y divide-slate-50">
-                  {materials.map((doc) => (
+                  {materials
+                    .filter(doc =>
+                      (!materialSearch || `${doc.title} ${doc.fileName}`.toLowerCase().includes(materialSearch.toLowerCase())) &&
+                      (!materialTypeFilter || doc.materialType === materialTypeFilter || doc.fileName.toLowerCase().endsWith(`.${materialTypeFilter}`))
+                    )
+                    .map((doc) => (
                     <div key={doc.id} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-start gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50">
@@ -405,6 +509,9 @@ export default function LecturerCourseDetail() {
                         </Button>
                         <Button size="sm" variant="accent-outline" className="rounded-xl gap-1.5 text-xs" disabled={genFlashcards.isPending} onClick={() => genFlashcards.mutate({ documentId: doc.id, courseId, count: 10 })}>
                           <Layers className="h-3.5 w-3.5" /> Flashcards
+                        </Button>
+                        <Button size="sm" variant="accent-outline" className="rounded-xl gap-1.5 text-xs" disabled={genPresentation.isPending} onClick={() => genPresentation.mutate({ documentId: doc.id, courseId })}>
+                          <Presentation className="h-3.5 w-3.5" /> Slides
                         </Button>
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteMaterial.mutate({ documentId: doc.id, courseId })}>
                           <Trash2 className="h-4 w-4" />
@@ -548,19 +655,42 @@ export default function LecturerCourseDetail() {
                   </p>
                 </div>
               ) : (
-                <div className="divide-y divide-slate-50">
-                  {quizList.map((quiz) => (
-                    <QuizRow
-                      key={quiz.id}
-                      quiz={quiz}
-                      courseId={courseId}
-                      isExpanded={previewQuizId === quiz.id}
-                      onToggle={() => setPreviewQuizId(previewQuizId === quiz.id ? null : quiz.id)}
-                      onDelete={() => deleteQuiz.mutate({ quizId: quiz.id, courseId })}
-                      deleting={deleteQuiz.isPending}
-                    />
-                  ))}
-                </div>
+                <>
+                  {/* Quiz search bar */}
+                  <div className="flex items-center gap-2 border-b border-slate-50 px-6 py-3 bg-slate-50/60">
+                    <div className="relative flex-1">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        aria-label="Search quizzes"
+                        placeholder="Search by quiz title…"
+                        value={quizSearch}
+                        onChange={e => setQuizSearch(e.target.value)}
+                        className="h-8 rounded-xl border-slate-200 pl-8 text-xs"
+                      />
+                    </div>
+                    {quizSearch && (
+                      <button type="button" onClick={() => setQuizSearch("")} className="text-xs text-slate-400 hover:text-slate-700 underline">Clear</button>
+                    )}
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {quizList
+                      .filter(quiz => !quizSearch || quiz.title.toLowerCase().includes(quizSearch.toLowerCase()))
+                      .map((quiz) => (
+                        <QuizRow
+                          key={quiz.id}
+                          quiz={quiz}
+                          courseId={courseId}
+                          isExpanded={previewQuizId === quiz.id}
+                          onToggle={() => setPreviewQuizId(previewQuizId === quiz.id ? null : quiz.id)}
+                          onDelete={() => deleteQuiz.mutate({ quizId: quiz.id, courseId })}
+                          deleting={deleteQuiz.isPending}
+                        />
+                      ))}
+                    {quizSearch && !quizList.filter(q => q.title.toLowerCase().includes(quizSearch.toLowerCase())).length && (
+                      <p className="px-6 py-6 text-center text-sm text-slate-400">No quizzes match "{quizSearch}".</p>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </TabsContent>
@@ -600,8 +730,26 @@ export default function LecturerCourseDetail() {
                 <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
                   <p className="text-sm font-semibold text-slate-800">Enrolled Students ({students.length})</p>
                 </div>
+                {/* Student search bar */}
+                <div className="flex items-center gap-2 border-b border-slate-50 px-6 py-3 bg-slate-50/60">
+                  <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      aria-label="Search students"
+                      placeholder="Search by name or email…"
+                      value={studentSearch}
+                      onChange={e => setStudentSearch(e.target.value)}
+                      className="h-8 rounded-xl border-slate-200 pl-8 text-xs"
+                    />
+                  </div>
+                  {studentSearch && (
+                    <button type="button" onClick={() => setStudentSearch("")} className="text-xs text-slate-400 hover:text-slate-700 underline">Clear</button>
+                  )}
+                </div>
                 <div className="divide-y divide-slate-50">
-                  {students.map((s) => (
+                  {students
+                    .filter(s => !studentSearch || `${s.name} ${s.email}`.toLowerCase().includes(studentSearch.toLowerCase()))
+                    .map((s) => (
                     <div key={s.studentId} className="flex items-center justify-between gap-4 px-6 py-3">
                       <div className="flex items-center gap-3">
                         {s.avatarUrl ? (
@@ -709,7 +857,7 @@ export default function LecturerCourseDetail() {
                         {assignFile.name}
                         <button
                           type="button"
-                          className="ml-2 text-red-500 hover:text-red-700 text-xs"
+                          className="web-button ml-2 text-red-500 hover:text-red-700 text-xs"
                           onClick={() => {
                             setAssignFile(null);
                             if (assignFileRef.current) assignFileRef.current.value = "";
@@ -735,8 +883,26 @@ export default function LecturerCourseDetail() {
                 <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
                   <p className="text-sm font-semibold text-slate-800">Assignments ({assignments.length})</p>
                 </div>
+                {/* Assignment search bar */}
+                <div className="flex items-center gap-2 border-b border-slate-50 px-6 py-3 bg-slate-50/60">
+                  <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      aria-label="Search assignments"
+                      placeholder="Search by title…"
+                      value={assignmentSearch}
+                      onChange={e => setAssignmentSearch(e.target.value)}
+                      className="h-8 rounded-xl border-slate-200 pl-8 text-xs"
+                    />
+                  </div>
+                  {assignmentSearch && (
+                    <button type="button" onClick={() => setAssignmentSearch("")} className="text-xs text-slate-400 hover:text-slate-700 underline">Clear</button>
+                  )}
+                </div>
                 <div className="divide-y divide-slate-50">
-                  {assignments.map((a) => (
+                  {assignments
+                    .filter(a => !assignmentSearch || a.title.toLowerCase().includes(assignmentSearch.toLowerCase()))
+                    .map((a) => (
                     <div key={a.id} className="px-6 py-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -874,6 +1040,153 @@ export default function LecturerCourseDetail() {
 
           <TabsContent value="insights" className="mt-4 space-y-4">
             <ConfusionReport courseId={courseId} />
+          </TabsContent>
+
+          {/* ── Past Questions tab ── */}
+          <TabsContent value="past-questions" className="mt-4 space-y-4">
+            {/* Upload form */}
+            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50">
+                  <FileQuestion className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Upload Past Question Paper</p>
+                  <p className="text-xs text-slate-500">{STUDY_DOC_HELP}. Students can view, download, and generate practice quizzes from past papers.</p>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-1.5 sm:col-span-3 md:col-span-1">
+                    <Label>Title <span className="text-red-500">*</span></Label>
+                    <Input
+                      value={pqTitle}
+                      maxLength={LIMITS.title.max}
+                      onChange={e => setPqTitle(e.target.value)}
+                      placeholder="e.g. 2023 Final Exam"
+                      className="rounded-xl border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Exam year</Label>
+                    <Input
+                      value={pqYear}
+                      maxLength={10}
+                      onChange={e => setPqYear(e.target.value)}
+                      placeholder="e.g. 2023"
+                      className="rounded-xl border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Exam type</Label>
+                    <Input
+                      value={pqType}
+                      maxLength={80}
+                      onChange={e => setPqType(e.target.value)}
+                      placeholder="e.g. Mid-semester / Final"
+                      className="rounded-xl border-slate-200"
+                    />
+                  </div>
+                </div>
+                <input
+                  ref={pqFileRef}
+                  type="file"
+                  className="hidden"
+                  accept={STUDY_DOC_ACCEPT}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) void handlePqUpload(f); }}
+                />
+                <Button
+                  className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white gap-2"
+                  disabled={pqUploading}
+                  onClick={() => { if (!pqTitle.trim()) { toast.error("Enter a title first."); return; } pqFileRef.current?.click(); }}
+                >
+                  <Upload className="h-4 w-4" />
+                  {pqUploading ? "Uploading…" : "Select file to upload"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Past question papers list */}
+            {pastQuestions && pastQuestions.length > 0 && (
+              <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+                <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50">
+                    <FileQuestion className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800">Past Question Papers ({pastQuestions.length})</p>
+                </div>
+                {/* Past questions search bar */}
+                <div className="flex items-center gap-2 border-b border-slate-50 px-6 py-3 bg-slate-50/60">
+                  <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      aria-label="Search past questions"
+                      placeholder="Search by title or year…"
+                      value={pqSearch}
+                      onChange={e => setPqSearch(e.target.value)}
+                      className="h-8 rounded-xl border-slate-200 pl-8 text-xs"
+                    />
+                  </div>
+                  {pqSearch && (
+                    <button type="button" onClick={() => setPqSearch("")} className="text-xs text-slate-400 hover:text-slate-700 underline">Clear</button>
+                  )}
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {pastQuestions
+                    .filter(doc => !pqSearch || `${doc.title} ${doc.description ?? ""}`.toLowerCase().includes(pqSearch.toLowerCase()))
+                    .map(doc => (
+                    <div key={doc.id} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50">
+                          <FileQuestion className="h-4 w-4 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-900">{doc.title}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {doc.fileName}
+                            {doc.description ? ` · ${doc.description}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="accent"
+                          className="rounded-xl gap-1.5 text-xs"
+                          disabled={genPqQuiz.isPending}
+                          onClick={() => genPqQuiz.mutate({ documentId: doc.id, courseId })}
+                        >
+                          <Brain className="h-3.5 w-3.5" /> Generate practice quiz
+                        </Button>
+                        <a
+                          href={apiUrl(doc.fileUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          <Download className="h-3.5 w-3.5" /> Download
+                        </a>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50"
+                          onClick={() => deletePastQuestion.mutate({ documentId: doc.id, courseId })}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(!pastQuestions || pastQuestions.length === 0) && (
+              <div className="rounded-2xl border-2 border-dashed border-amber-200 py-12 text-center">
+                <FileQuestion className="mx-auto h-10 w-10 text-amber-300 mb-3" />
+                <p className="text-sm font-medium text-slate-700">No past question papers yet</p>
+                <p className="text-xs text-slate-500 mt-1">Upload past exam papers above so students can review and practice.</p>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

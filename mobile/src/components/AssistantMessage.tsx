@@ -5,6 +5,11 @@ import { router } from "expo-router";
 import { colors } from "../theme/colors";
 
 async function openLink(url: string) {
+  const pageSource = url.match(/^\/document\/(\d+)\?tab=notes&page=(\d+)&revision=([a-f0-9]{64})$/);
+  if (pageSource && Number(pageSource[2]) >= 1 && Number(pageSource[2]) <= 2000) {
+    router.push({ pathname: "/document/[id]", params: { id: pageSource[1], tab: "notes", page: pageSource[2], revision: pageSource[3] } });
+    return;
+  }
   const source = url.match(/^\/document\/(\d+)\?tab=notes&source=([a-f0-9]{24})$/);
   if (source) {
     router.push({ pathname: "/document/[id]", params: { id: source[1], tab: "notes", source: source[2] } });

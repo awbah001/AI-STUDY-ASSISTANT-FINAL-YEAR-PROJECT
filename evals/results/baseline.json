@@ -1,0 +1,155 @@
+{
+  "label": "baseline",
+  "fixture": "Self-authored synthetic academic fixtures for reproducible retrieval checks. Publication and enrollment are simulated; these are not participant data or evidence of learning outcomes.",
+  "embeddingModel": "Xenova/all-MiniLM-L6-v2",
+  "method": "existing flat cosine search, threshold 0.2, top 3 across fixture documents",
+  "queries": 9,
+  "documentHitRateAt3": 1,
+  "pageCitationCorrectness": "Not evaluated: the baseline index has no page coordinates.",
+  "answerFaithfulness": "Not evaluated: no language-model answers were generated.",
+  "unauthorizedAccess": "Validated separately by API and retrieval authorization tests; this fixture measures ranking only.",
+  "elapsedMs": 878,
+  "results": [
+    {
+      "question": "Where do light-dependent reactions happen?",
+      "documentId": 901,
+      "page": 1,
+      "documentHitAt3": true,
+      "latencyMs": 13,
+      "hits": [
+        {
+          "documentId": 901,
+          "score": 0.5883108058779384
+        }
+      ]
+    },
+    {
+      "question": "Which part of a mitochondrion contains the citric acid cycle?",
+      "documentId": 901,
+      "page": 2,
+      "documentHitAt3": true,
+      "latencyMs": 6,
+      "hits": [
+        {
+          "documentId": 901,
+          "score": 0.5493898501633215
+        }
+      ]
+    },
+    {
+      "question": "What is the movement of water through a selectively permeable membrane called?",
+      "documentId": 901,
+      "page": 3,
+      "documentHitAt3": true,
+      "latencyMs": 10,
+      "hits": [
+        {
+          "documentId": 901,
+          "score": 0.7017071912823247
+        },
+        {
+          "documentId": 901,
+          "score": 0.4808525757296318
+        }
+      ]
+    },
+    {
+      "question": "Which DNS record contains an IPv6 address?",
+      "documentId": 902,
+      "page": 1,
+      "documentHitAt3": true,
+      "latencyMs": 16,
+      "hits": [
+        {
+          "documentId": 902,
+          "score": 0.5826501693983321
+        },
+        {
+          "documentId": 902,
+          "score": 0.2527172094715423
+        }
+      ]
+    },
+    {
+      "question": "What are the three steps of the TCP handshake?",
+      "documentId": 902,
+      "page": 2,
+      "documentHitAt3": true,
+      "latencyMs": 11,
+      "hits": [
+        {
+          "documentId": 902,
+          "score": 0.45640772040446936
+        }
+      ]
+    },
+    {
+      "question": "When is a default gateway used?",
+      "documentId": 902,
+      "page": 3,
+      "documentHitAt3": true,
+      "latencyMs": 15,
+      "hits": [
+        {
+          "documentId": 902,
+          "score": 0.5372820203314006
+        },
+        {
+          "documentId": 902,
+          "score": 0.37999972603306287
+        }
+      ]
+    },
+    {
+      "question": "What are the costs of adding a database index?",
+      "documentId": 903,
+      "page": 1,
+      "documentHitAt3": true,
+      "latencyMs": 5,
+      "hits": [
+        {
+          "documentId": 903,
+          "score": 0.5077333095357055
+        }
+      ]
+    },
+    {
+      "question": "What does atomicity mean for a transaction?",
+      "documentId": 903,
+      "page": 2,
+      "documentHitAt3": true,
+      "latencyMs": 20,
+      "hits": [
+        {
+          "documentId": 903,
+          "score": 0.4467029182393629
+        },
+        {
+          "documentId": 903,
+          "score": 0.20866433199283344
+        }
+      ]
+    },
+    {
+      "question": "How does a foreign key support referential integrity?",
+      "documentId": 903,
+      "page": 3,
+      "documentHitAt3": true,
+      "latencyMs": 10,
+      "hits": [
+        {
+          "documentId": 903,
+          "score": 0.8199242947945041
+        },
+        {
+          "documentId": 903,
+          "score": 0.41282830815448185
+        },
+        {
+          "documentId": 902,
+          "score": 0.26933886835920107
+        }
+      ]
+    }
+  ]
+}

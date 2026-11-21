@@ -410,6 +410,27 @@
 
 .auth-cognify { background: #f8fcfb; }
 .auth-card-page { background: radial-gradient(700px 480px at 0% 0%, rgba(16,185,129,.16), transparent 65%), radial-gradient(680px 480px at 100% 100%, rgba(45,212,191,.14), transparent 62%), linear-gradient(135deg, #f5fbf8, #eaf7f2); }
+/* Clicking a panel toggles the swap; interactive form controls are excluded.
+   Translation distances match the auth grid's .96fr / 1fr panel widths. */
+@media (min-width: 1024px) {
+  .auth-swap-hero {
+    z-index: 2;
+  }
+  .auth-swap-form {
+    z-index: 1;
+  }
+  .auth-card-shell[data-swapped="true"] > .auth-swap-hero {
+    transform: translateX(104.166667%);
+  }
+  .auth-card-shell[data-swapped="true"] > .auth-swap-form {
+    transform: translateX(-96%);
+  }
+}
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .auth-swap-hero, .auth-swap-form {
+    transition: transform 850ms cubic-bezier(.65, 0, .35, 1);
+  }
+}
 .auth-panel { background: radial-gradient(circle at 58% 28%, #08785f 0%, #034f43 35%, #013c35 67%, #022e2a 100%); }.auth-panel::before { content: ""; position: absolute; inset: auto -35% -38% auto; width: 110%; aspect-ratio: 1; border-radius: 50%; border: 60px solid rgba(52,211,153,.08); }.auth-panel::after { content: ""; position: absolute; left: -35%; top: 23%; width: 115%; aspect-ratio: 1; border-radius: 50%; border: 1px solid rgba(110,231,183,.12); box-shadow: 0 0 0 64px rgba(16,185,129,.04); }
 .auth-card-orb { position: absolute; border-radius: 999px; pointer-events: none; }.auth-card-orb-one { top: -180px; right: -140px; width: 420px; height: 420px; border: 56px solid rgba(5,150,105,.1); animation: auth-float-1 13s ease-in-out infinite; }.auth-card-orb-two { bottom: -170px; left: -150px; width: 380px; height: 380px; border: 48px solid rgba(16,185,129,.1); animation: auth-float-2 15s ease-in-out infinite; }
 .auth-hero { background: radial-gradient(circle at 58% 28%, #08785f 0%, #034f43 35%, #013c35 67%, #022e2a 100%); }
@@ -704,4 +725,53 @@ html { scroll-behavior: smooth; }
 }
 @media (prefers-reduced-motion: reduce) {
   .staff-welcome-mascot img { animation: none; }
+}
+
+@keyframes ai-thinking-breathe {
+  0%, 100% { opacity: .72; transform: scale(.94); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+.ai-thinking-icon { animation: ai-thinking-breathe 1.8s ease-in-out infinite; transform-origin: center; }
+.quiz-achievement-icon { animation: quiz-achievement-in 420ms cubic-bezier(.2,.8,.2,1) both; }
+.quiz-static-success { width: 3rem; height: 3rem; color: #059669; }
+.quiz-lordicon { width: 3rem; height: 3rem; }
+@keyframes quiz-achievement-in {
+  from { opacity: 0; transform: translateY(5px) scale(.82); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-thinking-icon, .quiz-achievement-icon { animation: none !important; }
+}
+
+.cognify-icon-badge {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  color: #08775f;
+  border: 1px solid rgba(7, 119, 95, .14);
+  background: linear-gradient(145deg, #fbfffd 0%, #e5faf1 52%, #c9efdf 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -2px 3px rgba(4,94,70,.08), 0 5px 12px rgba(4,94,70,.12);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.cognify-icon-badge::before {
+  content: "";
+  position: absolute;
+  inset: 1px 1px auto;
+  height: 46%;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255,255,255,.62), rgba(255,255,255,0));
+  pointer-events: none;
+}
+.cognify-icon-badge > * { position: relative; z-index: 1; }
+@media (hover: hover) {
+  :is(a, button, [role="button"]):hover .cognify-icon-badge,
+  :is(a, button, [role="button"]):focus-visible .cognify-icon-badge {
+    transform: translateY(-2px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.98), inset 0 -2px 3px rgba(4,94,70,.08), 0 8px 16px rgba(4,94,70,.16);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cognify-icon-badge { transition: none; }
 }

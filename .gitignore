@@ -111,6 +111,11 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+scratch/
+output/
+
+# Agent / debug logs
+.manus-logs/
 
 # Database
 *.db

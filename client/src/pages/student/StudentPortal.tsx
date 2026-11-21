@@ -4,6 +4,8 @@ import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
 import DashboardLayout from "@/components/DashboardLayout";
+import { EmptyState, ErrorState, LoadingState } from "@/components/QueryState";
+import { DashboardLayoutSkeleton } from "@/components/DashboardLayoutSkeleton";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { trpc } from "@/lib/trpc";
 import { storagePut } from "@/lib/storage";
@@ -14,6 +16,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { AIChatBox } from "@/components/AIChatBox";
 import { AddPlanToPlanner } from "@/components/AddPlanToPlanner";
 import { DocumentChatBox } from "@/components/DocumentChatBox";
+import PersonalNotes from "./PersonalNotes";
+import { SaveResponseNote } from "@/components/SaveResponseNote";
+import { DocumentLearningReader } from "@/components/DocumentLearningReader";
 import { DocumentProcessingStatus } from "@/components/DocumentProcessingStatus";
 import { AnimatedCard } from "@/components/motion/AnimatedCard";
 import { AnimatedStatValue } from "@/components/motion/AnimatedStatValue";
@@ -38,6 +43,7 @@ import { MockExamLauncher, MockExamPage } from "./MockExam";
 import { CourseDiscussion, DiscussionThread } from "@/components/CourseDiscussion";
 import { AudioRecap } from "@/components/AudioRecap";
 import { StudentHero, StudentRing } from "@/components/StudentUi";
+import { DashboardHeading, DashboardShortcuts } from "@/components/DashboardOverview";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
   BookOpen,
@@ -63,6 +69,7 @@ import {
   MessageSquareText,
   MessagesSquare,
 } from "lucide-react";
+import { AppIcon } from "@/components/icons/AppIcon";
 import {
   courseCoverSrc,
   CourseCard,
@@ -128,20 +135,9 @@ function State({
   };
 }) {
   if (query.isLoading)
-    return (
-      <p role="status" className="p-6 text-muted-foreground">
-        Loading...
-      </p>
-    );
+    return <LoadingState />;
   if (query.error)
-    return (
-      <div role="alert" className={panel}>
-        <p>{query.error.message}</p>
-        <Button variant="outline" onClick={() => query.refetch()}>
-          Try again
-        </Button>
-      </div>
-    );
+    return <ErrorState message={query.error.message} onRetry={() => query.refetch()} />;
   return null;
 }
 function Go({
@@ -163,17 +159,13 @@ function Go({
   );
 }
 function Empty({ children }: { children: ReactNode }) {
-  return <p className="py-4 text-muted-foreground">{children}</p>;
+  return <EmptyState>{children}</EmptyState>;
 }
 
 export default function StudentPortal() {
   const { loading, isAllowed } = useRoleGuard("user");
   if (loading || !isAllowed)
-    return (
-      <p className="p-8" role="status">
-        Loading your workspace...
-      </p>
-    );
+    return <DashboardLayoutSkeleton />;
   return (
     <DashboardLayout>
       <StudentWorkspace />
@@ -210,6 +202,7 @@ function StudentWorkspace() {
       dashboard: ["My learning", <Dashboard />],
       courses: ["My courses", <Courses />],
       library: ["My library", <Library />],
+      notes: ["Personal notes", <PersonalNotes />],
       documents: ["My library", <Library />],
       flashcards: ["Flashcards", <Library mode="flashcards" />],
       quizzes: ["Quizzes", <Quizzes />],
@@ -221,6 +214,7 @@ function StudentWorkspace() {
     [title, content] = pages[page] ?? ["My learning", <Dashboard />];
   }
   const descriptions: Record<string, string> = {
+    notes: "Keep your study notes, ideas, and important information in one place. You can also save AI responses for later.",
     courses:
       "Access your enrolled courses, materials, and announcements all in one place.",
     library:
@@ -239,8 +233,8 @@ function StudentWorkspace() {
       "Stay updated with important announcements, assignments, and activity from your courses.",
   };
   return (
-    <AnimatedPage routeKey={location} className={`student-content student-page-${page}`}>
-      {page !== "dashboard" && !course && (
+    <AnimatedPage routeKey={location} className={`student-content student-page-${page}${document ? " student-document-page" : ""}`}>
+      {page !== "dashboard" && !course && !document && (
         <StudentHero
           title={
             page === "courses"
@@ -313,7 +307,14 @@ function Dashboard() {
           to big results.
         </blockquote>
       </StudentHero>
+      <DashboardHeading title="Make room for progress" description="Your learning activity, next steps, and useful shortcuts in one place." />
       <Stats data={d.progress} />
+      <DashboardShortcuts items={[
+        { title: "Ask AI", description: "A fresh way to understand", href: "/student/askai", icon: "Sparkles" },
+        { title: "Upload material", description: "Turn your notes into knowledge", href: "/student/library", icon: "Upload" },
+        { title: "Plan your study", description: "Make time for your next goal", href: "/student/planner", icon: "CalendarDays" },
+        { title: "View progress", description: "See how far you've come", href: "/student/progress", icon: "BarChart3" },
+      ]} />
       <div className="student-dashboard-grid">
         <Box title="Today's focus">
           <Link className="student-view" href="/student/planner">
@@ -365,29 +366,6 @@ function Dashboard() {
           {courses.data?.length === 0 && (
             <Empty>Your enrolled courses will appear here.</Empty>
           )}
-        </Box>
-        <Box title="Quick actions">
-          <div className="student-quick-actions">
-            {[
-              ["Ask AI", "Get study help", "askai"],
-              ["Upload material", "Add notes or files", "library"],
-              ["Plan your study", "Create a study plan", "planner"],
-              ["View progress", "Check your progress", "progress"],
-            ].map(([label, detail, href], i) => {
-              const Icon = [Sparkles, Upload, CalendarDays, BarChart3][i];
-              return (
-                <Link key={href} href={`/student/${href}`}>
-                  <span className="student-icon">
-                    <Icon />
-                  </span>
-                  <div>
-                    <h3>{label}</h3>
-                    <small>{detail}</small>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
         </Box>
       </div>
       {d.upcoming.length > 0 && (
@@ -583,6 +561,7 @@ function Course({ id }: { id: number }) {
     courseId: id,
   });
   const quizzes = trpc.studentCourses.quizzes.useQuery({ courseId: id });
+  const pastQuestions = trpc.studentCourses.pastQuestions.useQuery({ courseId: id });
   const activity = trpc.studentLearning.recordActivity.useMutation();
   const [tab, setTab] = useState<CourseTab>(() => {
     const requested = new URLSearchParams(window.location.search).get("tab");
@@ -666,6 +645,44 @@ function Course({ id }: { id: number }) {
       action={!all && <ViewAll onClick={() => go("discussion")} />}
     >
       <CourseDiscussion courseId={id} limit={all ? undefined : 3} />
+    </CourseCard>
+  );
+  const pastQuestionsCard = () => (
+    <CourseCard
+      icon={FileText}
+      tone="orange"
+      title="Past Questions"
+      subtitle="Past exam papers uploaded by your lecturer. Download them and generate practice quizzes."
+    >
+      <State query={pastQuestions} />
+      {pastQuestions.data?.length === 0 ? (
+        <CourseEmpty icon={FileText} title="No past questions yet">
+          Your lecturer hasn't uploaded any past exam papers for this course yet.
+        </CourseEmpty>
+      ) : (
+        <div className="sc-list">
+          {pastQuestions.data?.map(doc => (
+            <div key={doc.id} className="sc-row items-center">
+              <Tile icon={FileText} tone="orange" small />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm truncate">{doc.title}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {doc.fileName}
+                  {doc.description ? ` · ${doc.description}` : ""}
+                </p>
+              </div>
+              <a
+                href={fileHref(doc.fileUrl)}
+                target="_blank"
+                rel="noreferrer"
+                className="student-go student-go--neutral inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-semibold"
+              >
+                Download
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
     </CourseCard>
   );
   if (courses.data && !course)
@@ -788,6 +805,7 @@ function Course({ id }: { id: number }) {
           </div>
           <MockExamLauncher courseId={id} onMore={() => go("exam")} />
           {discussionCard(false)}
+          {pastQuestions.data && pastQuestions.data.length > 0 && pastQuestionsCard()}
         </>
       )}
       {tab === "materials" && materialsCard(true)}
@@ -811,13 +829,14 @@ function Course({ id }: { id: number }) {
       )}
       {tab === "exam" && <MockExamLauncher courseId={id} />}
       {tab === "discussion" && discussionCard(true)}
+      {tab === "past-questions" && pastQuestionsCard()}
       </AnimatedPage>
       </div>
     </div>
   );
 }
 
-type CourseTab = "overview" | "materials" | "quizzes" | "assignments" | "exam" | "discussion";
+type CourseTab = "overview" | "materials" | "quizzes" | "assignments" | "exam" | "discussion" | "past-questions";
 const COURSE_TABS: Array<[CourseTab, string]> = [
   ["overview", "Overview"],
   ["materials", "Materials"],
@@ -825,6 +844,7 @@ const COURSE_TABS: Array<[CourseTab, string]> = [
   ["assignments", "Assignments"],
   ["exam", "Mock exam"],
   ["discussion", "Discussion"],
+  ["past-questions", "Past Questions"],
 ];
 
 function CourseQuiz({
@@ -944,7 +964,7 @@ function Assignment({
         </div>
       )}
       <form
-        className="space-y-3"
+        className="form-surface space-y-3"
         onSubmit={async e => {
           e.preventDefault();
           const form = e.currentTarget;
@@ -996,9 +1016,9 @@ function Assignment({
         />
         <FieldError message={noteError} />
         <Input name="file" aria-label="Assignment attachment" type="file" onChange={() => setNoteError(null)} />
-        <Button disabled={busy || query.isLoading || !!query.error}>
+        <Button disabled={busy || query.isLoading || !!query.error} aria-label={busy ? "Submitting assignment" : undefined}>
           {busy
-            ? "Submitting..."
+            ? <><span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true" />Submitting...</>
             : query.data
               ? "Resubmit assignment"
               : "Submit assignment"}
@@ -1187,18 +1207,16 @@ function Notes({
   return (
     <section
       ref={sectionRef}
-      className={`student-panel flex min-h-0 flex-col gap-3 border bg-card p-4 shadow-sm ${
-        fullscreen ? "h-screen rounded-none" : "h-[calc(100dvh-10rem)] min-h-[560px] rounded-2xl"
-      }`}
+      className={`student-panel document-workspace ${fullscreen ? "document-workspace-fullscreen" : ""}`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
+      <div className="document-workspace-header">
+        <div className="min-w-0 flex-1">
           <h3 className="font-semibold">Notes</h3>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="truncate text-xs text-muted-foreground" title={doc.fileName}>
             {doc.fileName}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="document-workspace-actions">
           <Button variant="default" size="sm" onClick={toggleFullscreen}>
             {fullscreen ? <Minimize2 /> : <Maximize2 />}
             {fullscreen ? "Exit full screen" : "Full screen"}
@@ -1215,13 +1233,10 @@ function Notes({
           </Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {kind === "pdf" ? (
-          <iframe
-            title={doc.title}
-            src={`${url}#view=FitH&navpanes=0`}
-            className="h-full w-full rounded-xl border bg-white"
-          />
+          doc.fileUrl.startsWith("/uploads/") ? <DocumentLearningReader documentId={doc.id} title={doc.title} /> :
+          <iframe title={doc.title} src={`${url}#view=FitH&navpanes=0`} className="h-full w-full rounded-xl border bg-white" />
         ) : kind === "image" ? (
           <div className="flex h-full items-center justify-center overflow-auto rounded-xl border bg-white">
             <img src={url} alt={doc.title} className="max-h-full max-w-full" />
@@ -1266,23 +1281,25 @@ function Document({ id }: { id: number }) {
   const doc = query.data;
   return (
     <>
+      <div className="document-page-heading">
       {doc.courseId ? (
         <Go href={`/course/${doc.courseId}`} tone="neutral">Back to course</Go>
       ) : (
         <Go href="/student/library" tone="neutral">Back to library</Go>
       )}
-      <h2 className="text-2xl font-semibold">{doc.title}</h2>
+      <h1 className="min-w-0 truncate text-xl font-semibold" title={doc.title}>{doc.title}</h1>
       <DocumentProcessingStatus doc={doc} />
+      </div>
       {sourceId && <aside className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
         <h3 className="font-semibold">Source excerpt</h3>
         {source.data ? <blockquote className="mt-2 whitespace-pre-wrap">{source.data.excerpt}</blockquote> : <p>{source.error?.message ?? "Loading source excerpt…"}</p>}
       </aside>}
       <div
-        className="flex flex-wrap gap-2"
+        className="document-study-tabs flex flex-wrap gap-2"
         role="tablist"
         aria-label="Study tools"
       >
-        {["notes", "chat", "summary", "flashcards", "quizzes"].map(t => (
+        {["notes", "chat", "summary", "flashcards", "quizzes", "presentation", "video"].map(t => (
           <Button
             key={t}
             role="tab"
@@ -1303,6 +1320,8 @@ function Document({ id }: { id: number }) {
       {tab === "summary" && <Summary id={id} />}
       {tab === "flashcards" && <Cards id={id} />}
       {tab === "quizzes" && <DocumentQuizzes id={id} />}
+      {tab === "presentation" && <Presentation id={id} />}
+      {tab === "video" && <Video id={id} />}
     </>
   );
 }
@@ -1334,6 +1353,290 @@ function Summary({ id }: { id: number }) {
         )}
       </Box>
     </>
+  );
+}
+// ── Inline slide deck viewer ─────────────────────────────────────────────────
+
+function SlideViewer({ deck, onRegenerate, isPending }: {
+  deck: {
+    title: string;
+    subtitle?: string | null;
+    slideCount: number;
+    slides: Array<{ title: string; bullets: string[]; notes?: string }>;
+    fileUrl: string;
+  };
+  onRegenerate: () => void;
+  isPending: boolean;
+}) {
+  const slides = Array.isArray(deck.slides) ? deck.slides : [];
+  const [current, setCurrent] = useState(0);
+  const total = slides.length;
+  const slide = slides[current];
+  const prev = () => setCurrent(i => Math.max(0, i - 1));
+  const next = () => setCurrent(i => Math.min(total - 1, i + 1));
+
+  // Legacy row: slides column was empty before we added inline preview.
+  // Show a prompt to regenerate so the inline viewer populates.
+  if (total === 0) {
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="student-muted text-sm">
+            {deck.slideCount} slide{deck.slideCount !== 1 ? "s" : ""} generated
+            {deck.subtitle ? ` · ${deck.subtitle}` : ""}
+          </p>
+          <a
+            className="inline-flex items-center gap-1.5 rounded-lg border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+            href={fileHref(deck.fileUrl)}
+            download
+            aria-label="Download presentation as PowerPoint"
+          >
+            ↓ Download .pptx
+          </a>
+        </div>
+        <div className="rounded-2xl border border-dashed p-6 text-center space-y-3">
+          <p className="text-sm font-medium">Inline preview not available for this deck.</p>
+          <p className="student-muted text-sm">
+            Click <strong>Regenerate slides</strong> to rebuild with the inline viewer, or download the .pptx above.
+          </p>
+          <Button size="sm" variant="outline" disabled={isPending} onClick={onRegenerate}>
+            {isPending ? "Regenerating…" : "Regenerate slides"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* header row */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="student-muted text-sm">
+          {deck.subtitle ? <span className="mr-2 font-medium text-foreground">{deck.subtitle}</span> : null}
+          {total} slide{total !== 1 ? "s" : ""}
+        </p>
+        <a
+          className="inline-flex items-center gap-1.5 rounded-lg border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+          href={fileHref(deck.fileUrl)}
+          download
+          aria-label="Download presentation as PowerPoint"
+        >
+          ↓ Download .pptx
+        </a>
+      </div>
+
+      {/* slide card */}
+      {slide ? (
+        <div
+          className="relative overflow-hidden rounded-2xl border"
+          style={{
+            background: "linear-gradient(145deg, #1E3A5F, #16294A)",
+            minHeight: "min(56vw, 380px)",
+          }}
+        >
+          {/* accent bar */}
+          <div className="absolute inset-y-0 left-0 w-1.5 rounded-l-2xl" style={{ background: "#4F8AC4" }} />
+
+          {/* slide number badge */}
+          <span
+            className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold"
+            style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}
+          >
+            {current + 1}
+          </span>
+
+          <div className="px-8 py-6 pl-10">
+            <h3
+              className="mb-4 font-bold leading-tight"
+              style={{ color: "#fff", fontSize: "clamp(1.1rem, 2.5vw, 1.5rem)" }}
+            >
+              {slide.title}
+            </h3>
+
+            <ul className="space-y-2.5">
+              {slide.bullets.map((b, bi) => (
+                <li key={bi} className="flex items-start gap-2.5">
+                  <span
+                    className="mt-1 h-2 w-2 shrink-0 rounded-full"
+                    style={{ background: "#4F8AC4" }}
+                  />
+                  <span style={{ color: "#D6E4F2", fontSize: "clamp(0.82rem, 1.8vw, 1rem)", lineHeight: 1.6 }}>
+                    {b}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            {slide.notes && (
+              <p
+                className="mt-5 rounded-xl px-3 py-2 text-xs italic"
+                style={{ background: "rgba(255,255,255,0.07)", color: "#8FB3D4" }}
+              >
+                📢 {slide.notes}
+              </p>
+            )}
+          </div>
+
+          {/* footer */}
+          <div
+            className="px-10 pb-3 text-xs"
+            style={{ color: "#7A9BC2" }}
+          >
+            {deck.title} · Slide {current + 1} of {total}
+          </div>
+        </div>
+      ) : (
+        <div className="flex h-40 items-center justify-center rounded-2xl border">
+          <p className="student-muted">Slide content unavailable — please regenerate.</p>
+        </div>
+      )}
+
+      {/* navigation + thumbnails */}
+      <div className="flex items-center justify-between gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={prev}
+          disabled={current === 0}
+          aria-label="Previous slide"
+        >
+          ← Prev
+        </Button>
+
+        {/* dot navigation */}
+        <div className="flex flex-wrap justify-center gap-1.5" role="tablist" aria-label="Slide navigation">
+          {slides.map((_, i) => (
+            <button
+              key={i}
+              role="tab"
+              aria-selected={i === current}
+              aria-label={`Slide ${i + 1}`}
+              onClick={() => setCurrent(i)}
+              className="h-2 w-2 rounded-full transition-all focus-visible:outline focus-visible:outline-2"
+              style={{
+                background: i === current ? "#1E3A5F" : "#CBD5E1",
+                transform: i === current ? "scale(1.4)" : "scale(1)",
+              }}
+            />
+          ))}
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={next}
+          disabled={current === total - 1}
+          aria-label="Next slide"
+        >
+          Next →
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function Presentation({ id }: { id: number }) {
+  const query = trpc.presentations.get.useQuery({ documentId: id });
+  const generate = trpc.presentations.generate.useMutation({
+    onSuccess: () => void query.refetch(),
+    onError: fail,
+  });
+  const deck = query.data?.presentation ?? null;
+  const isPending = generate.isPending || (query.data?.generating ?? false);
+  return (
+    <Box title="Presentation deck">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button
+          disabled={isPending}
+          onClick={() => generate.mutate({ documentId: id })}
+        >
+          {isPending ? "Generating…" : deck ? "Regenerate slides" : "Generate slides"}
+        </Button>
+        {isPending && (
+          <p className="student-muted text-sm">Building your slide deck — this takes a moment…</p>
+        )}
+      </div>
+      <State query={query} />
+      {deck ? (
+        <SlideViewer deck={deck} onRegenerate={() => generate.mutate({ documentId: id })} isPending={isPending} />
+      ) : (
+        !query.isLoading && !query.error && !isPending && (
+          <Empty>
+            Generate a slide deck from this document. The AI builds a fully
+            navigable presentation you can browse here and download as a .pptx file.
+          </Empty>
+        )
+      )}
+    </Box>
+  );
+}
+
+// ── Inline narrated video player ──────────────────────────────────────────────
+
+function Video({ id }: { id: number }) {
+  const query = trpc.videos.get.useQuery({ documentId: id });
+  const generate = trpc.videos.generate.useMutation({
+    onSuccess: () => void query.refetch(),
+    onError: fail,
+  });
+  const video = query.data?.video ?? null;
+  const isPending = generate.isPending || (query.data?.generating ?? false);
+  return (
+    <Box title="Narrated video">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button
+          disabled={isPending}
+          onClick={() => generate.mutate({ documentId: id })}
+        >
+          {isPending ? "Generating…" : video ? "Regenerate video" : "Generate video"}
+        </Button>
+        {isPending && (
+          <p className="student-muted text-sm">Building your narrated video — this takes a moment…</p>
+        )}
+      </div>
+      <State query={query} />
+      {video ? (
+        <div className="space-y-3">
+          {/* Inline player — 16:9, full width */}
+          <div
+            className="overflow-hidden rounded-2xl border bg-black"
+            style={{ aspectRatio: "16/9", width: "100%" }}
+          >
+            <iframe
+              key={video.playerUrl}
+              title="Narrated study video"
+              src={fileHref(video.playerUrl)}
+              className="h-full w-full"
+              allow="autoplay"
+              sandbox="allow-scripts allow-same-origin"
+            />
+          </div>
+          {/* meta + controls */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="student-muted text-sm">
+              {video.sceneCount} scenes · {Math.round(video.durationSeconds ?? 0)}s
+              {!video.audioUrl && " · silent slideshow"}
+            </p>
+            <a
+              className="inline-flex items-center gap-1.5 rounded-lg border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+              href={fileHref(video.playerUrl)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              ↗ Open full-screen
+            </a>
+          </div>
+        </div>
+      ) : (
+        !query.isLoading && !query.error && !isPending && (
+          <Empty>
+            Generate a narrated study video from this document. The AI writes a
+            scene-by-scene script, renders slides, and narrates them — playable
+            right here in the page.
+          </Empty>
+        )
+      )}
+    </Box>
   );
 }
 function Cards({ id }: { id: number }) {
@@ -1531,8 +1834,8 @@ function Quizzes() {
           onChange={e => setCourse(e.target.value)}
         >
           <option value="">All courses</option>
-          {Array.from(new Set(query.data?.map(q => q.courseTitle))).map(c => (
-            <option key={c}>{c}</option>
+          {Array.from(new Set(query.data?.map(q => q.courseTitle).filter(Boolean))).map((c, i) => (
+            <option key={`${c}-${i}`} value={c ?? ""}>{c}</option>
           ))}
         </select>
       </div>
@@ -1576,6 +1879,7 @@ function Quizzes() {
   );
 }
 function AskAI() {
+  const [answerScope, setAnswerScope] = useState<"assistant" | "enrolled">("assistant");
   const query = trpc.generalChat.history.useQuery();
   const utils = trpc.useUtils();
   const [pending, setPending] = useState("");
@@ -1644,6 +1948,12 @@ function AskAI() {
       ) : (
         <>
           <State query={query} />
+          <label className="flex items-center gap-2 text-sm font-medium">Answer sources
+            <select aria-label="Answer sources" className="min-h-11 rounded-lg border bg-background px-3" value={answerScope} disabled={send.isPending} onChange={e => setAnswerScope(e.target.value as typeof answerScope)}>
+              <option value="assistant">Learning assistant</option>
+              <option value="enrolled">My enrolled course materials only</option>
+            </select>
+          </label>
           <AIChatBox
             height="65vh"
             messages={[
@@ -1661,9 +1971,9 @@ function AskAI() {
             onSendMessage={message => {
               if (send.isPending) return;
               setPending(message);
-              send.mutate({ documentId: 0, message });
+              send.mutate({ documentId: 0, message, ...(answerScope === "enrolled" ? { retrievalScope: { type: "enrolled" as const } } : {}) });
             }}
-            renderMessageActions={message => <AddPlanToPlanner content={message.content} />}
+            renderMessageActions={message => <><SaveResponseNote content={message.content} /><AddPlanToPlanner content={message.content} /></>}
             emptyStateMessage="Your study companion is ready. Ask for an explanation or help planning your learning."
             suggestedPrompts={[
               "Help me plan my study week",
@@ -1768,6 +2078,7 @@ function Notifications() {
   const query = trpc.notifications.list.useQuery();
   const utils = trpc.useUtils();
   const [filter, setFilter] = useState("All");
+  const [notifSearch, setNotifSearch] = useState("");
   const refresh = () => utils.notifications.invalidate();
   const read = trpc.notifications.markRead.useMutation({
     onSuccess: refresh,
@@ -1817,9 +2128,22 @@ function Notifications() {
             );
           })}
         </div>
+        {/* Notification search */}
+        <div className="px-3 pb-2 pt-1">
+          <Input
+            aria-label="Search notifications"
+            placeholder="Search notifications…"
+            value={notifSearch}
+            onChange={e => setNotifSearch(e.target.value)}
+            className="h-8 rounded-xl border-slate-200 text-xs"
+          />
+        </div>
         <State query={query} />
         {visible
-          ?.filter(n => filter === "All" || category(n.data) === filter)
+          ?.filter(n =>
+            (filter === "All" || category(n.data) === filter) &&
+            (!notifSearch || `${n.title} ${n.body}`.toLowerCase().includes(notifSearch.toLowerCase()))
+          )
           .map(n => (
             <article
               key={n.id}
@@ -1847,11 +2171,12 @@ function Notifications() {
               </span>
               {!n.isRead && (
                 <button
-                  className="student-unread"
+                  className="student-unread inline-flex items-center justify-center transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                   aria-label={`Mark ${n.title} as read`}
+                  title="Mark as read"
                   disabled={read.isPending}
                   onClick={() => read.mutate({ notificationId: n.id })}
-                />
+                ><AppIcon name="Check" size={14} /></button>
               )}
             </article>
           ))}
@@ -2056,7 +2381,7 @@ function Planner() {
       <div className="student-planner-forms">
         <Box title="Add to your calendar">
           <form
-            className="space-y-3"
+            className="form-surface space-y-3"
             onSubmit={async e => {
               e.preventDefault();
               const form = e.currentTarget;
@@ -2127,7 +2452,7 @@ function Planner() {
             deadlines, and learning style.
           </p>
           <form
-            className="space-y-3"
+            className="form-surface space-y-3"
             onSubmit={e => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);

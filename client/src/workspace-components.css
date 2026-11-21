@@ -1,0 +1,126 @@
+/* Shared component treatment for the learning, teaching and administration pages. */
+.dashboard-page {
+  --workspace-accent: #087f68;
+  --workspace-wash: #eaf6f1;
+  --workspace-edge: #c4dfd4;
+}
+.dark .dashboard-page { --workspace-accent: #78dcb7; --workspace-wash: #193b32; --workspace-edge: #34594c; }
+.dashboard-page .workspace-banner {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid var(--workspace-edge);
+  border-left: 4px solid var(--workspace-accent);
+  border-radius: 23px;
+  background: radial-gradient(circle at 80% 10%, color-mix(in srgb, var(--workspace-accent) 14%, transparent), transparent 55%), linear-gradient(120deg, var(--card), var(--workspace-wash));
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--workspace-accent) 10%, var(--card)), 0 12px 30px rgb(15 55 43 / 5%);
+}
+.dashboard-page .workspace-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(var(--workspace-accent) .7px, transparent .7px);
+  background-size: 14px 14px;
+  opacity: .17;
+  mask-image: linear-gradient(100deg, transparent 30%, #000);
+}
+.dashboard-page .workspace-banner h1 { color: var(--foreground); letter-spacing: -1px; }
+.dashboard-page .workspace-banner :is(.student-description, .admin-hero-description, .lecturer-hero h1 + p) { color: var(--muted-foreground); }
+.dashboard-page .student-hero-plain.workspace-banner { padding: 23px 28px; min-height: 128px; }
+.dashboard-page .workspace-banner :is(.student-eyebrow, .lecturer-eyebrow, .admin-eyebrow, .workspace-kicker) { color: var(--workspace-accent); }
+.dashboard-page .workspace-banner :is(.lecturer-hero-icon, .admin-hero-icon, .student-hero-leading, .workspace-heading-icon) {
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 20%, transparent);
+  background: color-mix(in srgb, var(--workspace-accent) 11%, var(--card));
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--workspace-accent) 12%, var(--card));
+}
+.workspace-account-heading { display: flex; align-items: center; gap: 18px; padding: 26px; }
+.workspace-heading-icon { display: grid; place-items: center; width: 52px; height: 52px; flex-shrink: 0; border-radius: 15px; color: var(--workspace-accent); }
+.workspace-heading-icon svg { width: 25px; height: 25px; }
+.workspace-account-heading > div { position: relative; z-index: 1; min-width: 0; }
+.workspace-account-heading .workspace-kicker { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 5px; }
+.workspace-account-heading h1 { font-size: 27px; font-weight: 750; line-height: 1.25; }
+.workspace-heading-description { max-width: 580px; margin-top: 7px; font-size: 13px; line-height: 1.7; color: var(--muted-foreground); }
+.workspace-heading-watermark { position: absolute; width: 110px; height: 110px; right: 20px; bottom: -28px; transform: rotate(-15deg); opacity: .07; color: var(--workspace-accent); pointer-events: none; }
+
+/* Panels keep their original geometry; decoration never changes positioning. */
+.dashboard-page :is(.student-content:not(.student-page-dashboard) .student-panel, .sc-card, .lecturer-panel, .settings-form-panel, .workspace-data-panel) {
+  border-radius: 20px;
+  border-color: var(--border);
+  box-shadow: 0 2px 3px rgb(15 55 43 / 3%), 0 8px 22px rgb(15 55 43 / 6%);
+}
+.dashboard-page :is(.student-content:not(.student-page-dashboard) .student-panel, .sc-card, .lecturer-panel)::before {
+  background: radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--workspace-accent) 8%, transparent), transparent 45%);
+}
+.dashboard-page :is(.student-panel-title, .sc-card-head, .lecturer-panel-heading) { padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+.dashboard-page :is(.sc-card-head, .lecturer-panel-heading) { gap: 12px; }
+.dashboard-page :is(.sc-card-head, .lecturer-panel-heading) h2 { letter-spacing: -.35px; }
+.dashboard-page .settings-form-panel > div:first-child { background: color-mix(in srgb, var(--workspace-accent) 4%, var(--card)); }
+.dashboard-page .settings-form-panel[class*="border-red-"] > div:first-child { background: color-mix(in srgb, var(--destructive) 5%, var(--card)); }
+
+/* Course and material tiles use a quiet stacked edge and a stronger action cue. */
+.dashboard-page :is(.student-course-card, .lecturer-course-card) {
+  border-radius: 20px;
+  box-shadow: 3px 4px 0 color-mix(in srgb, var(--workspace-accent) 10%, var(--card)), 0 6px 18px rgb(15 55 43 / 5%);
+  transition: box-shadow 220ms ease, border-color 220ms ease;
+}
+.dashboard-page :is(.student-course-card, .lecturer-course-card) :is(h2, h3) { letter-spacing: -.4px; }
+.dashboard-page :is(.sc-tile, .student-course-card .student-icon) { box-shadow: inset 0 1px 0 rgb(255 255 255 / 35%), 2px 3px 0 rgb(15 55 43 / 5%); }
+.dashboard-page :is(.student-material, .sc-material, .student-notification) { border-radius: 15px; transition: background-color 180ms ease, border-color 180ms ease; }
+
+.dashboard-page :is(.student-toolbar, .lecturer-filterbar) {
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--workspace-accent) 3%, var(--card));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 30%);
+}
+.dashboard-page :is([data-slot="tabs-list"], .student-tabs) {
+  max-width: 100%;
+  height: auto;
+  min-height: 42px;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--workspace-accent) 5%, var(--card));
+}
+.dashboard-page :is([data-slot="tabs-trigger"], .student-tabs button) { border-radius: 10px; min-height: 32px; font-weight: 600; }
+.dashboard-page :is([data-slot="tabs-trigger"][data-state="active"], .student-tabs button.active) {
+  border-color: color-mix(in srgb, var(--workspace-accent) 25%, var(--border));
+  background: var(--card);
+  color: var(--workspace-accent);
+  box-shadow: 0 2px 5px rgb(15 55 43 / 8%), inset 0 -2px 0 var(--workspace-accent);
+}
+.dashboard-page table { border-collapse: separate; border-spacing: 0; }
+.dashboard-page table thead { background: color-mix(in srgb, var(--workspace-accent) 5%, var(--card)); }
+.dashboard-page table thead th { color: var(--muted-foreground); font-size: 10px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; padding-block: 15px; }
+.dashboard-page table tbody tr { transition: background-color 150ms ease; }
+.dashboard-page table tbody td { border-color: var(--border); }
+.dashboard-page .query-state-empty { border: 1px dashed var(--workspace-edge); border-radius: 18px; background: radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--workspace-accent) 7%, transparent), transparent 70%), var(--card); }
+.dashboard-page .query-state-empty > svg { box-sizing: content-box; padding: 11px; border-radius: 14px; color: var(--workspace-accent); background: color-mix(in srgb, var(--workspace-accent) 9%, var(--card)); }
+.dashboard-page .lecturer-stat { border-top: 2px solid color-mix(in srgb, var(--workspace-accent) 50%, var(--border)); border-radius: 18px; }
+.dashboard-page .student-content:not(.student-page-dashboard) .student-stat { border-top: 2px solid color-mix(in srgb, var(--workspace-accent) 50%, var(--border)); }
+
+@media (hover: hover) {
+  .dashboard-page :is(.student-course-card, .lecturer-course-card):hover { border-color: var(--workspace-edge); box-shadow: 5px 6px 0 color-mix(in srgb, var(--workspace-accent) 15%, var(--card)), 0 10px 24px rgb(15 55 43 / 10%); }
+  .dashboard-page :is(.student-material, .sc-material, .student-notification):hover,
+  .dashboard-page table tbody tr:hover { background-color: color-mix(in srgb, var(--workspace-accent) 4%, var(--card)); }
+}
+.dark .dashboard-page .workspace-banner .student-art-picture { mask-image: radial-gradient(ellipse 60% 65% at 50% 50%, #000 35%, transparent 78%); }
+.dark .dashboard-page .workspace-banner .lecturer-hero-copy h1 + p { color: var(--muted-foreground); }
+@media (max-width: 767px) {
+  .dashboard-page .student-hero-plain.workspace-banner { padding: 20px; min-height: 118px; }
+  .workspace-account-heading { padding: 20px; gap: 13px; }
+  .workspace-heading-icon { width: 42px; height: 42px; border-radius: 12px; }
+  .workspace-account-heading h1 { font-size: 23px; }
+  .dashboard-page :is(.student-toolbar, .lecturer-filterbar) { padding: 10px; }
+  .dashboard-page [data-slot="tabs-list"] { flex-wrap: wrap; width: 100%; }
+  .dashboard-page .student-tabs { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-page :is(.student-course-card, .lecturer-course-card, .student-material, .sc-material, .student-notification, table tbody tr) { transition: none; }
+}

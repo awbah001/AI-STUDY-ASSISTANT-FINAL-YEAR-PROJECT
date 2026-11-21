@@ -1,8 +1,9 @@
 import { Skeleton } from "./ui/skeleton";
+import { LoadingIndicator } from "./ui/spinner";
 
 export function DashboardLayoutSkeleton() {
   return (
-    <div className="flex min-h-screen bg-[#033c35] p-3">
+    <div aria-busy="true" className="flex min-h-screen bg-[#033c35] p-3">
       <div className="hidden w-[248px] rounded-[28px] border border-white/10 bg-[#033c35] p-4 space-y-6 md:block">
         <div className="flex items-center gap-3 px-1">
           <Skeleton className="h-11 w-11 rounded-2xl bg-white/15" />
@@ -18,6 +19,7 @@ export function DashboardLayoutSkeleton() {
         </div>
       </div>
       <div className="flex-1 space-y-4 rounded-[28px] bg-[#f4f8f6] p-6">
+        <LoadingIndicator label="Loading your workspace..." />
         <Skeleton className="h-12 w-48 rounded-lg" />
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Skeleton className="h-32 rounded-2xl" />

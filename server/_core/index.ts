@@ -14,6 +14,7 @@ import { HttpError } from "../../shared/_core/errors";
 import { UPLOADS_ROOT, resolveUploadPath, sanitizeUploadKey } from "./uploads";
 import { transcribeStudentAudio } from "../voice";
 import { startAutonomousAgentScheduler } from "../agent/autonomous";
+import { registerDocumentReaderHttp } from "../documentReaderHttp";
 
 function assertJwtSecret() {
   if ((ENV.cookieSecret ?? "").length < 16) {
@@ -62,6 +63,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   // Local storage fallback (no external S3/Forge required)
+  registerDocumentReaderHttp(app);
   fs.mkdirSync(UPLOADS_ROOT, { recursive: true });
   app.use("/uploads", express.static(UPLOADS_ROOT));
   app.post("/api/storage/put", express.raw({ type: "*/*", limit: "60mb" }), async (req, res) => {

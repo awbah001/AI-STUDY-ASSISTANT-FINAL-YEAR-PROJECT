@@ -90,16 +90,18 @@
   border: 1px solid var(--neutral-gray-border);
 }
 .student-content button[data-variant="neutral"]:hover {
-  background: var(--neutral-gray-soft);
   color: #374151;
+}
+.student-content button[data-variant="neutral"]:not(.button-sweep):hover {
+  background: var(--neutral-gray-soft);
 }
 .student-content button[data-variant="accent"],
 .student-content a[data-variant="accent"] {
   background: var(--burgundy);
   color: #fff;
 }
-.student-content button[data-variant="accent"]:hover,
-.student-content a[data-variant="accent"]:hover {
+.student-content button[data-variant="accent"]:not(.button-sweep):hover,
+.student-content a[data-variant="accent"]:not(.button-sweep):hover {
   background: var(--burgundy-hover);
 }
 

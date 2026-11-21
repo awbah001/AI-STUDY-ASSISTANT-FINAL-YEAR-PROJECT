@@ -1,20 +1,21 @@
 import { useId } from "react";
-import { CheckCircle2, GraduationCap, Hexagon, ShieldCheck, type LucideIcon } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
+import { AppIcon, type IconName } from "@/components/icons/AppIcon";
 
 type HeroKind = "users" | "academic" | "operations" | "audit" | "communications";
-const content: Record<HeroKind, { eyebrow: string; title: string; description: string; icon?: LucideIcon; checklist?: string[] }> = {
+const content: Record<HeroKind, { eyebrow: string; title: string; description: string; icon?: IconName; checklist?: string[] }> = {
   users: { eyebrow: "User management", title: "Users", description: "Students and lecturers are listed separately. Students sign up on the web or in the mobile app; lecturers are created here." },
-  academic: { eyebrow: "Academic", title: "Give a lecturer a course", description: "Only administrators can add a course to the catalogue. The selected lecturer then sees it under My Courses.", icon: GraduationCap },
-  operations: { eyebrow: "Platform", title: "Operations", description: "AI processing queue, storage health, and operational failures.", icon: Hexagon, checklist: ["Monitor processing queue", "Track storage health", "Identify and resolve failures", "Ensure platform stability"] },
-  audit: { eyebrow: "Compliance", title: "Audit", description: "Immutable history of privileged actions across the platform.", icon: ShieldCheck, checklist: ["Track administrative actions", "Ensure accountability", "Maintain platform security"] },
+  academic: { eyebrow: "Academic", title: "Give a lecturer a course", description: "Only administrators can add a course to the catalogue. The selected lecturer then sees it under My Courses.", icon: "GraduationCap" },
+  operations: { eyebrow: "Platform", title: "Operations", description: "AI processing queue, storage health, and operational failures.", icon: "Server", checklist: ["Monitor processing queue", "Track storage health", "Identify and resolve failures", "Ensure platform stability"] },
+  audit: { eyebrow: "Compliance", title: "Audit", description: "Immutable history of privileged actions across the platform.", icon: "ShieldCheck", checklist: ["Track administrative actions", "Ensure accountability", "Maintain platform security"] },
   communications: { eyebrow: "Outreach", title: "Communications", description: "Send targeted notices and monitor inbox delivery." },
 };
 
 export function AdminHero({ kind }: { kind: HeroKind }) {
   const { eyebrow, title, description, icon: Icon, checklist } = content[kind];
-  return <header className={`admin-hero admin-hero--${kind}`}>
+  return <header className={`admin-hero admin-hero--${kind} workspace-banner`}>
     <div className="admin-hero-copy">
-      {Icon && <span className="admin-hero-icon"><Icon strokeWidth={2} /></span>}
+      {Icon && <span className="admin-hero-icon cognify-icon-badge" aria-hidden="true"><AppIcon name={Icon} size={36} /></span>}
       <div><p className="admin-eyebrow">{eyebrow}</p><h1>{title}</h1><p className="admin-hero-description">{description}</p></div>
     </div>
     <HeroArt kind={kind} />

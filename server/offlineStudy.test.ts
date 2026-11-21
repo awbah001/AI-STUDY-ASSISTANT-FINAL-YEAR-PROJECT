@@ -20,7 +20,7 @@ let dbPath: string;
 const event: OfflineStudyEvent = { eventId: "offline-test-1", documentId: 7, kind: "reading", occurredAt: Date.now() - 1000, minutes: 3 };
 beforeEach(async () => {
   vi.resetAllMocks();
-  dbPath = `scratch/offline-sync-${randomUUID()}.db`;
+  dbPath = `data/offline-sync-${randomUUID()}.db`;
   client = createClient({ url: `file:./${dbPath}` });
   vi.mocked(getDb).mockResolvedValue(drizzle(client));
   await runOfflineStudyMigration(client);

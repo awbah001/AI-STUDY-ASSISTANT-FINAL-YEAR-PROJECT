@@ -1,6 +1,7 @@
+import { Spinner as Loader2 } from "@/components/ui/spinner";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { BookOpen, Copy, Loader2, ScanSearch, Users } from "lucide-react";
+import { BookOpen, Copy, ScanSearch, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { SIMILARITY_LABEL, similarityLevel, type SimilarityLevel } from "@shared/lecturerInsights";
@@ -177,7 +178,7 @@ export function SimilarityPanel({ assignments }: { assignments: Array<{ id: numb
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            className="web-button rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
           >
             Check
           </button>

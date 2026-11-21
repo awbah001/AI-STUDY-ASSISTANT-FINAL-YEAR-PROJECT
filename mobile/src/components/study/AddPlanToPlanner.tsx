@@ -1,17 +1,8 @@
+import { WifiLoader as ActivityIndicator } from "../ui/WifiLoader";
+import { FormInput } from "../ui/FormInput";
+import { SolutionCard } from "../ui/SolutionCard";
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -155,7 +146,7 @@ export function AddPlanToPlanner({ content }: { content: string }) {
               {rows.map((row, index) => {
                 const weekday = weekdayOf(row.date, row.time, tzOffset);
                 return (
-                  <View key={index} style={[s.card, errors[index] && s.cardError]}>
+                  <SolutionCard key={index} style={[s.card, errors[index] && s.cardError]}>
                     <View style={s.cardHead}>
                       <Text style={s.cardIndex}>
                         Session {index + 1}
@@ -169,7 +160,7 @@ export function AddPlanToPlanner({ content }: { content: string }) {
                         <Ionicons name="trash-outline" size={18} color={colors.error} />
                       </TouchableOpacity>
                     </View>
-                    <TextInput
+                    <FormInput
                       style={s.input}
                       value={row.title}
                       maxLength={PLAN_LIMITS.title.max}
@@ -196,7 +187,7 @@ export function AddPlanToPlanner({ content }: { content: string }) {
                     <View style={s.row}>
                       <View style={{ flex: 1.4 }}>
                         <Text style={s.label}>Date</Text>
-                        <TextInput
+                        <FormInput
                           style={s.input}
                           value={row.date}
                           placeholder="YYYY-MM-DD"
@@ -208,7 +199,7 @@ export function AddPlanToPlanner({ content }: { content: string }) {
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={s.label}>Time</Text>
-                        <TextInput
+                        <FormInput
                           style={s.input}
                           value={row.time}
                           placeholder="18:00"
@@ -220,7 +211,7 @@ export function AddPlanToPlanner({ content }: { content: string }) {
                       </View>
                       <View style={{ flex: 0.9 }}>
                         <Text style={s.label}>Minutes</Text>
-                        <TextInput
+                        <FormInput
                           style={s.input}
                           value={row.durationMinutes ? String(row.durationMinutes) : ""}
                           maxLength={3}
@@ -230,7 +221,7 @@ export function AddPlanToPlanner({ content }: { content: string }) {
                         />
                       </View>
                     </View>
-                    <TextInput
+                    <FormInput
                       style={[s.input, s.notes]}
                       value={row.notes}
                       maxLength={PLAN_LIMITS.notes}
@@ -240,7 +231,7 @@ export function AddPlanToPlanner({ content }: { content: string }) {
                       onChangeText={(notes) => update(index, { notes })}
                     />
                     {errors[index] ? <Text style={s.error}>{errors[index]}</Text> : null}
-                  </View>
+                  </SolutionCard>
                 );
               })}
               {!rows.length ? <Text style={[s.caption, { textAlign: "center" }]}>No sessions left.</Text> : null}

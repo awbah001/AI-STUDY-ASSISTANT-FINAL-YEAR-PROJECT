@@ -1,17 +1,6 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
 import { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -24,6 +13,7 @@ import { friendlyError, isNetworkError } from "../../src/lib/friendlyError";
 import { ALLOWED_EMAIL_DOMAIN } from "../../src/lib/emailDomain";
 import { LIMITS, useFieldErrors, validateEmail, validateLoginPassword, validateTotpCode } from "../../src/lib/validation";
 import { FieldError, FIELD_ERROR_COLOR } from "../../src/components/FieldError";
+import { FormPanel } from "../../src/components/ui/FormPanel";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -92,7 +82,7 @@ export default function LoginScreen() {
               <Text style={styles.welcomeCopy}>Sign in to continue your learning journey</Text>
             </View>
 
-            <View style={styles.form}>
+            <FormPanel style={styles.form}>
               <Field
                 label="Email"
                 icon="mail-outline"
@@ -156,7 +146,7 @@ export default function LoginScreen() {
               <Pressable onPress={() => router.push("/offline-study" as any)} style={{ paddingVertical: 12 }}>
                 <Text style={{ color: "#00745d", textAlign: "center" }}>Study downloaded materials offline</Text>
               </Pressable>
-            </View>
+            </FormPanel>
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -210,10 +200,10 @@ const styles = StyleSheet.create({
   welcomeTitle: { color: "#123047", fontSize: 27, fontWeight: "800", letterSpacing: -0.5 },
   welcomeAccent: { color: "#12a06e" },
   welcomeCopy: { color: "#6f879b", fontSize: 14, marginTop: 4, textAlign: "center" },
-  form: { marginTop: 22, backgroundColor: "transparent" },
+  form: { marginTop: 22 },
   field: { marginBottom: 14 },
   fieldLabel: { color: "#28455a", fontSize: 13, fontWeight: "700", marginBottom: 7, marginLeft: 2 },
-  inputShell: { alignItems: "center", backgroundColor: "#fff", borderColor: "#e0e9ee", borderRadius: 14, borderWidth: 1.5, flexDirection: "row", height: 52 },
+  inputShell: { alignItems: "center", backgroundColor: "#fff", borderColor: "#e0e9ee", borderRadius: 20, borderWidth: 1.5, flexDirection: "row", height: 52, shadowColor: "#0a6e52", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 10, elevation: 2 },
   inputShellFocused: { backgroundColor: "#fff", borderColor: "#12a06e" },
   inputShellError: { borderColor: FIELD_ERROR_COLOR },
   fieldIcon: { marginLeft: 14 },

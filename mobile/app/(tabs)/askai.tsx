@@ -1,16 +1,7 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
+import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { design, elevation } from "../../src/theme/design";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { useState, useRef, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,7 +13,9 @@ import { useChatVoice, VoiceCapture } from "../../src/lib/useChatVoice";
 import { oldestFirstById } from "../../src/lib/chatHistory";
 import { AssistantMessage } from "../../src/components/AssistantMessage";
 import { AddPlanToPlanner } from "../../src/components/study/AddPlanToPlanner";
+import { SaveResponseNote } from "../../src/components/study/SaveResponseNote";
 import { useLocalSearchParams } from "expo-router";
+import { CognifyIcon } from "../../src/components/ui/CognifyIcon";
 
 type Prompt = { text: string; icon: React.ComponentProps<typeof Ionicons>["name"] };
 
@@ -58,6 +51,7 @@ export default function AskAIScreen() {
   const scopedCourseId =
     Number.isInteger(courseId) && courseId > 0 ? courseId : undefined;
   const [message, setMessage] = useState("");
+  const [answerScope, setAnswerScope] = useState<"assistant" | "course" | "enrolled">("assistant");
   const [isThinking, setIsThinking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const utils = trpc.useUtils();
@@ -184,6 +178,7 @@ export default function AskAIScreen() {
       documentId: 0,
       message: content,
       courseId: scopedCourseId,
+      ...(answerScope === "enrolled" ? { retrievalScope: { type: "enrolled" as const } } : answerScope === "course" && scopedCourseId ? { retrievalScope: { type: "course" as const, courseId: scopedCourseId } } : {}),
     });
   };
 
@@ -212,14 +207,14 @@ export default function AskAIScreen() {
           end={{ x: 1, y: 1 }}
           style={s.headerIconWrap}
         >
-          <Ionicons name="sparkles" size={17} color={colors.white} />
+          <CognifyIcon name="ai" size={17} color={colors.white} motion={isThinking ? "pulse" : "none"} />
         </LinearGradient>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Ask AI</Text>
           <View style={s.headerSubRow}>
             <View style={s.onlineDot} />
             <Text style={s.headerSub} numberOfLines={1}>
-              {scopedCourseId ? "Using this course's materials" : "AI Learning Assistant"}
+              {answerScope === "enrolled" ? "Published material from my courses" : answerScope === "course" ? "Published material in this course" : "AI Learning Assistant"}
             </Text>
           </View>
         </View>
@@ -256,6 +251,9 @@ export default function AskAIScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
       >
+        <ScrollView horizontal style={{ flexGrow: 0, maxHeight: 58 }} contentContainerStyle={{ padding: 8, gap: 8 }} accessibilityLabel="Answer sources">
+          {([['assistant','Learning assistant'],['course','This course'],['enrolled','My courses']] as const).map(([key,label]) => <TouchableOpacity key={key} accessibilityRole="button" accessibilityState={{ selected: answerScope === key }} disabled={isThinking || (key === 'course' && !scopedCourseId)} onPress={() => setAnswerScope(key)} style={{ minHeight: 44, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10, backgroundColor: answerScope === key ? colors.primary : colors.primaryLight, opacity: key === 'course' && !scopedCourseId ? .45 : 1 }}><Text style={{ color: answerScope === key ? colors.white : colors.primary }}>{label}</Text></TouchableOpacity>)}
+        </ScrollView>
         {historyLoading && isEmpty ? (
           <View style={s.emptyContainer}>
             <ActivityIndicator color={colors.primary} />
@@ -275,7 +273,7 @@ export default function AskAIScreen() {
                     end={{ x: 1, y: 1 }}
                     style={s.orb}
                   >
-                    <Ionicons name="sparkles" size={30} color={colors.white} />
+                    <CognifyIcon name="ai" size={30} color={colors.white} />
                   </LinearGradient>
                 </View>
               </View>
@@ -291,7 +289,7 @@ export default function AskAIScreen() {
               {prompts.map((p, i) => {
                 const tone = PROMPT_TONES[i % PROMPT_TONES.length];
                 return (
-                  <TouchableOpacity
+                  <SolutionCard component="touchable"
                     key={p.text}
                     style={s.promptCard}
                     activeOpacity={0.85}
@@ -303,7 +301,7 @@ export default function AskAIScreen() {
                     <Text style={s.promptText} numberOfLines={3}>
                       {p.text}
                     </Text>
-                  </TouchableOpacity>
+                  </SolutionCard>
                 );
               })}
             </View>
@@ -327,7 +325,7 @@ export default function AskAIScreen() {
               >
                 {item.role === "assistant" && (
                   <LinearGradient colors={gradients.hero} style={s.aiAvatar}>
-                    <Ionicons name="sparkles" size={12} color={colors.white} />
+                    <CognifyIcon name="ai" size={12} color={colors.white} />
                   </LinearGradient>
                 )}
                 <View
@@ -355,6 +353,7 @@ export default function AskAIScreen() {
                     {item.role === "assistant" ? (
                       <View style={s.metaActions}>
                         <AddPlanToPlanner content={item.content} />
+                        <SaveResponseNote content={item.content} />
                         <TouchableOpacity
                           style={s.speakChip}
                           onPress={() => voice.toggleSpeak(item.content, item.id)}
@@ -383,7 +382,7 @@ export default function AskAIScreen() {
             {isThinking && (
               <View style={[s.bubbleRow, s.bubbleRowAI]}>
                 <LinearGradient colors={gradients.hero} style={s.aiAvatar}>
-                  <Ionicons name="sparkles" size={12} color={colors.white} />
+                  <CognifyIcon name="ai" size={12} color={colors.white} motion="pulse" />
                 </LinearGradient>
                 <View style={[s.bubble, s.bubbleAI, s.thinkingBubble]}>
                   <ActivityIndicator size="small" color={colors.primary} />

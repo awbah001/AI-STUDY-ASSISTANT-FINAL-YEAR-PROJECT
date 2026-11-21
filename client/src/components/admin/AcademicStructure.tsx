@@ -1,3 +1,4 @@
+import { LoadingIndicator } from "@/components/ui/spinner";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { CalendarClock, GraduationCap, Pencil, Plus, Trash2 } from "lucide-react";
@@ -44,7 +45,7 @@ function InlineAdd({ placeholder, onAdd, children }: { placeholder: string; onAd
   const [busy, setBusy] = useState(false);
   return (
     <form
-      className="space-y-1"
+      className="form-surface space-y-1"
       onSubmit={async e => {
         e.preventDefault();
         const problem = validateText(name, { label: "Name", min: 2, max: 120 });
@@ -101,7 +102,7 @@ function IconButton({ label, onClick, danger, children }: { label: string; onCli
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`rounded-md p-1 text-slate-400 hover:bg-slate-100 ${danger ? "hover:text-red-600" : "hover:text-slate-700"}`}
+      className={`web-button ${`rounded-md p-1 text-slate-400 hover:bg-slate-100 ${danger ? "hover:text-red-600" : "hover:text-slate-700"}`}`}
     >
       {children}
     </button>
@@ -134,7 +135,7 @@ export function ProgrammeCatalogue() {
       </div>
       <div className="space-y-4 p-5 sm:p-6">
         {catalogue.isLoading ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <LoadingIndicator label="Loading…" />
         ) : !faculties.length ? (
           <p className="rounded-xl border border-dashed p-4 text-sm text-slate-500">
             No faculties yet. Until you add programmes, students type their faculty, department and programme by hand.

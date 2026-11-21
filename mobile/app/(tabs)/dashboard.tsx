@@ -1,14 +1,7 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
+import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { design } from "../../src/theme/design";
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-  Image,
-} from "react-native";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useEffect, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -437,7 +430,7 @@ export default function DashboardScreen() {
             const pct = getDocProgress(doc.id);
             const tone = DOC_TONES[idx % DOC_TONES.length];
             return (
-              <TouchableOpacity
+              <SolutionCard component="touchable"
                 key={doc.id}
                 style={s.learnCard}
                 onPress={() =>
@@ -478,7 +471,7 @@ export default function DashboardScreen() {
                 <View style={s.playBtn}>
                   <Ionicons name="play" size={13} color={colors.white} style={{ marginLeft: 2 }} />
                 </View>
-              </TouchableOpacity>
+              </SolutionCard>
             );
           })
         )}
@@ -507,7 +500,7 @@ function StatTile({
   accentBg: string;
 }) {
   return (
-    <View style={s.statTile}>
+    <SolutionCard style={s.statTile}>
       {/* top row: icon + change badge */}
       <View style={s.statTopRow}>
         <View style={[s.statIcon, { backgroundColor: accentBg }]}>
@@ -521,14 +514,14 @@ function StatTile({
       </View>
       <Text style={s.statValue}>{value}</Text>
       <Text style={s.statLabel}>{label}</Text>
-    </View>
+    </SolutionCard>
   );
 }
 
 // ── Streak tile (special layout matching image) ───────────────────────────────
 function StreakTile({ streak }: { streak: number }) {
   return (
-    <View style={[s.statTile, s.streakTile]}>
+    <SolutionCard style={[s.statTile, s.streakTile]}>
       <View style={s.statTopRow}>
         <View style={[s.statIcon, { backgroundColor: colors.warningSoft }]}>
           <Ionicons name="flame" size={18} color={colors.warning} />
@@ -541,7 +534,7 @@ function StreakTile({ streak }: { streak: number }) {
       </View>
       <Text style={s.statValue}>{streak} days</Text>
       <Text style={s.statLabel}>Streak</Text>
-    </View>
+    </SolutionCard>
   );
 }
 

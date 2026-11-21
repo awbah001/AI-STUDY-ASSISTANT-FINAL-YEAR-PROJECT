@@ -32,6 +32,7 @@ export function studyFormatLabel(type?: string | null, fileName?: string): strin
   if (key === "pdf") return "PDF";
   if (key === "docx" || key === "doc" || key === "notes") return "Word (.docx)";
   if (key === "pptx" || key === "ppt" || key === "slides") return "PowerPoint (.pptx)";
+  if (key === "past_questions") return "Past Questions";
   return ext ? ext.toUpperCase() : "Document";
 }
 

@@ -10,6 +10,10 @@ import fs from "fs/promises";
 import path from "path";
 
 export type FaissFlatStore = {
+  /** Optional provenance keeps existing indexes readable. Legacy rows have no page claims. */
+  pages?: number[];
+  revision?: string;
+  schemaVersion?: 2;
   dim: number;
   chunks: string[];
   /** L2-normalized embedding rows */
@@ -57,10 +61,10 @@ export function searchFaissFlat(
   store: FaissFlatStore,
   topK: number,
   threshold = 0.20
-): { chunk: string; score: number }[] {
+): { chunk: string; score: number; page?: number; revision?: string }[] {
   const q = l2Normalize(queryVector);
   const scored = store.vectors
-    .map((row, i) => ({ chunk: store.chunks[i]!, score: dot(q, row) }))
+    .map((row, i) => ({ chunk: store.chunks[i]!, score: dot(q, row), ...(store.pages?.[i] && store.revision ? { page: store.pages[i], revision: store.revision } : {}) }))
     .filter((r) => r.score >= threshold); // drop irrelevant chunks
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, topK);

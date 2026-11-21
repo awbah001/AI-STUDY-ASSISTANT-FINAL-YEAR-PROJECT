@@ -8,19 +8,13 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { SETTINGS_NAV } from "@shared/adminSettings";
-import {
-  LayoutDashboard, LogOut, Bell, UserRound, UsersRound, Search,
-  Settings as SettingsIcon, ShieldCheck,
-  Sun, Moon, GraduationCap, Megaphone, ClipboardCheck, ChartNoAxesCombined,
-  LibraryBig, ChevronRight, Menu, ServerCog, School, FileBarChart,
-  BotMessageSquare, Layers, ListChecks, CalendarDays, TrendingUp,
-  PanelLeftClose, PanelLeftOpen,
-} from "lucide-react";
+import { AppIcon, type IconName } from "@/components/icons/AppIcon";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
+import { NotificationPopover } from "./NotificationPopover";
 import { motion, useAnimationControls, useReducedMotion } from "framer-motion";
 
 const ROLE_THEME = {
@@ -51,50 +45,51 @@ type IconTone =
   | "orange" | "teal" | "indigo" | "rose" | "gray";
 
 type MenuItem = {
-  icon: typeof LayoutDashboard;
+  icon: IconName;
   label: string;
   path: string;
-  section: "Overview" | "Workspace" | "Assessment" | "Settings" | "Account";
+  section: "Overview" | "Dashboard" | "Workspace" | "Assessment" | "Settings" | "Account";
   tone: IconTone;
 };
 
 const getMenuItems = (role: string = "user"): MenuItem[] => {
   if (role === "admin") {
     return [
-      { icon: LayoutDashboard, label: "Overview", path: "/admin", section: "Overview", tone: "emerald" },
-      { icon: UsersRound, label: "Users", path: "/admin/users", section: "Workspace", tone: "blue" },
-      { icon: School, label: "Academic", path: "/admin/academic", section: "Workspace", tone: "violet" },
-      { icon: ServerCog, label: "Operations", path: "/admin/operations", section: "Workspace", tone: "orange" },
-      { icon: ShieldCheck, label: "Audit", path: "/admin/audit", section: "Workspace", tone: "rose" },
-      { icon: Megaphone, label: "Communications", path: "/admin/communications", section: "Workspace", tone: "pink" },
-      { icon: SettingsIcon, label: "Settings", path: "/admin/settings", section: "Settings", tone: "gray" },
+      { icon: "LayoutDashboard", label: "Dashboard", path: "/admin", section: "Dashboard", tone: "emerald" },
+      { icon: "Users", label: "Users", path: "/admin/users", section: "Workspace", tone: "blue" },
+      { icon: "GraduationCap", label: "Academic", path: "/admin/academic", section: "Workspace", tone: "violet" },
+      { icon: "Server", label: "Operations", path: "/admin/operations", section: "Workspace", tone: "orange" },
+      { icon: "ShieldCheck", label: "Audit", path: "/admin/audit", section: "Workspace", tone: "rose" },
+      { icon: "MessagesSquare", label: "Communications", path: "/admin/communications", section: "Workspace", tone: "pink" },
+      { icon: "Settings", label: "Settings", path: "/admin/settings", section: "Settings", tone: "gray" },
     ];
   }
   if (role === "lecturer") {
     return [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/lecturer/dashboard", section: "Overview", tone: "emerald" },
-      { icon: LibraryBig, label: "Courses", path: "/lecturer/courses", section: "Workspace", tone: "blue" },
-      { icon: UsersRound, label: "Students", path: "/lecturer/students", section: "Workspace", tone: "violet" },
-      { icon: ChartNoAxesCombined, label: "Analytics", path: "/lecturer/analytics", section: "Workspace", tone: "sky" },
-      { icon: Megaphone, label: "Announcements", path: "/lecturer/announcements", section: "Workspace", tone: "pink" },
-      { icon: FileBarChart, label: "Reports", path: "/lecturer/reports", section: "Assessment", tone: "amber" },
-      { icon: ClipboardCheck, label: "Assessments", path: "/lecturer/assessments", section: "Assessment", tone: "rose" },
-      { icon: UserRound, label: "Profile", path: "/profile", section: "Account", tone: "indigo" },
-      { icon: SettingsIcon, label: "Settings", path: "/settings", section: "Account", tone: "gray" },
+      { icon: "LayoutDashboard", label: "Dashboard", path: "/lecturer/dashboard", section: "Overview", tone: "emerald" },
+      { icon: "BookOpen", label: "Courses", path: "/lecturer/courses", section: "Workspace", tone: "blue" },
+      { icon: "Users", label: "Students", path: "/lecturer/students", section: "Workspace", tone: "violet" },
+      { icon: "BarChart3", label: "Analytics", path: "/lecturer/analytics", section: "Workspace", tone: "sky" },
+      { icon: "MessagesSquare", label: "Announcements", path: "/lecturer/announcements", section: "Workspace", tone: "pink" },
+      { icon: "BarChart3", label: "Reports", path: "/lecturer/reports", section: "Assessment", tone: "amber" },
+      { icon: "ClipboardCheck", label: "Assessments", path: "/lecturer/assessments", section: "Assessment", tone: "rose" },
+      { icon: "Users", label: "Profile", path: "/profile", section: "Account", tone: "indigo" },
+      { icon: "Settings", label: "Settings", path: "/settings", section: "Account", tone: "gray" },
     ];
   }
   return [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/student/dashboard", section: "Overview", tone: "emerald" },
-    { icon: GraduationCap, label: "My courses", path: "/student/courses", section: "Workspace", tone: "blue" },
-    { icon: LibraryBig, label: "Library", path: "/student/library", section: "Workspace", tone: "indigo" },
-    { icon: BotMessageSquare, label: "Ask AI", path: "/student/askai", section: "Workspace", tone: "violet" },
-    { icon: Layers, label: "Flashcards", path: "/student/flashcards", section: "Assessment", tone: "pink" },
-    { icon: ListChecks, label: "Quizzes", path: "/student/quizzes", section: "Assessment", tone: "amber" },
-    { icon: CalendarDays, label: "Study planner", path: "/student/planner", section: "Workspace", tone: "sky" },
-    { icon: TrendingUp, label: "Progress", path: "/student/progress", section: "Assessment", tone: "teal" },
-    { icon: Bell, label: "Notifications", path: "/student/notifications", section: "Account", tone: "orange" },
-    { icon: UserRound, label: "Profile", path: "/profile", section: "Account", tone: "rose" },
-    { icon: SettingsIcon, label: "Settings", path: "/settings", section: "Account", tone: "gray" },
+    { icon: "LayoutDashboard", label: "Dashboard", path: "/student/dashboard", section: "Overview", tone: "emerald" },
+    { icon: "GraduationCap", label: "My courses", path: "/student/courses", section: "Workspace", tone: "blue" },
+    { icon: "BookOpen", label: "Library", path: "/student/library", section: "Workspace", tone: "indigo" },
+    { icon: "BookMarked", label: "Personal notes", path: "/student/notes", section: "Workspace", tone: "emerald" },
+    { icon: "Bot", label: "Ask AI", path: "/student/askai", section: "Workspace", tone: "violet" },
+    { icon: "Layers", label: "Flashcards", path: "/student/flashcards", section: "Assessment", tone: "pink" },
+    { icon: "ListChecks", label: "Quizzes", path: "/student/quizzes", section: "Assessment", tone: "amber" },
+    { icon: "CalendarDays", label: "Study planner", path: "/student/planner", section: "Workspace", tone: "sky" },
+    { icon: "TrendingUp", label: "Progress", path: "/student/progress", section: "Assessment", tone: "teal" },
+    { icon: "Bell", label: "Notifications", path: "/student/notifications", section: "Account", tone: "orange" },
+    { icon: "Users", label: "Profile", path: "/profile", section: "Account", tone: "rose" },
+    { icon: "Settings", label: "Settings", path: "/settings", section: "Account", tone: "gray" },
   ];
 };
 
@@ -147,7 +142,6 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     return () => pageAnimation.stop();
   }, [location, reduced, pageAnimation]);
   const [search, setSearch] = useState("");
-  const inbox = trpc.notifications.list.useQuery(undefined, { enabled: user?.role === "user" });
   const openCourseId = Number(location.match(/^\/course\/(\d+)$/)?.[1] ?? 0);
   const searchCourses = trpc.studentCourses.list.useQuery(undefined, { enabled: user?.role === "user" && (search.length > 1 || openCourseId > 0) });
   const searchDocuments = trpc.documents.list.useQuery(undefined, { enabled: user?.role === "user" && search.length > 1 });
@@ -174,6 +168,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`dashboard-shell ${!isMobile && collapsed ? "sidebar-compact" : ""} ${role === "admin" ? "admin-shell" : role === "lecturer" ? "lecturer-shell" : "student-shell"} flex min-h-screen p-3 ${t.sidebar}`}>
+      <a href="#dashboard-main-content" className="skip-link">Skip to main content</a>
       {isMobile && mobileOpen && (
         <div className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
       )}
@@ -240,7 +235,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                               : "bg-emerald-100 text-emerald-800"
                             : "bg-white/8 text-emerald-100/80 group-hover:bg-white/12 group-hover:text-white",
                         ].join(" ")}>
-                          <item.icon strokeWidth={isActive ? 2.4 : 2} className="h-[16px] w-[16px]" />
+                          <AppIcon name={item.icon} size={16} className="h-[16px] w-[16px]" />
                         </span>
                         <span className="sidebar-nav-label flex-1 text-left leading-tight">{item.label}</span>
                       </button>
@@ -272,9 +267,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               await logout();
               window.location.replace("/login");
             }}
-            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[13px] font-semibold text-emerald-100/70 transition-colors hover:bg-white/10 hover:text-white"
+            className="web-button flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[13px] font-semibold text-emerald-100/70 transition-colors hover:bg-white/10 hover:text-white"
           >
-            <LogOut strokeWidth={2} className="h-4 w-4 shrink-0" />
+            <AppIcon name="LogOut" size={16} className="h-4 w-4 shrink-0" />
             <span className="sidebar-nav-label">Logout</span>
           </button>
         </div>
@@ -287,25 +282,25 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         <header className="dashboard-topbar sticky top-0 z-20 flex h-[72px] shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-5 backdrop-blur supports-[backdrop-filter]:bg-white/85 sm:px-8">
           <div className="flex items-center gap-3 min-w-0">
             {!isMobile && <button type="button" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)} className="sidebar-collapse-control flex size-8 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500">
-              {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+              {collapsed ? <AppIcon name="PanelLeftOpen" size={16} /> : <AppIcon name="PanelLeftClose" size={16} />}
             </button>}
             {isMobile && (
               <button type="button" aria-label="Open navigation" onClick={() => setMobileOpen(true)}
                 className="mr-1 flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
-                <Menu className="h-5 w-5" />
+                <AppIcon name="Menu" size={20} className="h-5 w-5" />
               </button>
             )}
-            <nav className="dashboard-breadcrumb hidden items-center gap-1.5 text-sm text-slate-400 lg:flex">
-              <span
+            <nav aria-label="Breadcrumb" className="dashboard-breadcrumb hidden items-center gap-1.5 text-sm text-slate-400 lg:flex">
+              <button type="button"
                 className="cursor-pointer font-medium text-emerald-700 transition-colors hover:text-emerald-900"
                 onClick={() => setLocation(t.home)}
               >
                 {t.label}
-              </span>
+              </button>
               {activeItem && (
                 <>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                  <span
+                  <AppIcon name="ChevronRight" size={14} className="h-3.5 w-3.5" />
+                  <button type="button" disabled={!crumbSubLabel} aria-current={!crumbSubLabel ? "page" : undefined}
                     className={`font-semibold ${crumbSubLabel ? "cursor-pointer text-emerald-700 hover:text-emerald-900" : "text-slate-700"}`}
                     onClick={
                       settingsSectionLabel
@@ -318,13 +313,13 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                     }
                   >
                     {activeItem.label}
-                  </span>
+                  </button>
                 </>
               )}
               {crumbSubLabel ? (
                 <>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                  <span className="font-semibold text-slate-700">{crumbSubLabel}</span>
+                  <AppIcon name="ChevronRight" size={14} className="h-3.5 w-3.5" />
+                  <span aria-current="page" className="font-semibold text-slate-700">{crumbSubLabel}</span>
                 </>
               ) : null}
             </nav>
@@ -332,7 +327,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               {crumbSubLabel ?? activeItem?.label ?? t.label}
             </p>
             <label className={`dashboard-search relative hidden w-[min(38vw,430px)] md:block`}>
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <AppIcon name="Search" size={16} className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 ref={searchRef}
                 value={search}
@@ -355,14 +350,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <button type="button" aria-label="Notifications" onClick={() => role === "user" && setLocation("/student/notifications")}
-              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors">
-              <Bell strokeWidth={2} className="h-[18px] w-[18px]" />
-              {(role !== "user" || inbox.data?.some(n => !n.isRead)) && <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-red-500 ring-2 ring-white" />}
-            </button>
+            <NotificationPopover enabled={role === "user"} />
             <button type="button" aria-label="Toggle theme" onClick={() => toggleTheme?.()}
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors">
-              {theme === "light" ? <Moon strokeWidth={2} className="h-[18px] w-[18px]" /> : <Sun strokeWidth={2} className="h-[18px] w-[18px]" />}
+              {theme === "light" ? <AppIcon name="Moon" size={18} /> : <AppIcon name="Sun" size={18} />}
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -381,7 +372,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onSelect={() => setLocation(role === "admin" ? "/admin/settings/profile" : "/profile")}>
-                  <UserRound />
+                  <AppIcon name="Users" size={16} />
                   Profile
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -389,7 +380,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                   await logout();
                   window.location.replace("/login");
                 }}>
-                  <LogOut />
+                  <AppIcon name="LogOut" size={16} />
                   Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -397,7 +388,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <motion.main ref={pageRef} animate={pageAnimation} className="dashboard-page flex-1 overflow-y-auto p-5 sm:p-8">
+        <motion.main id="dashboard-main-content" tabIndex={-1} ref={pageRef} animate={pageAnimation} className="dashboard-page flex-1 overflow-y-auto p-5 sm:p-8">
           {children}
         </motion.main>
       </div>

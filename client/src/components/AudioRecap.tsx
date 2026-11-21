@@ -1,3 +1,4 @@
+import { LoadingIndicator, Spinner } from "@/components/ui/spinner";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Download, Headphones, Pause, Play, RefreshCw, Square } from "lucide-react";
@@ -5,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/apiBaseUrl";
 import { trpc } from "@/lib/trpc";
 import { formatBytesShort, formatDuration } from "@shared/studentFeatures";
+import { splitRecapSpeech } from "@shared/audioRecap";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5] as const;
 
@@ -15,8 +17,10 @@ function fileHref(url: string) {
 /** Device voice fallback when the server could not produce an audio file. */
 function useDeviceSpeech(script: string | undefined, rate: number) {
   const [state, setState] = useState<"idle" | "playing" | "paused">("idle");
+  const speechRun = useRef(0);
   const supported = typeof window !== "undefined" && "speechSynthesis" in window;
   useEffect(() => () => {
+    speechRun.current++;
     if (supported) window.speechSynthesis.cancel();
   }, [supported]);
   const play = () => {
@@ -27,12 +31,23 @@ function useDeviceSpeech(script: string | undefined, rate: number) {
       setState("playing");
       return;
     }
+    const run = ++speechRun.current;
     synth.cancel();
-    const utterance = new SpeechSynthesisUtterance(script);
-    utterance.rate = rate;
-    utterance.onend = () => setState("idle");
-    utterance.onerror = () => setState("idle");
-    synth.speak(utterance);
+    const parts = splitRecapSpeech(script, 300);
+    parts.forEach((part, index) => {
+      const utterance = new SpeechSynthesisUtterance(part);
+      utterance.rate = rate;
+      utterance.onend = () => {
+        if (run === speechRun.current && index === parts.length - 1) setState("idle");
+      };
+      utterance.onerror = () => {
+        if (run !== speechRun.current) return;
+        speechRun.current++;
+        synth.cancel();
+        setState("idle");
+      };
+      synth.speak(utterance);
+    });
     setState("playing");
   };
   const pause = () => {
@@ -40,6 +55,7 @@ function useDeviceSpeech(script: string | undefined, rate: number) {
     setState("paused");
   };
   const stop = () => {
+    speechRun.current++;
     window.speechSynthesis.cancel();
     setState("idle");
   };
@@ -79,23 +95,23 @@ export function AudioRecap({ documentId }: { documentId: number }) {
             Audio recap
           </h3>
           <p className="student-muted text-sm">
-            A short spoken revision of this document, for the bus, the gym or a walk.
+            Around 6–12 minutes of revision, depending on your document.
           </p>
         </div>
         {recap && (
           <Button variant="outline" size="sm" disabled={busy} onClick={() => generate.mutate({ documentId })}>
-            <RefreshCw className={`size-4 ${busy ? "animate-spin" : ""}`} /> {recap.stale ? "Update recap" : "Remake"}
+            {busy ? <Spinner className="size-4" /> : <RefreshCw className="size-4" />} {recap.stale ? "Update recap" : "Remake"}
           </Button>
         )}
       </div>
 
-      {query.isLoading && <p role="status" className="text-muted-foreground">Loading...</p>}
+      {query.isLoading && <LoadingIndicator label="Loading..." />}
 
       {query.data && !recap && (
         <Button disabled={busy} onClick={() => generate.mutate({ documentId })}>
           <Headphones className="size-4" />
           {busy
-            ? "Recording your recap (up to a minute)..."
+            ? "Preparing your recap. Longer documents may take a few minutes..."
             : query.data.hasSummary
               ? "Create audio recap"
               : "Summarise and create audio recap"}

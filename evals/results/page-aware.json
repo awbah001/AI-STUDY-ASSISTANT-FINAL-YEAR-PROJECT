@@ -1,0 +1,239 @@
+{
+  "label": "page-aware",
+  "fixture": "Self-authored synthetic academic fixtures for reproducible retrieval checks. Publication and enrollment are simulated; these are not participant data or evidence of learning outcomes.",
+  "embeddingModel": "Xenova/all-MiniLM-L6-v2",
+  "method": "existing flat cosine search, threshold 0.2, top 3 across fixture documents",
+  "queries": 9,
+  "documentHitRateAt1": 1,
+  "documentHitRateAt3": 1,
+  "pageHitRateAt1": 1,
+  "pageCitationCorrectness": "Fixture page ranking is measured; generated-answer citation correctness needs separate review.",
+  "answerFaithfulness": "Not evaluated: no language-model answers were generated.",
+  "unauthorizedAccess": "Validated separately by API and retrieval authorization tests; this fixture measures ranking only.",
+  "elapsedMs": 507,
+  "results": [
+    {
+      "question": "Where do light-dependent reactions happen?",
+      "documentId": 901,
+      "page": 1,
+      "documentHitAt1": true,
+      "documentHitAt3": true,
+      "pageHitAt1": true,
+      "pageHitAt3": true,
+      "latencyMs": 4,
+      "hits": [
+        {
+          "documentId": 901,
+          "score": 0.6279290744915709,
+          "page": 1
+        },
+        {
+          "documentId": 901,
+          "score": 0.6175329637752551,
+          "page": 1
+        },
+        {
+          "documentId": 901,
+          "score": 0.2838762085475959,
+          "page": 2
+        }
+      ]
+    },
+    {
+      "question": "Which part of a mitochondrion contains the citric acid cycle?",
+      "documentId": 901,
+      "page": 2,
+      "documentHitAt1": true,
+      "documentHitAt3": true,
+      "pageHitAt1": true,
+      "pageHitAt3": true,
+      "latencyMs": 9,
+      "hits": [
+        {
+          "documentId": 901,
+          "score": 0.6933281750483002,
+          "page": 2
+        },
+        {
+          "documentId": 901,
+          "score": 0.6850869608284011,
+          "page": 2
+        },
+        {
+          "documentId": 901,
+          "score": 0.3074453967014223,
+          "page": 1
+        }
+      ]
+    },
+    {
+      "question": "What is the movement of water through a selectively permeable membrane called?",
+      "documentId": 901,
+      "page": 3,
+      "documentHitAt1": true,
+      "documentHitAt3": true,
+      "pageHitAt1": true,
+      "pageHitAt3": true,
+      "latencyMs": 7,
+      "hits": [
+        {
+          "documentId": 901,
+          "score": 0.7017071912823247,
+          "page": 3
+        },
+        {
+          "documentId": 901,
+          "score": 0.3429636344437371,
+          "page": 1
+        },
+        {
+          "documentId": 901,
+          "score": 0.2792038041543866,
+          "page": 1
+        }
+      ]
+    },
+    {
+      "question": "Which DNS record contains an IPv6 address?",
+      "documentId": 902,
+      "page": 1,
+      "documentHitAt1": true,
+      "documentHitAt3": true,
+      "pageHitAt1": true,
+      "pageHitAt3": true,
+      "latencyMs": 3,
+      "hits": [
+        {
+          "documentId": 902,
+          "score": 0.6237172042928425,
+          "page": 1
+        },
+        {
+          "documentId": 902,
+          "score": 0.554296271820653,
+          "page": 1
+        },
+        {
+          "documentId": 902,
+          "score": 0.22063848348544135,
+          "page": 3
+        }
+      ]
+    },
+    {
+      "question": "What are the three steps of the TCP handshake?",
+      "documentId": 902,
+      "page": 2,
+      "documentHitAt1": true,
+      "documentHitAt3": true,
+      "pageHitAt1": true,
+      "pageHitAt3": true,
+      "latencyMs": 3,
+      "hits": [
+        {
+          "documentId": 902,
+          "score": 0.6985978501609913,
+          "page": 2
+        }
+      ]
+    },
+    {
+      "question": "When is a default gateway used?",
+      "documentId": 902,
+      "page": 3,
+      "documentHitAt1": true,
+      "documentHitAt3": true,
+      "pageHitAt1": true,
+      "pageHitAt3": true,
+      "latencyMs": 4,
+      "hits": [
+        {
+          "documentId": 902,
+          "score": 0.5653496998364334,
+          "page": 3
+        },
+        {
+          "documentId": 902,
+          "score": 0.20285648642823875,
+          "page": 2
+        }
+      ]
+    },
+    {
+      "question": "What are the costs of adding a database index?",
+      "documentId": 903,
+      "page": 1,
+      "documentHitAt1": true,
+      "documentHitAt3": true,
+      "pageHitAt1": true,
+      "pageHitAt3": true,
+      "latencyMs": 5,
+      "hits": [
+        {
+          "documentId": 903,
+          "score": 0.5923125206965141,
+          "page": 1
+        },
+        {
+          "documentId": 903,
+          "score": 0.47214976049206786,
+          "page": 1
+        }
+      ]
+    },
+    {
+      "question": "What does atomicity mean for a transaction?",
+      "documentId": 903,
+      "page": 2,
+      "documentHitAt1": true,
+      "documentHitAt3": true,
+      "pageHitAt1": true,
+      "pageHitAt3": true,
+      "latencyMs": 7,
+      "hits": [
+        {
+          "documentId": 903,
+          "score": 0.7717069395634879,
+          "page": 2
+        },
+        {
+          "documentId": 903,
+          "score": 0.7378815101867574,
+          "page": 2
+        },
+        {
+          "documentId": 902,
+          "score": 0.23342353071138658,
+          "page": 2
+        }
+      ]
+    },
+    {
+      "question": "How does a foreign key support referential integrity?",
+      "documentId": 903,
+      "page": 3,
+      "documentHitAt1": true,
+      "documentHitAt3": true,
+      "pageHitAt1": true,
+      "pageHitAt3": true,
+      "latencyMs": 8,
+      "hits": [
+        {
+          "documentId": 903,
+          "score": 0.8199242947945041,
+          "page": 3
+        },
+        {
+          "documentId": 902,
+          "score": 0.2468471329962635,
+          "page": 1
+        },
+        {
+          "documentId": 903,
+          "score": 0.20524770620649546,
+          "page": 2
+        }
+      ]
+    }
+  ]
+}

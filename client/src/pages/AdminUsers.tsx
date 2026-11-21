@@ -303,7 +303,7 @@ export default function AdminUsers() {
               </DialogHeader>
               <form
                 onSubmit={form.handleSubmit((v) => createUser.mutate(v))}
-                className="space-y-4 pt-2"
+                className="form-surface space-y-4 pt-2"
               >
                 <div className="space-y-1.5">
                   <Label>Account type</Label>
@@ -329,6 +329,7 @@ export default function AdminUsers() {
                   <Label htmlFor="lec-name">Full name</Label>
                   <Input
                     id="lec-name"
+                    autoComplete="name"
                     placeholder={newRole === "lecturer" ? "Dr. John Smith" : "Jane Doe"}
                     className="rounded-xl"
                     maxLength={100}
@@ -386,7 +387,7 @@ export default function AdminUsers() {
         </div>
 
         {/* Table card */}
-        <div className="overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+        <div className="workspace-data-panel overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:px-6">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -451,7 +452,7 @@ export default function AdminUsers() {
               ) : null}
               <button
                 type="button"
-                className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                className="web-button inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
               >
                 <Filter className="h-3.5 w-3.5" />
                 Filter
@@ -771,7 +772,7 @@ function ActionIcon({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${className}`}
+      className={`web-button ${`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${className}`}`}
     >
       {children}
     </button>

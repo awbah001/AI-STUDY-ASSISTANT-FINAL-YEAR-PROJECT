@@ -1,13 +1,6 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
 import { design, elevation } from "../../src/theme/design";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";

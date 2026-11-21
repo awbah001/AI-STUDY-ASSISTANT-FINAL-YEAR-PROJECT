@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=5"
+    />
+    <title>Cognify document learning reader</title>
+    <link
+      rel="stylesheet"
+      href="/api/document-reader/assets/web/pdf_viewer.css"
+    />
+    <link rel="stylesheet" href="/reader/reader.css" />
+    <script type="module" src="/reader/reader.js"></script>
+  </head>
+  <body>
+    <main class="reader">
+      <header>
+        <h1 id="title">Document learning reader</h1>
+        <div class="toolbar" aria-label="PDF navigation">
+          <div class="controlGroup">
+          <button id="previous" aria-label="Previous page">Previous</button>
+          <label
+            >Page
+            <input
+              id="page"
+              type="number"
+              min="1"
+              value="1"
+              aria-label="Page number"
+          /></label>
+          <span id="pages">of …</span>
+          <button id="next" aria-label="Next page">Next</button>
+          </div>
+          <div class="controlGroup zoomControls">
+          <button id="zoomOut" aria-label="Zoom out">−</button>
+          <output id="zoom" aria-label="Zoom level">100%</output>
+          <button id="zoomIn" aria-label="Zoom in">+</button>
+          <button id="fitWidth" title="Reset zoom to fit the available width">Fit width</button>
+          <button id="fitPage" title="Show the entire page">Fit page</button>
+          </div>
+          <div class="controlGroup studyControls">
+          <button id="openTutor">Ask about material</button>
+          <button id="showSaved" aria-expanded="false" aria-controls="saved">Saved highlights and notes</button>
+          <button id="toggleTools" aria-expanded="false" aria-controls="extraTools">More tools</button>
+          </div>
+        </div>
+        <div id="extraTools" hidden>
+          <div class="controlGroup">
+          <button id="snip" aria-pressed="false">Snip region</button>
+          </div>
+        <form id="searchForm" class="toolbar" role="search">
+          <label for="search">Find in PDF</label
+          ><input
+            id="search"
+            type="search"
+            maxlength="200"
+            placeholder="Search text"
+          />
+          <button type="submit">Find next</button>
+        </form>
+        </div>
+        <p id="status" role="status" aria-live="polite">
+          Connecting to your account…
+        </p>
+      </header>
+      <div class="workspace">
+        <section id="viewport" aria-label="PDF page" tabindex="0">
+          <div id="sheet">
+            <canvas id="pdfCanvas"></canvas>
+            <div id="highlights"></div>
+            <div id="textLayer" class="textLayer"></div>
+            <div id="snipLayer"></div>
+          </div>
+        </section>
+        <aside
+          id="panel"
+          aria-label="Selected content and learning actions"
+          hidden
+        >
+          <div class="panelTitle">
+            <h2 id="panelHeading">Learn from this page</h2>
+            <button id="closePanel" aria-label="Close learning panel">
+              Close
+            </button>
+          </div>
+          <div id="learningControls">
+          <p id="sourceLabel"></p>
+          <blockquote id="selectionText">Select text on the PDF or snip a region.</blockquote>
+          <p id="visualNotice" hidden>
+            Only recognized text will be used. Diagram structure and image
+            meaning are not interpreted.
+          </p>
+          <div id="actions" class="actions" aria-label="Selection actions">
+            <button id="highlight">Highlight</button>
+            <button id="removeHighlight" type="button" hidden>Remove highlight</button>
+            <button data-action="explain">Explain</button
+            ><button data-action="summarize">Summarize</button>
+            <button data-action="simplify">Simplify</button
+            ><button data-action="notes">Create notes</button>
+            <button data-action="flashcards">Generate flashcards</button>
+          </div>
+          <form id="askForm">
+            <label for="scope">Answer sources</label>
+            <select id="scope">
+              <option value="selection">Selected passage or region</option>
+              <option value="document">Current document only</option>
+              <option value="course">Current course only</option>
+              <option value="enrolled">My enrolled courses</option>
+            </select>
+            <label for="question">Your question</label
+            ><textarea id="question" maxlength="2000" rows="3" placeholder="What would you like to understand?"></textarea
+            ><button type="submit">Ask AI</button>
+          </form>
+          <div id="response" aria-live="polite"></div>
+          <div
+            id="responseSources"
+            class="actions"
+            aria-label="Answer source links"
+          ></div>
+          <button id="returnSource" hidden>Return to source page</button>
+          </div>
+          <section id="saved" hidden>
+            <h2>Saved highlights and notes</h2>
+            <div id="savedList"></div>
+          </section>
+        </aside>
+      </div>
+    </main>
+  </body>
+</html>

@@ -1,13 +1,7 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
+import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { design, elevation } from "../../src/theme/design";
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Linking,
-} from "react-native";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Linking } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect, useRef } from "react";
@@ -327,7 +321,7 @@ export default function CourseDetailScreen() {
         >
           {tab === "overview" ? (
             <>
-              <View style={st.aboutCard}>
+              <SolutionCard style={st.aboutCard}>
                 <View style={st.aboutHead}>
                   <Ionicons name="information-circle" size={16} color={colors.primary} />
                   <Text style={st.aboutTitle}>About this course</Text>
@@ -337,7 +331,7 @@ export default function CourseDetailScreen() {
                     ? (course as any).description
                     : `Learn ${(course as any)?.subject ?? course?.title ?? "this course"} with lectures, materials, and AI support from your lecturer.`}
                 </Text>
-              </View>
+              </SolutionCard>
 
               <SectionHeader
                 title="Course materials"
@@ -369,7 +363,7 @@ export default function CourseDetailScreen() {
                 <>
                   <SectionHeader title="Announcements" style={{ marginTop: 14 }} />
                   {announcements.slice(0, 3).map(a => (
-                    <View key={a.id} style={st.announcementCard}>
+                    <SolutionCard key={a.id} style={st.announcementCard}>
                       <View style={st.announceIcon}>
                         <Ionicons name="megaphone" size={15} color={colors.warning} />
                       </View>
@@ -379,7 +373,7 @@ export default function CourseDetailScreen() {
                           {a.content}
                         </Text>
                       </View>
-                    </View>
+                    </SolutionCard>
                   ))}
                 </>
               ) : null}
@@ -418,7 +412,7 @@ export default function CourseDetailScreen() {
               <EmptyLine icon="help-circle-outline" text="No quizzes assigned yet." />
             ) : (
               quizzes.map(quiz => (
-                <TouchableOpacity
+                <SolutionCard component="touchable"
                   key={quiz.id}
                   style={st.itemCard}
                   activeOpacity={0.85}
@@ -443,7 +437,7 @@ export default function CourseDetailScreen() {
                   <View style={st.goChip}>
                     <Text style={st.goChipText}>Start</Text>
                   </View>
-                </TouchableOpacity>
+                </SolutionCard>
               ))
             )
           ) : null}
@@ -458,7 +452,7 @@ export default function CourseDetailScreen() {
                 const submission = getSubmission(asgn.id);
                 const overdue = isOverdue(asgn.dueDate);
                 return (
-                  <View key={asgn.id} style={st.itemCard}>
+                  <SolutionCard key={asgn.id} style={st.itemCard}>
                     <IconTile icon="document-text" color={colors.violet} bg={colors.violetSoft} size={44} />
                     <View style={{ flex: 1, gap: 4 }}>
                       <Text style={st.itemTitle}>{asgn.title}</Text>
@@ -512,7 +506,7 @@ export default function CourseDetailScreen() {
                         {submission ? "View" : "Submit"}
                       </Text>
                     </TouchableOpacity>
-                  </View>
+                  </SolutionCard>
                 );
               })
             )
@@ -594,7 +588,7 @@ function MaterialRow({
   const visual = materialVisual(doc);
   const size = formatBytes(doc.fileSize);
   return (
-    <TouchableOpacity style={st.itemCard} onPress={onPress} activeOpacity={0.85}>
+    <SolutionCard component="touchable" style={st.itemCard} onPress={onPress} activeOpacity={0.85}>
       <IconTile icon={visual.icon} color={visual.color} bg={visual.bg} size={44} />
       <View style={{ flex: 1 }}>
         <Text style={st.itemTitle} numberOfLines={1}>
@@ -608,7 +602,7 @@ function MaterialRow({
       <View style={st.rowArrow}>
         <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
       </View>
-    </TouchableOpacity>
+    </SolutionCard>
   );
 }
 

@@ -1,13 +1,6 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
 import { design, elevation } from "../../src/theme/design";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -16,6 +9,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BackHeader } from "../../src/components/BackHeader";
 import { trpc } from "../../src/lib/api";
 import { colors, gradients } from "../../src/theme/colors";
+import { CognifyIcon } from "../../src/components/ui/CognifyIcon";
 import {
   EmptyCard,
   IconTile,
@@ -147,10 +141,11 @@ export default function QuizzesScreen() {
                       {quiz.attempts} attempt{quiz.attempts === 1 ? "" : "s"}
                     </Text>
                     <View style={s.status}>
-                      <Ionicons
+                      <CognifyIcon
                         name={passed ? "checkmark-circle" : "time-outline"}
                         size={13}
                         color={tone}
+                        motion={passed ? "success" : "none"}
                       />
                       <Text style={[s.statusText, { color: tone }]}>
                         {passed ? "Mastered" : "Keep practising"}

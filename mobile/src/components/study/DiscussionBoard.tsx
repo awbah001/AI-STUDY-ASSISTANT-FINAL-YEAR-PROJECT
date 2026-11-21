@@ -1,5 +1,7 @@
+import { WifiLoader as ActivityIndicator } from "../ui/WifiLoader";
+import { FormInput } from "../ui/FormInput";
 import { useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { trpc } from "../../lib/api";
@@ -141,7 +143,7 @@ function AskForm({
   };
   return (
     <View style={s.form}>
-      <TextInput
+      <FormInput
         style={[design.input, errors.title ? s.inputError : null]}
         placeholder="What do you want to know?"
         placeholderTextColor={colors.textPlaceholder}
@@ -154,7 +156,7 @@ function AskForm({
         accessibilityLabel="Question title"
       />
       <FieldError message={errors.title} />
-      <TextInput
+      <FormInput
         style={[design.input, { minHeight: 110, marginTop: 10 }, errors.body ? s.inputError : null]}
         placeholder="Add details: which lecture or topic, and what you've tried."
         placeholderTextColor={colors.textPlaceholder}
@@ -191,7 +193,7 @@ const s = StyleSheet.create({
   chipTextActive: { color: colors.white, fontWeight: "700" },
   askBtn: { ...design.action, flexDirection: "row", gap: 8, marginBottom: 14, minHeight: 48 },
   askText: { ...design.actionText, fontSize: 14 },
-  form: { ...design.card, padding: 14, marginBottom: 14 },
+  form: { ...design.form, padding: 14, marginBottom: 14 },
   inputError: { borderColor: "#d93a3a" },
   formActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 12 },
   ghostBtn: { paddingHorizontal: 16, paddingVertical: 11, borderRadius: radius.md },

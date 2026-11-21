@@ -1,0 +1,19 @@
+{
+  "description": "Self-authored synthetic academic fixtures for reproducible retrieval checks. Publication and enrollment are simulated; these are not participant data or evidence of learning outcomes.",
+  "documents": [
+    {"id": 901, "title": "Cell biology", "courseId": 1, "pages": ["Photosynthesis converts light energy into chemical energy. Chlorophyll absorbs light. In plants, the light-dependent reactions occur in the thylakoid membranes of chloroplasts. Oxygen is released when water is split.", "Cellular respiration releases usable energy from glucose. In eukaryotic cells, the citric acid cycle occurs in the mitochondrial matrix. The electron transport chain is in the inner mitochondrial membrane.", "Osmosis is the net movement of water across a selectively permeable membrane toward a region with higher solute concentration. Diffusion is the net movement of particles down a concentration gradient."]},
+    {"id": 902, "title": "Computer networks", "courseId": 2, "pages": ["Domain Name System records map domain names to addresses. An A record contains an IPv4 address. An AAAA record contains an IPv6 address. DNS resolution is separate from the HTTP request that retrieves a web resource.", "TCP establishes a connection using a three-way handshake: SYN, SYN-ACK and ACK. TCP provides ordered delivery, retransmission of lost segments and flow control. UDP does not provide these guarantees.", "A subnet mask identifies the network portion of an IPv4 address. Routers forward packets between networks. A default gateway is the router used when a destination is outside the local subnet."]},
+    {"id": 903, "title": "Database systems", "courseId": 3, "pages": ["A database index can speed up lookups by reducing the number of rows examined. Indexes consume storage and can add overhead to insert, update and delete operations. An index does not always improve a query.", "A database transaction groups operations into a unit of work. Atomicity means that all operations in a transaction succeed together or are rolled back. Isolation controls how concurrent transactions observe one another.", "In a relational database, a foreign key expresses a reference to a candidate key in another table. Referential integrity prevents references to missing parent records when the constraint is enforced."]}
+  ],
+  "queries": [
+    {"question":"Where do light-dependent reactions happen?", "documentId":901,"page":1},
+    {"question":"Which part of a mitochondrion contains the citric acid cycle?", "documentId":901,"page":2},
+    {"question":"What is the movement of water through a selectively permeable membrane called?", "documentId":901,"page":3},
+    {"question":"Which DNS record contains an IPv6 address?", "documentId":902,"page":1},
+    {"question":"What are the three steps of the TCP handshake?", "documentId":902,"page":2},
+    {"question":"When is a default gateway used?", "documentId":902,"page":3},
+    {"question":"What are the costs of adding a database index?", "documentId":903,"page":1},
+    {"question":"What does atomicity mean for a transaction?", "documentId":903,"page":2},
+    {"question":"How does a foreign key support referential integrity?", "documentId":903,"page":3}
+  ]
+}

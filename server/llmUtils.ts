@@ -279,9 +279,9 @@ export async function extractDocumentText(fileUrl: string): Promise<string> {
 /**
  * Build FAISS-style vector index for a document after text is available.
  */
-export async function indexDocumentForRag(documentId: number, extractedText: string): Promise<void> {
+export async function indexDocumentForRag(documentId: number, extractedText: string, source?: { pages?: string[]; revision: string }): Promise<void> {
   if (!extractedText?.trim()) return;
-  await buildDocumentVectorIndex(documentId, extractedText);
+  await buildDocumentVectorIndex(documentId, extractedText, source);
 }
 
 /**
@@ -666,4 +666,665 @@ export async function generateDocumentAwareResponse(
   );
 
   return llmMessageText(response.choices[0]?.message?.content) || "";
+}
+
+// ============ PRESENTATION (SLIDE DECK) GENERATION ============
+
+export type GeneratedSlide = {
+  title: string;
+  bullets: string[];
+  notes?: string;
+};
+
+export type SlideDeck = {
+  title: string;
+  subtitle?: string;
+  slides: GeneratedSlide[];
+};
+
+function collectSlides(raw: unknown, acc: GeneratedSlide[]): void {
+  if (raw == null) return;
+  if (Array.isArray(raw)) {
+    for (const item of raw) collectSlides(item, acc);
+    return;
+  }
+  if (typeof raw !== "object") return;
+  const obj = raw as Record<string, unknown>;
+  const list = obj.slides ?? obj.deck ?? obj.items;
+  if (Array.isArray(list)) collectSlides(list, acc);
+  const title = typeof obj.title === "string" ? obj.title.trim() : "";
+  const bulletsRaw = obj.bullets ?? obj.points ?? obj.content;
+  const bullets = Array.isArray(bulletsRaw)
+    ? bulletsRaw.map((b) => (typeof b === "string" ? b : b && typeof b === "object" ? String((b as Record<string, unknown>).text ?? (b as Record<string, unknown>).point ?? "") : String(b))).map((s) => s.trim()).filter(Boolean)
+    : typeof bulletsRaw === "string"
+      ? bulletsRaw.split(/\n+/).map((s) => s.replace(/^[-•*]\s*/, "").trim()).filter(Boolean)
+      : [];
+  if (title && bullets.length) {
+    const notes = typeof obj.notes === "string" ? obj.notes.trim() : undefined;
+    acc.push({ title, bullets, notes: notes || undefined });
+  }
+}
+
+/**
+ * Generate a structured slide deck (titles + bullet points + speaker notes)
+ * from a document, ready to be rendered into a .pptx file.
+ *
+ * Uses the one-slide-per-call loop pattern (same as generateFlashcards /
+ * generateQuiz) to avoid JSON truncation on smaller models.
+ */
+export async function generateSlideDeck(
+  documentId: number,
+  documentText: string,
+  documentTitle: string,
+  slideCount: number,
+  topic?: string
+): Promise<SlideDeck> {
+  const target = Math.min(20, Math.max(5, Math.round(slideCount)));
+  const normalizedTopic = topic?.trim();
+
+  // Pull a broad context for topic planning.
+  const fullContext = await ragOrSlice(
+    documentId,
+    documentText,
+    normalizedTopic
+      ? `${documentTitle} ${normalizedTopic} key concepts structure outline`
+      : `${documentTitle} key concepts structure outline overview`,
+    12,
+    6000
+  );
+
+  // ── Step 1: Generate a short outline (slide titles only) ─────────────────
+  // One compact call that asks only for titles — tiny output, never truncated.
+  let outlineTitles: string[] = [];
+  try {
+    const outlineResp = await invokeLLMWithRetry({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a presentation outline generator. Output ONLY a JSON array of strings. No markdown, no explanation. Start with [ and end with ].",
+        },
+        {
+          role: "user",
+          content: `Generate exactly ${target} slide titles for a presentation on the document below${normalizedTopic ? ` focusing on "${normalizedTopic}"` : ""}.
+
+Document: "${documentTitle}"
+Content:
+${fullContext.slice(0, 3000)}
+
+Respond with ONLY a JSON array of ${target} short slide title strings, e.g.:
+["Introduction","Key Concepts","Main Arguments","Applications","Conclusion"]
+
+Rules:
+- Output raw JSON array only, no markdown
+- Exactly ${target} strings
+- Each title: 3-8 words, descriptive, in logical order`,
+        },
+      ],
+      max_tokens: 60 * target + 100,
+      temperature: 0.3,
+      taskType: "summarization",
+    });
+    const raw = llmMessageText(outlineResp.choices[0]?.message?.content).trim();
+    const parsed = parseJsonFromLlmContent(raw);
+    if (Array.isArray(parsed)) {
+      outlineTitles = parsed
+        .map((t) => (typeof t === "string" ? t.trim() : ""))
+        .filter(Boolean)
+        .slice(0, target);
+    }
+  } catch {
+    // Outline failed — fall back to auto-numbered titles.
+  }
+
+  // Fill any missing titles with generic numbered placeholders.
+  while (outlineTitles.length < target) {
+    outlineTitles.push(`Slide ${outlineTitles.length + 1}`);
+  }
+
+  // Generate a deck title and subtitle in one small call.
+  let deckTitle = documentTitle;
+  let deckSubtitle: string | undefined;
+  try {
+    const titleResp = await invokeLLMWithRetry({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a presentation title generator. Output ONLY a JSON object. Start with { and end with }.",
+        },
+        {
+          role: "user",
+          content: `Create a short presentation title and one-line subtitle for a ${target}-slide deck on "${documentTitle}"${normalizedTopic ? ` focusing on "${normalizedTopic}"` : ""}.
+Respond with ONLY: {"title":"Short title","subtitle":"One-line subtitle"}`,
+        },
+      ],
+      max_tokens: 120,
+      temperature: 0.4,
+      taskType: "summarization",
+    });
+    const raw = llmMessageText(titleResp.choices[0]?.message?.content).trim();
+    const parsed = parseJsonFromLlmContent(raw) as { title?: string; subtitle?: string };
+    if (typeof parsed.title === "string" && parsed.title.trim()) {
+      deckTitle = parsed.title.trim();
+    }
+    if (typeof parsed.subtitle === "string" && parsed.subtitle.trim()) {
+      deckSubtitle = parsed.subtitle.trim();
+    }
+  } catch {
+    // Keep defaults if title call fails.
+  }
+
+  // ── Step 2: Generate each slide individually ───────────────────────────────
+  // Identical pattern to generateFlashcards: one item per call, loop over passages.
+  const passages = splitQuizPassages(
+    `${fullContext}\n${documentText}`.trim() || documentText,
+    target * 2
+  );
+  const slides: GeneratedSlide[] = [];
+  const seenTitles = new Set<string>();
+
+  for (let i = 0; i < target; i++) {
+    const slideTitle = outlineTitles[i];
+    const passage = passages[i % passages.length] || fullContext.slice(0, 1200);
+    let response: Awaited<ReturnType<typeof invokeLLM>>;
+    try {
+      response = await invokeLLMWithRetry({
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a slide content generator. Output ONLY valid JSON. No markdown, no explanation. Start with { and end with }.",
+          },
+          {
+            role: "user",
+            content: [
+              `Document: "${documentTitle}".`,
+              `Generate slide ${i + 1} of ${target} titled "${slideTitle}" from this excerpt:`,
+              `---`,
+              passage.slice(0, 1200),
+              `---`,
+              slides.length
+                ? `Already covered (do not repeat): ${slides.map((s) => s.title).join(", ")}`
+                : "",
+              `Required JSON:`,
+              `{"title":"${slideTitle}","bullets":["Key point 1","Key point 2","Key point 3"],"notes":"Brief speaker note."}`,
+              `Rules: "title" must be exactly "${slideTitle}"; "bullets": 3-5 plain-text points; "notes": 1-2 sentences (optional).`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          },
+        ],
+        max_tokens: 350,
+        temperature: 0.5,
+        taskType: "summarization",
+      });
+    } catch (error) {
+      console.warn(`[LLM] Slide ${i + 1} generation failed:`, error);
+      // Use a placeholder slide so the deck is still complete.
+      slides.push({ title: slideTitle, bullets: [slideTitle], notes: undefined });
+      continue;
+    }
+
+    const raw = llmMessageText(response.choices[0]?.message?.content);
+    if (!raw.trim()) {
+      slides.push({ title: slideTitle, bullets: [slideTitle], notes: undefined });
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = parseJsonFromLlmContent(raw);
+    } catch {
+      parsed = extractQuizObjectsFromText(raw)[0];
+    }
+
+    const slideData: GeneratedSlide[] = [];
+    collectSlides(parsed ?? {}, slideData);
+
+    const slide = slideData[0];
+    if (slide && slide.bullets.length) {
+      const key = slide.title.toLowerCase();
+      if (!seenTitles.has(key)) {
+        seenTitles.add(key);
+        slides.push(slide);
+      } else {
+        slides.push({ ...slide, title: slideTitle });
+      }
+    } else {
+      // Fallback: build a minimal slide from the raw text if JSON parse failed.
+      const lines = raw
+        .replace(/[{}"\\]/g, " ")
+        .split(/[\n,]+/)
+        .map((l) => l.trim())
+        .filter((l) => l.length > 8 && !l.startsWith("title") && !l.startsWith("notes"))
+        .slice(0, 4);
+      slides.push({
+        title: slideTitle,
+        bullets: lines.length ? lines : [`See source: ${documentTitle}`],
+        notes: undefined,
+      });
+    }
+  }
+
+  if (!slides.length) {
+    throw new Error(
+      "The AI could not build a slide deck from this document. Try again or use a document with more text."
+    );
+  }
+
+  return { title: deckTitle, subtitle: deckSubtitle, slides };
+}
+
+// ============ NARRATED VIDEO SCRIPT GENERATION ============
+
+export type VideoScene = {
+  title: string;
+  bullets: string[];
+  narration: string;
+};
+
+export type VideoScript = {
+  title: string;
+  scenes: VideoScene[];
+};
+
+function collectScenes(raw: unknown, acc: VideoScene[]): void {
+  if (raw == null) return;
+  if (Array.isArray(raw)) {
+    for (const item of raw) collectScenes(item, acc);
+    return;
+  }
+  if (typeof raw !== "object") return;
+  const obj = raw as Record<string, unknown>;
+  const list = obj.scenes ?? obj.items;
+  if (Array.isArray(list)) collectScenes(list, acc);
+  const title = typeof obj.title === "string" ? obj.title.trim() : "";
+  const bulletsRaw = obj.bullets ?? obj.points ?? obj.content;
+  const bullets = Array.isArray(bulletsRaw)
+    ? bulletsRaw.map((b) => (typeof b === "string" ? b : String(b))).map((s) => s.trim()).filter(Boolean)
+    : typeof bulletsRaw === "string"
+      ? bulletsRaw.split(/\n+/).map((s) => s.replace(/^[-•*]\s*/, "").trim()).filter(Boolean)
+      : [];
+  const narration =
+    typeof obj.narration === "string"
+      ? obj.narration.trim()
+      : typeof obj.voiceover === "string"
+        ? obj.voiceover.trim()
+        : typeof obj.script === "string"
+          ? obj.script.trim()
+          : "";
+  if (title && (bullets.length || narration)) acc.push({ title, bullets, narration });
+}
+
+/**
+ * Generate a narrated-video script: a sequence of scenes, each with on-screen
+ * bullets and a spoken narration, built from the document material.
+ *
+ * Uses the one-scene-per-call loop pattern to avoid JSON truncation on smaller
+ * models (same approach as generateFlashcards / generateSlideDeck).
+ */
+export async function generateVideoScript(
+  documentId: number,
+  documentText: string,
+  documentTitle: string,
+  sceneCount: number,
+  topic?: string
+): Promise<VideoScript> {
+  const target = Math.min(12, Math.max(4, Math.round(sceneCount)));
+  const normalizedTopic = topic?.trim();
+
+  const fullContext = await ragOrSlice(
+    documentId,
+    documentText,
+    normalizedTopic
+      ? `${documentTitle} ${normalizedTopic} main ideas explanation walkthrough`
+      : `${documentTitle} main ideas explanation walkthrough overview`,
+    12,
+    6000
+  );
+
+  // ── Step 1: Generate scene titles outline ─────────────────────────────────
+  let outlineTitles: string[] = [];
+  try {
+    const outlineResp = await invokeLLMWithRetry({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a video outline generator. Output ONLY a JSON array of strings. Start with [ and end with ].",
+        },
+        {
+          role: "user",
+          content: `Generate exactly ${target} scene titles for a narrated study video on the document below${normalizedTopic ? ` focusing on "${normalizedTopic}"` : ""}.
+
+Document: "${documentTitle}"
+Content:
+${fullContext.slice(0, 3000)}
+
+Respond with ONLY a JSON array of ${target} short scene title strings in teaching order, e.g.:
+["Introduction","Background","Core Concepts","Key Findings","Summary"]
+
+Rules: raw JSON array only, exactly ${target} strings, each 3-8 words.`,
+        },
+      ],
+      max_tokens: 60 * target + 100,
+      temperature: 0.3,
+      taskType: "summarization",
+    });
+    const raw = llmMessageText(outlineResp.choices[0]?.message?.content).trim();
+    const parsed = parseJsonFromLlmContent(raw);
+    if (Array.isArray(parsed)) {
+      outlineTitles = parsed
+        .map((t) => (typeof t === "string" ? t.trim() : ""))
+        .filter(Boolean)
+        .slice(0, target);
+    }
+  } catch {
+    // Fallback to numbered titles.
+  }
+  while (outlineTitles.length < target) {
+    outlineTitles.push(`Scene ${outlineTitles.length + 1}`);
+  }
+
+  // Generate video title.
+  let videoTitle = `${documentTitle} — study video`;
+  try {
+    const titleResp = await invokeLLMWithRetry({
+      messages: [
+        {
+          role: "system",
+          content: "Output ONLY a JSON object. Start with { and end with }.",
+        },
+        {
+          role: "user",
+          content: `Create a short study video title for "${documentTitle}"${normalizedTopic ? ` about "${normalizedTopic}"` : ""}. Respond with ONLY: {"title":"Short engaging title"}`,
+        },
+      ],
+      max_tokens: 80,
+      temperature: 0.4,
+      taskType: "summarization",
+    });
+    const raw = llmMessageText(titleResp.choices[0]?.message?.content).trim();
+    const parsed = parseJsonFromLlmContent(raw) as { title?: string };
+    if (typeof parsed.title === "string" && parsed.title.trim()) {
+      videoTitle = parsed.title.trim();
+    }
+  } catch {
+    // Keep default.
+  }
+
+  // ── Step 2: Generate each scene individually ───────────────────────────────
+  const passages = splitQuizPassages(
+    `${fullContext}\n${documentText}`.trim() || documentText,
+    target * 2
+  );
+  const scenes: VideoScene[] = [];
+
+  for (let i = 0; i < target; i++) {
+    const sceneTitle = outlineTitles[i];
+    const passage = passages[i % passages.length] || fullContext.slice(0, 1200);
+    let response: Awaited<ReturnType<typeof invokeLLM>>;
+    try {
+      response = await invokeLLMWithRetry({
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a study video scene writer. Output ONLY valid JSON. Start with { and end with }.",
+          },
+          {
+            role: "user",
+            content: [
+              `Document: "${documentTitle}". Write scene ${i + 1} of ${target} titled "${sceneTitle}".`,
+              `Excerpt:`,
+              `---`,
+              passage.slice(0, 1200),
+              `---`,
+              scenes.length
+                ? `Already covered (do not repeat): ${scenes.map((s) => s.title).join(", ")}`
+                : "",
+              `Required JSON:`,
+              `{"title":"${sceneTitle}","bullets":["On-screen text 1","On-screen text 2"],"narration":"Two to three plain spoken English sentences explaining this scene."}`,
+              `Rules: "title" must be exactly "${sceneTitle}"; "bullets": 2-4 short on-screen phrases; "narration": 2-3 plain English sentences, no markdown, no emojis.`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          },
+        ],
+        max_tokens: 380,
+        temperature: 0.5,
+        taskType: "summarization",
+      });
+    } catch (error) {
+      console.warn(`[LLM] Scene ${i + 1} generation failed:`, error);
+      scenes.push({
+        title: sceneTitle,
+        bullets: [sceneTitle],
+        narration: `${sceneTitle}. See the source document for details.`,
+      });
+      continue;
+    }
+
+    const raw = llmMessageText(response.choices[0]?.message?.content);
+    if (!raw.trim()) {
+      scenes.push({
+        title: sceneTitle,
+        bullets: [sceneTitle],
+        narration: `${sceneTitle}.`,
+      });
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = parseJsonFromLlmContent(raw);
+    } catch {
+      parsed = extractQuizObjectsFromText(raw)[0];
+    }
+
+    const sceneData: VideoScene[] = [];
+    collectScenes(parsed ?? {}, sceneData);
+
+    const scene = sceneData[0];
+    if (scene) {
+      if (!scene.narration) {
+        scene.narration = scene.bullets.length
+          ? `${scene.title}. ${scene.bullets.join(". ")}.`
+          : `${scene.title}.`;
+      }
+      scenes.push({ ...scene, title: sceneTitle });
+    } else {
+      scenes.push({
+        title: sceneTitle,
+        bullets: [sceneTitle],
+        narration: `${sceneTitle}. ${passage.slice(0, 120).replace(/\s+/g, " ").trim()}.`,
+      });
+    }
+  }
+
+  if (!scenes.length) {
+    throw new Error(
+      "The AI could not write a video script from this document. Try again or use a document with more text."
+    );
+  }
+
+  return { title: videoTitle, scenes };
+}
+
+// ============ MIXED QUIZ GENERATION (MCQ + Essay) ============
+
+export type MixedQuestion =
+  | {
+      questionType: "mcq";
+      question: string;
+      options: string[];
+      correctAnswer: string;
+      explanation: string;
+    }
+  | {
+      questionType: "essay";
+      question: string;
+      options: [];
+      /** Model answer used for AI grading */
+      correctAnswer: string;
+      /** Bullet-point marking guidance (joined as newlines) */
+      explanation: string;
+    };
+
+/**
+ * Generate a mixed quiz with both MCQ and essay questions from a document.
+ * Roughly 60% MCQ, 40% essay (adjusted for small totals).
+ * Uses the one-item-per-call loop pattern.
+ */
+export async function generateMixedQuiz(
+  documentId: number,
+  documentText: string,
+  documentTitle: string,
+  totalCount: number
+): Promise<MixedQuestion[]> {
+  const total = Math.min(20, Math.max(3, Math.round(totalCount)));
+  // Decide split: at least 1 essay, rest MCQ, ≈60/40 for larger sets
+  const essayCount = Math.max(1, Math.round(total * 0.4));
+  const mcqCount = total - essayCount;
+
+  const context = await ragOrSlice(
+    documentId,
+    documentText,
+    `${documentTitle} quiz test knowledge understanding key concepts`,
+    12,
+    5000
+  );
+  const sourceText = `${context}\n${documentText}`.trim() || documentText;
+  const passages = splitQuizPassages(sourceText, Math.max(total * 3, total));
+
+  const results: MixedQuestion[] = [];
+  const seenQuestions = new Set<string>();
+
+  // ── Generate MCQ questions ───────────────────────────────────────────────
+  for (let i = 0; i < passages.length * 4 && results.filter(q => q.questionType === "mcq").length < mcqCount; i++) {
+    const focus = passages[i % passages.length] || sourceText.slice(0, 1200);
+    let response: Awaited<ReturnType<typeof invokeLLM>>;
+    try {
+      response = await invokeLLMWithRetry({
+        messages: [
+          {
+            role: "system",
+            content: "You are a quiz generator. Output ONLY valid JSON. No markdown, no explanation. Begin with { and end with }.",
+          },
+          {
+            role: "user",
+            content: [
+              `Document title: "${documentTitle}".`,
+              `Write exactly 1 multiple-choice question from THIS excerpt (MCQ #${results.filter(q => q.questionType === "mcq").length + 1} of ${mcqCount}):`,
+              `---`,
+              focus.slice(0, 1200),
+              `---`,
+              results.length
+                ? `Forbidden (already asked — choose a different fact):\n${results.map(q => `- ${q.question}`).join("\n")}`
+                : "",
+              `Required JSON:`,
+              `{"questions":[{"question":"What is X?","options":["Correct answer","Wrong A","Wrong B","Wrong C"],"correctAnswer":"Correct answer","explanation":"Brief explanation."}]}`,
+              `Rules: exactly one question; exactly four complete option phrases (no bare letters A/B/C/D); correctAnswer must match one option exactly.`,
+            ].filter(Boolean).join("\n"),
+          },
+        ],
+        max_tokens: 500,
+        temperature: 0.7,
+        taskType: "quiz_generation",
+      });
+    } catch {
+      continue;
+    }
+    const raw = llmMessageText(response.choices[0]?.message?.content);
+    if (!raw.trim()) continue;
+    let parsed: unknown;
+    try { parsed = parseJsonFromLlmContent(raw); } catch { parsed = extractQuizObjectsFromText(raw)[0]; }
+    const qs = normalizeQuizQuestions(parsed);
+    for (const q of qs) {
+      if (q.options.length < 4) continue;
+      const key = q.question.toLowerCase().trim();
+      if (seenQuestions.has(key)) continue;
+      if (results.some(r => questionsAreSimilar(r.question, q.question))) continue;
+      seenQuestions.add(key);
+      results.push({ questionType: "mcq", ...q });
+      break;
+    }
+  }
+
+  // ── Generate Essay questions ─────────────────────────────────────────────
+  for (let i = 0; i < passages.length * 4 && results.filter(q => q.questionType === "essay").length < essayCount; i++) {
+    const focus = passages[i % passages.length] || sourceText.slice(0, 1200);
+    let response: Awaited<ReturnType<typeof invokeLLM>>;
+    try {
+      response = await invokeLLMWithRetry({
+        messages: [
+          {
+            role: "system",
+            content: "You are an exam question writer. Output ONLY valid JSON. No markdown, no explanation. Begin with { and end with }.",
+          },
+          {
+            role: "user",
+            content: [
+              `Document title: "${documentTitle}".`,
+              `Write exactly 1 essay/short-answer question from THIS excerpt (Essay #${results.filter(q => q.questionType === "essay").length + 1} of ${essayCount}):`,
+              `---`,
+              focus.slice(0, 1200),
+              `---`,
+              results.length
+                ? `Forbidden (already asked — choose a different concept):\n${results.map(q => `- ${q.question}`).join("\n")}`
+                : "",
+              `Required JSON:`,
+              `{"question":"Explain why X matters in the context of Y.","modelAnswer":"A complete 2-3 sentence model answer.","keyPoints":["Point 1","Point 2","Point 3"]}`,
+              `Rules: question must require a written explanation (not a yes/no); modelAnswer is 2-4 sentences; keyPoints are 2-4 short marking criteria.`,
+            ].filter(Boolean).join("\n"),
+          },
+        ],
+        max_tokens: 500,
+        temperature: 0.7,
+        taskType: "quiz_generation",
+      });
+    } catch {
+      continue;
+    }
+    const raw = llmMessageText(response.choices[0]?.message?.content);
+    if (!raw.trim()) continue;
+    let parsed: unknown;
+    try { parsed = parseJsonFromLlmContent(raw); } catch { continue; }
+    const obj = parsed as Record<string, unknown>;
+    const question = typeof obj.question === "string" ? obj.question.trim() : "";
+    const modelAnswer = typeof obj.modelAnswer === "string" ? obj.modelAnswer.trim() : "";
+    const keyPoints = Array.isArray(obj.keyPoints)
+      ? obj.keyPoints.map((p: unknown) => String(p).trim()).filter(Boolean)
+      : [];
+    if (!question || !modelAnswer) continue;
+    const key = question.toLowerCase().trim();
+    if (seenQuestions.has(key)) continue;
+    if (results.some(r => questionsAreSimilar(r.question, question))) continue;
+    seenQuestions.add(key);
+    results.push({
+      questionType: "essay",
+      question,
+      options: [],
+      correctAnswer: modelAnswer,
+      explanation: keyPoints.length ? keyPoints.join("\n") : modelAnswer,
+    });
+  }
+
+  if (results.length < Math.min(3, total)) {
+    throw new Error(
+      `Mixed quiz generation produced only ${results.length} questions. Try again or use a document with more text.`
+    );
+  }
+
+  // Interleave MCQ and essay so they alternate in the quiz
+  const mcqs = results.filter(q => q.questionType === "mcq");
+  const essays = results.filter(q => q.questionType === "essay");
+  const interleaved: MixedQuestion[] = [];
+  const maxLen = Math.max(mcqs.length, essays.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (i < mcqs.length) interleaved.push(mcqs[i]);
+    if (i < essays.length) interleaved.push(essays[i]);
+  }
+  return interleaved;
 }

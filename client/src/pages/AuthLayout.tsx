@@ -1,15 +1,28 @@
-import { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, BrainCircuit } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, BrainCircuit } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function AuthLayout(props: { title: string; subtitle?: string; children: ReactNode; className?: string; noScroll?: boolean }) {
   const { title, subtitle, children, className } = props;
+  const [swapped, setSwapped] = useState(false);
   return (
     <main className="auth-card-page relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-6 sm:px-6">
       <div className="auth-card-orb auth-card-orb-one" /><div className="auth-card-orb auth-card-orb-two" />
-      <section className="relative z-10 grid w-full max-w-[1040px] overflow-hidden rounded-[30px] border border-white/70 bg-white shadow-[0_24px_80px_rgba(3,60,53,0.2)] lg:grid-cols-[.96fr_1fr]">
-        <aside className="auth-panel relative hidden min-h-[620px] overflow-hidden p-11 text-white lg:flex lg:flex-col">
+      <section
+        data-swapped={swapped}
+        onClick={event => {
+          if (!window.matchMedia("(min-width: 1024px)").matches) return;
+          if ((event.target as HTMLElement).closest("button, a, input, textarea, select, label, [role='button'], [role='checkbox']")) return;
+          setSwapped(value => !value);
+        }}
+        className="auth-card-shell relative z-10 grid w-full max-w-[1040px] overflow-hidden rounded-[30px] border border-white/70 bg-white shadow-[0_24px_80px_rgba(3,60,53,0.2)] lg:grid-cols-[.96fr_1fr]">
+        <aside className="auth-panel auth-swap-hero relative hidden min-h-[620px] overflow-hidden p-11 text-white lg:flex lg:flex-col">
+          <button type="button" aria-label="Swap panels" aria-pressed={swapped}
+            onClick={() => setSwapped(value => !value)}
+            className="absolute right-4 top-4 z-20 rounded-full p-2 text-emerald-100 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
+            <ArrowLeftRight className="size-4" />
+          </button>
           <div className="auth-hero-orb auth-hero-orb-one" /><div className="auth-hero-orb auth-hero-orb-two" />
           <div className="relative z-10 flex items-center gap-3"><img src="/logo.png" alt="Course-Specific AI Learning Assistant" className="h-12 w-12 rounded-2xl object-cover" /><div><p className="text-xl font-bold leading-tight tracking-tight">Course-Specific</p><p className="text-sm text-emerald-100/90">AI Learning Assistant</p></div></div>
           <div className="relative z-10 my-auto">
@@ -22,7 +35,7 @@ export default function AuthLayout(props: { title: string; subtitle?: string; ch
           <p className="relative z-10 text-xs text-emerald-100/80">Learn. Practice. Progress.</p>
         </aside>
         <div className={cn(
-          "relative flex min-h-[620px] items-center justify-center bg-white p-6 sm:p-8",
+          "auth-swap-form relative flex min-h-[620px] items-center justify-center bg-white p-6 sm:p-8",
           props.noScroll ? "overflow-hidden" : "overflow-y-auto",
           className
         )}>
@@ -33,7 +46,7 @@ export default function AuthLayout(props: { title: string; subtitle?: string; ch
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to home
           </Link>
-          <div className="w-full max-w-[390px] pt-8 lg:pt-0">
+          <div className="auth-form-panel w-full max-w-[390px] mt-8 lg:mt-0">
             <div className="mb-4 text-center lg:hidden">
               <img src="/logo.png" alt="Course-Specific AI Learning Assistant" className="mx-auto h-11 w-11 rounded-2xl" />
               <p className="mt-2 text-lg font-bold leading-tight text-[#063d35]">Course-Specific AI Learning Assistant</p>

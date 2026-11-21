@@ -1,6 +1,7 @@
+import { Spinner as Loader2 } from "@/components/ui/spinner";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Loader2, RefreshCw, Sparkles, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronUp, RefreshCw, Sparkles, TriangleAlert } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import type { GradeDraft } from "@shared/lecturerInsights";
 
@@ -45,7 +46,7 @@ export function AiGradeAssist({
             <button
               type="button"
               onClick={() => onApply(result.draft)}
-              className="rounded-lg border border-violet-300 bg-white px-2.5 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+              className="web-button rounded-lg border border-violet-300 bg-white px-2.5 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-100"
             >
               Use suggestion
             </button>
@@ -54,7 +55,7 @@ export function AiGradeAssist({
             type="button"
             disabled={draft.isPending}
             onClick={() => draft.mutate({ submissionId, regenerate: Boolean(result) })}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
+            className="web-button inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
           >
             {draft.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : result ? <RefreshCw className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
             {draft.isPending ? "Reading submission…" : result ? "Redo" : "Draft with AI"}
@@ -81,7 +82,7 @@ export function AiGradeAssist({
           <button
             type="button"
             onClick={() => setShowReasons(v => !v)}
-            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-700 hover:underline"
+            className="web-button mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-700 hover:underline"
           >
             {showReasons ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             Why these marks

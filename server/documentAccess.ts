@@ -2,7 +2,7 @@ import type { Document } from "../drizzle/schema";
 import * as lecturerQueries from "./lecturerQueries";
 
 /** Whether a user may read or interact with a document. */
-export async function canAccessDocument(userId: number, doc: Document): Promise<boolean> {
+export async function canAccessDocument(userId: number, doc: Pick<Document, "userId" | "isPublic" | "courseId">): Promise<boolean> {
   if (doc.userId === userId) return true;
   if (doc.isPublic) return true;
 

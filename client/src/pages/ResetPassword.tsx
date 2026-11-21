@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import AuthLayout from "@/pages/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Label } from "@/components/ui/label";
 import { FieldError } from "@/components/FieldError";
 import { PasswordRules } from "@/components/PasswordRules";
@@ -31,7 +32,7 @@ export default function ResetPassword() {
 
   return (
     <AuthLayout title="Choose a new password" subtitle="Use a strong password with at least 8 characters, including a letter and a number.">
-      <form className="space-y-5" onSubmit={submit} noValidate>
+      <form className="space-y-5" onSubmit={submit} noValidate aria-busy={reset.isPending}>
         {!token ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             This reset link is invalid or incomplete. Request a new one.
@@ -47,10 +48,11 @@ export default function ResetPassword() {
                 value={password}
                 onChange={e => { setPassword(e.target.value); clear("password"); }}
                 aria-invalid={Boolean(errors.password)}
+                aria-describedby={errors.password ? "new-password-error" : undefined}
                 className="h-12 rounded-2xl"
               />
               <PasswordRules value={password} />
-              <FieldError message={errors.password} />
+              <FieldError id="new-password-error" message={errors.password} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Confirm new password</Label>
@@ -61,12 +63,13 @@ export default function ResetPassword() {
                 value={confirm}
                 onChange={e => { setConfirm(e.target.value); clear("confirm"); }}
                 aria-invalid={Boolean(errors.confirm)}
+                aria-describedby={errors.confirm ? "confirm-password-error" : undefined}
                 className="h-12 rounded-2xl"
               />
-              <FieldError message={errors.confirm} />
+              <FieldError id="confirm-password-error" message={errors.confirm} />
             </div>
             <Button className="h-12 w-full rounded-2xl bg-emerald-700" disabled={reset.isPending}>
-              {reset.isPending ? "Updating…" : "Reset password"}
+              {reset.isPending ? <><Spinner aria-hidden="true" />Updating…</> : "Reset password"}
             </Button>
           </>
         )}

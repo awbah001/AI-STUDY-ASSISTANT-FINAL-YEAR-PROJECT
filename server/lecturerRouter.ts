@@ -5,6 +5,7 @@ import * as lecturerQueries from "./lecturerQueries";
 import * as queries from "./queries";
 import * as llmUtils from "./llmUtils";
 import * as documentAi from "./documentAiService";
+import * as presentationService from "./presentationService";
 import * as db from "./db";
 import { lecturerAiRouter } from "./lecturerAiRouter";
 import { isAllowedStudyDocument, STUDY_DOC_ERROR } from "../shared/studyDocuments";
@@ -12,7 +13,7 @@ import { COURSE_CODE_MESSAGE, COURSE_CODE_PATTERN, LIMITS, zEmail, zOptionalText
 import { assessmentTemplates, assignmentSubmissions, assignments, courseEnrollments, notifications, progressTracking, users } from "../drizzle/schema";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
-const materialTypeSchema = z.enum(["pdf", "docx", "pptx"]);
+const materialTypeSchema = z.enum(["pdf", "docx", "pptx", "past_questions"]);
 
 /** Covers must be images the lecturer uploaded themselves, or images on external storage. */
 export function isCourseCoverUrl(url: string, lecturerId: number) {
@@ -217,6 +218,29 @@ export const lecturerRouter = router({
           throw new TRPCError({ code: "NOT_FOUND" });
         }
         return documentAi.generateSummaryForDocument(input.documentId, input.topic);
+      }),
+    generatePresentation: lecturerProcedure
+      .input(
+        z.object({
+          documentId: z.number(),
+          courseId: z.number(),
+          slideCount: z.number().int().min(5).max(20).optional(),
+          topic: zOptionalText("Topic", LIMITS.shortText).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const course = await lecturerQueries.getCourseOwnedBy(ctx.user.id, input.courseId);
+        if (!course) throw new TRPCError({ code: "NOT_FOUND" });
+        const doc = await queries.getDocumentById(input.documentId);
+        if (!doc || doc.courseId !== input.courseId) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+        return presentationService.generatePresentation(
+          ctx.user.id,
+          input.documentId,
+          input.slideCount ?? 10,
+          input.topic
+        );
       }),
   }),
 
@@ -480,6 +504,95 @@ export const lecturerRouter = router({
         return { success: true as const };
       }),
   }),
+
+  // ── Past Questions (uploaded past exam papers) ────────────────────────────
+  pastQuestions: router({
+    /** List all past-question documents for a course the lecturer owns */
+    list: lecturerProcedure
+      .input(z.object({ courseId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const course = await lecturerQueries.getCourseOwnedBy(ctx.user.id, input.courseId);
+        if (!course) throw new TRPCError({ code: "NOT_FOUND" });
+        const docs = await lecturerQueries.getCourseDocuments(input.courseId, ctx.user.id);
+        return docs.filter(d => d.materialType === "past_questions");
+      }),
+
+    /** Upload a past-exam paper — same file flow as materials.upload */
+    upload: lecturerProcedure
+      .input(
+        z.object({
+          courseId: z.number(),
+          title: zText("Title", LIMITS.title),
+          description: zOptionalText("Description", LIMITS.description).optional(),
+          fileName: zText("File name", { max: 300 }),
+          fileSize: z.number().int().positive("The file is empty."),
+          fileUrl: zText("File URL", { max: 2048 }),
+          fileKey: zText("File key", { max: 500 }),
+          mimeType: z.string().trim().max(200).optional(),
+          examYear: z.string().trim().max(10).optional(),
+          examType: z.string().trim().max(80).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (!isAllowedStudyDocument(input.fileName, input.mimeType)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: STUDY_DOC_ERROR });
+        }
+        const { courseId, examYear, examType, ...docData } = input;
+        const description = [
+          input.description,
+          examYear ? `Year: ${examYear}` : null,
+          examType ? `Type: ${examType}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || input.description;
+        const doc = await lecturerQueries.createCourseDocument(ctx.user.id, courseId, {
+          ...docData,
+          description: description ?? null,
+          materialType: "past_questions",
+          mimeType: docData.mimeType || "application/pdf",
+        });
+        const { getSystemSettings } = await import("./settings");
+        documentAi.enqueueDocumentProcessing(doc.id, (await getSystemSettings()).content.autoIndex);
+        return doc;
+      }),
+
+    /** Delete a past-question document */
+    delete: lecturerProcedure
+      .input(z.object({ documentId: z.number(), courseId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const course = await lecturerQueries.getCourseOwnedBy(ctx.user.id, input.courseId);
+        if (!course) throw new TRPCError({ code: "NOT_FOUND" });
+        const doc = await queries.getDocumentById(input.documentId);
+        if (!doc || doc.courseId !== input.courseId || doc.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+        await queries.deleteDocument(input.documentId);
+        return { success: true as const };
+      }),
+
+    /** Generate a practice quiz from a past-exam paper */
+    generateQuiz: lecturerProcedure
+      .input(
+        z.object({
+          documentId: z.number(),
+          courseId: z.number(),
+          questionCount: z.number().int().min(3).max(20).default(5),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const course = await lecturerQueries.getCourseOwnedBy(ctx.user.id, input.courseId);
+        if (!course) throw new TRPCError({ code: "NOT_FOUND" });
+        const doc = await queries.getDocumentById(input.documentId);
+        if (!doc || doc.courseId !== input.courseId) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+        return documentAi.generateQuizForDocument(
+          input.documentId,
+          ctx.user.id,
+          input.questionCount
+        );
+      }),
+  }),
 });
 
 /** Student-facing course enrollment */
@@ -531,5 +644,14 @@ export const studentCoursesRouter = router({
       const course = await lecturerQueries.getCourseById(input.courseId);
       if (!course) throw new TRPCError({ code: "NOT_FOUND" });
       return lecturerQueries.getCourseAssignments(input.courseId, course.lecturerId);
+    }),
+  /** Student: list past-exam papers for an enrolled course */
+  pastQuestions: studentProcedure
+    .input(z.object({ courseId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const enrolled = await lecturerQueries.isStudentEnrolled(ctx.user.id, input.courseId);
+      if (!enrolled) throw new TRPCError({ code: "FORBIDDEN" });
+      const docs = await lecturerQueries.getStudentCourseDocuments(ctx.user.id, input.courseId);
+      return docs.filter(d => d.materialType === "past_questions");
     }),
 });

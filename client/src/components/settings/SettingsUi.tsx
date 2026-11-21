@@ -1,7 +1,10 @@
+import { Spinner as Loader2 } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
+import { WorkspacePageHeading } from "@/components/WorkspacePageHeading";
+import { Settings2 } from "lucide-react";
 
 export function SettingsSection({
   title,
@@ -14,10 +17,7 @@ export function SettingsSection({
 }) {
   return (
     <section className="space-y-5">
-      <div>
-        <h1 className="text-[1.55rem] font-bold tracking-tight text-slate-900">{title}</h1>
-        {description ? <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-500">{description}</p> : null}
-      </div>
+      <WorkspacePageHeading title={title} description={description} icon={Settings2} eyebrow="Workspace settings" />
       {children}
     </section>
   );
@@ -37,7 +37,7 @@ export function SettingsCard({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+        "settings-form-panel overflow-hidden rounded-2xl border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
         danger ? "border-red-200" : "border-slate-200/80"
       )}
     >

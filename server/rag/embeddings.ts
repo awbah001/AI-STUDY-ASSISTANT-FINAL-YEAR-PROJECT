@@ -6,20 +6,21 @@
  *  - Parallel batch processing in groups of 16
  */
 import { pipeline } from "@xenova/transformers";
+import { createHash } from "node:crypto";
 
 type Embedder = (
   text: string,
   options?: { pooling?: string; normalize?: boolean }
 ) => Promise<{ data: Float32Array }>;
 
-let embedder: Embedder | null = null;
+let embedder: Promise<Embedder> | null = null;
 
 async function getEmbedder(): Promise<Embedder> {
   if (!embedder) {
-    embedder = (await pipeline(
+    embedder = pipeline(
       "feature-extraction",
       "Xenova/all-MiniLM-L6-v2"
-    )) as Embedder;
+    ).then(value => value as unknown as Embedder).catch(error => { embedder = null; throw error; });
   }
   return embedder;
 }
@@ -29,8 +30,7 @@ const MAX_EMBED_CACHE = 500;
 const embeddingCache = new Map<string, number[]>();
 
 function getCacheKey(text: string): string {
-  // Use first 200 chars as key — good enough for query deduplication
-  return text.slice(0, 200).trim();
+  return createHash("sha256").update(text).digest("hex");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

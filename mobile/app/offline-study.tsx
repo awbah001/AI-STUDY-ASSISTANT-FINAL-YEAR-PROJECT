@@ -1,5 +1,7 @@
+import { WifiLoader as ActivityIndicator } from "../src/components/ui/WifiLoader";
+import { SolutionCard } from "../src/components/ui/SolutionCard";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { WebView } from "react-native-webview";
@@ -92,13 +94,13 @@ export default function OfflineStudyScreen() {
     </View>
     {loading ? <ActivityIndicator /> : !pack ? <ScrollView contentContainerStyle={s.content}>
       {!packs.length && <Text>Open a document while connected and choose “Save for offline study” to download notes and existing flashcards and quizzes.</Text>}
-      {packs.map(item => <View key={item.document.id} style={s.card}>
+      {packs.map(item => <SolutionCard key={item.document.id} style={s.card}>
         <Text style={s.title}>{item.document.title}</Text>
         <Text>{item.cards.length} flashcards · {item.quizzes.length} practice quizzes</Text>
         <Text>Saved {new Date(item.savedAt).toLocaleDateString()}</Text>
         {button("Study offline", () => select(item))}
         {button("Remove download", () => Alert.alert("Remove download?", "Saved progress will remain queued for sync.", [{ text: "Cancel" }, { text: "Remove", style: "destructive", onPress: () => { void offlineStorage.remove(owner!, item.document.id).then(() => refresh(owner!)).catch(err => setError(String(err))); } }]))}
-      </View>)}
+      </SolutionCard>)}
     </ScrollView> : <>
       <View style={s.tabs}>{(["notes", "cards", "quizzes"] as const).map(next => button(next === "cards" ? "Flashcards" : next === "notes" ? "Notes" : "Quizzes", () => changeTab(next), tab === next))}</View>
       {tab === "notes" && <>
@@ -106,24 +108,24 @@ export default function OfflineStudyScreen() {
         {button(recorded ? "Reading progress saved" : "Finish reading session", () => void record("reading"), recorded || recording)}
       </>}
       {tab === "cards" && <ScrollView contentContainerStyle={s.content}>
-        {currentCard ? <View style={s.card}>
+        {currentCard ? <SolutionCard style={s.card}>
           <Text>{cardIndex + 1} / {pack.cards.length}</Text><Text style={s.title}>{currentCard.question}</Text>
           {revealed && <Text>{currentCard.answer}</Text>}
           {button(revealed ? "Answer shown" : "Show answer", () => { setRevealed(true); setReviewed(ids => [...new Set([...ids, currentCard.id])]); }, revealed)}
           {button("Next card", () => { setCardIndex((cardIndex + 1) % pack.cards.length); setRevealed(false); })}
           {button(recorded ? "Session saved" : `Finish session (${reviewed.length} reviewed)`, () => void record("flashcards"), !reviewed.length || recorded || recording)}
-        </View> : <Text>No flashcards were available when this copy was saved. Generate flashcards while connected, then update the download.</Text>}
+        </SolutionCard> : <Text>No flashcards were available when this copy was saved. Generate flashcards while connected, then update the download.</Text>}
       </ScrollView>}
       {tab === "quizzes" && <ScrollView contentContainerStyle={s.content}>
         {!quiz && !pack.quizzes.length && <Text>No quizzes were available when this copy was saved. Generate a quiz while connected, then update the download.</Text>}
         {!quiz && pack.quizzes.map(item => <View key={item.id}>{button(item.title, () => { setQuiz(item); setAnswers({}); setScore(null); setRecorded(false); setStarted(Date.now()); })}</View>)}
         {quiz && <>
           <Text style={s.title}>{quiz.title}</Text>
-          {quiz.questions.map((question, index) => <View key={question.id} style={s.card}>
+          {quiz.questions.map((question, index) => <SolutionCard key={question.id} style={s.card}>
             <Text>{index + 1}. {question.question}</Text>
             {question.options.map(option => <TouchableOpacity key={option} disabled={score !== null} onPress={() => setAnswers(prev => ({ ...prev, [question.id]: option }))} style={[s.option, answers[String(question.id)] === option && { borderColor: colors.primary, backgroundColor: "#e8fdf2" }]}><Text>{option}</Text></TouchableOpacity>)}
             {score !== null && <Text>Answer: {question.correctAnswer}{question.explanation ? `\n${question.explanation}` : ""}</Text>}
-          </View>)}
+          </SolutionCard>)}
           {score !== null ? <Text style={s.title}>Score: {score}% · progress saved locally</Text> : button("Finish quiz", () => void record("quiz"), recording || !quiz.questions.length || quiz.questions.some(question => answers[String(question.id)] === undefined))}
           {button("Back to quizzes", () => { setQuiz(null); setRecorded(false); setScore(null); })}
         </>}

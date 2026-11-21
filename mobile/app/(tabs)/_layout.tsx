@@ -1,10 +1,11 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
 import {
   centerTabOptions,
   toneTab,
   useWorkspaceTabOptions,
 } from "../../src/components/staff/StaffUi";
 import { Redirect, Tabs, router } from "expo-router";
-import { View, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Text } from "react-native";
+import { View, TouchableOpacity, StyleSheet, Platform, Text } from "react-native";
 import { trpc } from "../../src/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../src/theme/colors";

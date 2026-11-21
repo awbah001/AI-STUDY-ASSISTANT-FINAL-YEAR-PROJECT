@@ -1,14 +1,7 @@
+import { WifiLoader as ActivityIndicator } from "../src/components/ui/WifiLoader";
+import { FormInput } from "../src/components/ui/FormInput";
 import { design } from "../src/theme/design";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  TextInput,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -85,7 +78,8 @@ export default function ProfileScreen() {
           {editing ? (
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Name</Text>
-              <TextInput
+              <FormInput
+                personName
                 style={[styles.input, !!nameError && { borderColor: FIELD_ERROR_COLOR }]}
                 value={name}
                 onChangeText={value => {

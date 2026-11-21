@@ -6,7 +6,7 @@ import { BookOpen, GraduationCap, ShieldCheck, Settings, Megaphone, FileText, Ba
 export function LecturerHero({ title, eyebrow, description, icon: Icon = BookOpen, actions }: { title: string; eyebrow?: string; description?: string; icon?: LucideIcon; actions?: ReactNode }) {
   const ArtIcon = /Settings/.test(title) ? Settings : /Profile/.test(title) ? ShieldCheck : /Announcements/.test(title) ? Megaphone : /Reports/.test(title) ? BarChart3 : /Assessments/.test(title) ? FileText : GraduationCap;
   const tone = /Settings/.test(title) ? "gray" : /Profile/.test(title) ? "indigo" : /Announcements/.test(title) ? "pink" : /Reports/.test(title) ? "amber" : /Assessments/.test(title) ? "rose" : /Analytics/.test(title) ? "sky" : /Students/.test(title) ? "violet" : /Courses?/.test(title) ? "blue" : undefined;
-  return <header className="lecturer-hero">
+  return <header className="lecturer-hero workspace-banner">
     <div className="lecturer-hero-copy"><span className="lecturer-hero-icon" data-tone={tone}><Icon /></span><div><p className="lecturer-eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div></div>
     <div className="lecturer-hero-art" aria-hidden="true"><span className="art-orbit"/><span className="art-dot"/><div className="art-book art-book-back"/><div className="art-book"/><div className="art-symbol"><ArtIcon strokeWidth={1.35}/></div><div className="art-note"><span/><span/><span/></div></div>
     {actions && <div className="lecturer-hero-actions">{actions}</div>}

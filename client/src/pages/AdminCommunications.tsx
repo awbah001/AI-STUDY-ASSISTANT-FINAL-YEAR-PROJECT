@@ -17,6 +17,7 @@ import {
   MoreVertical,
   PenLine,
   Save,
+  Search,
   Send,
   Settings,
   Users,
@@ -39,6 +40,7 @@ export default function AdminCommunications() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [historySearch, setHistorySearch] = useState("");
   const { errors, check, clear } = useFieldErrors<"courseId" | "title" | "body">();
 
   const { data: academic } = trpc.admin.getAcademicPerformance.useQuery(undefined, {
@@ -82,7 +84,8 @@ export default function AdminCommunications() {
   if (!user || user.role !== "admin") return null;
 
   const history = stats?.recent ?? [];
-  const visibleHistory = historyExpanded ? history : history.slice(0, 4);
+  const visibleHistory = (historyExpanded ? history : history.slice(0, 20))
+    .filter(item => !historySearch || `${item.title} ${item.audience}`.toLowerCase().includes(historySearch.toLowerCase()));
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -149,7 +152,7 @@ export default function AdminCommunications() {
         <section className="grid gap-5 admin-communications-columns lg:grid-cols-[1.34fr_1fr]">
           <form
             onSubmit={submit}
-            className="space-y-5 rounded-[1.25rem] border border-slate-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6"
+            className="form-surface space-y-5 rounded-[1.25rem] border border-slate-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6"
           >
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
@@ -275,7 +278,7 @@ export default function AdminCommunications() {
                 <button
                   type="button"
                   onClick={() => setHistoryExpanded((v) => !v)}
-                  className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
+                  className="web-button inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
                 >
                   {historyExpanded ? "Show less" : "View all"}
                   <ArrowRight className="h-3.5 w-3.5" />
@@ -284,6 +287,22 @@ export default function AdminCommunications() {
             </div>
 
             <div className="admin-announcement-list">
+              {/* History search */}
+              {history.length > 0 && (
+                <div className="flex items-center gap-2 border-b border-slate-50 px-5 py-3 bg-slate-50/60 sm:px-6">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      aria-label="Search announcement history"
+                      placeholder="Search by title or audience…"
+                      value={historySearch}
+                      onChange={e => setHistorySearch(e.target.value)}
+                      className="h-8 rounded-xl border-slate-200 pl-8 text-xs"
+                    />
+                  </div>
+                  {historySearch && <button type="button" onClick={() => setHistorySearch("")} className="text-xs text-slate-400 hover:text-slate-700 underline">Clear</button>}
+                </div>
+              )}
               {statsLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-3 px-5 py-4 sm:px-6">
@@ -314,7 +333,7 @@ export default function AdminCommunications() {
                           <button
                             type="button"
                             aria-label="More"
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                            className="web-button flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                             onClick={() => {
                               void navigator.clipboard?.writeText(
                                 `${item.title}\n${item.body}`

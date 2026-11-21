@@ -1,3 +1,4 @@
+import { FormInput } from "../../src/components/ui/FormInput";
 import { design } from "../../src/theme/design";
 import { useStaffStyles } from "../../src/contexts/StaffAppearance";
 import { useState } from "react";
@@ -539,7 +540,7 @@ export default function LecturerAssessments() {
         </View>
         {criteria.map(item => (
           <View key={item.key} style={st.criterionRow}>
-            <TextInput
+            <FormInput
               style={[st.input, { flex: 1 }]}
               value={item.criterion}
               onChangeText={criterion =>
@@ -549,7 +550,7 @@ export default function LecturerAssessments() {
               placeholderTextColor={colors.textLight}
               maxLength={120}
             />
-            <TextInput
+            <FormInput
               style={[st.input, st.pointsInput]}
               value={item.maxPoints}
               onChangeText={maxPoints =>

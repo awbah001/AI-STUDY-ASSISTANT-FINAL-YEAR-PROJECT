@@ -2,16 +2,13 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"],
+      "@shared/*": ["../shared/*"]
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "../server/**/*.ts",
-    "../shared/**/*.ts",
-    "../drizzle/**/*.ts"
-  ]
+    "app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "../shared/**/*.ts"
+  ],
+  "exclude": ["node_modules", "../server/**/*.test.ts", "../server/**/*.spec.ts"]
 }

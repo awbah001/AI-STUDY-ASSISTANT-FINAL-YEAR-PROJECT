@@ -1,5 +1,7 @@
+import { WifiLoader as ActivityIndicator } from "../ui/WifiLoader";
+import { SolutionCard } from "../ui/SolutionCard";
 import { useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { trpc } from "../../lib/api";
@@ -61,7 +63,7 @@ export function MockExamLauncher({ courseId }: { courseId: number }) {
   });
 
   return (
-    <View style={s.card}>
+    <SolutionCard style={s.card}>
       <View style={s.head}>
         <View style={s.icon}>
           <Ionicons name="school" size={20} color={colors.white} />
@@ -113,7 +115,7 @@ export function MockExamLauncher({ courseId }: { courseId: number }) {
           ))}
         </View>
       ) : null}
-    </View>
+    </SolutionCard>
   );
 }
 

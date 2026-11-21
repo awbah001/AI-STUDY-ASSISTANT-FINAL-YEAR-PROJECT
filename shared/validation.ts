@@ -31,6 +31,7 @@ export type FieldErrors<K extends string = string> = Partial<Record<K, FieldErro
 export const MESSAGES = {
   emailRequired: "Enter your email address.",
   emailInvalid: "Enter a valid email address, like name@central.edu.sl.",
+  emailNeedsLetters: "Your email address must include a letter before the @ symbol.",
   passwordRequired: "Enter your password.",
   passwordShort: `Password must be at least ${LIMITS.password.min} characters.`,
   passwordLong: `Password must be at most ${LIMITS.password.max} characters.`,
@@ -80,6 +81,7 @@ export function validateEmail(
   const email = clean(value);
   if (!email) return opts.required === false ? null : MESSAGES.emailRequired;
   if (email.length > LIMITS.email || !EMAIL_RE.test(email)) return MESSAGES.emailInvalid;
+  if (!/[A-Za-z]/.test(email.split("@")[0])) return MESSAGES.emailNeedsLetters;
   if ((opts.requireSchoolDomain ?? true) && !isAllowedEmail(email)) return EMAIL_DOMAIN_ERROR;
   return null;
 }
@@ -102,6 +104,15 @@ export function validateNewPassword(value: string | null | undefined): FieldErro
 export function validatePasswordConfirm(password: string, confirm: string): FieldError {
   if (!confirm) return "Confirm your new password.";
   return password === confirm ? null : MESSAGES.passwordMismatch;
+}
+
+/** Capitalize name initials without lowercasing deliberate spelling such as McDonald. */
+export function capitalizeNameInput(value: string): string {
+  return value.replace(/(^|[\s.'-])([A-Za-zÀ-ÖØ-öø-ÿ])/g, (_, separator: string, letter: string) => separator + letter.toUpperCase());
+}
+
+export function normalizePersonName(value: string): string {
+  return capitalizeNameInput(value.trim().replace(/\s+/g, " "));
 }
 
 export function validatePersonName(value: string | null | undefined, label = "Name"): FieldError {
@@ -230,7 +241,8 @@ export const zEmail = z
   .toLowerCase()
   .min(1, MESSAGES.emailRequired)
   .max(LIMITS.email, MESSAGES.emailInvalid)
-  .regex(EMAIL_RE, MESSAGES.emailInvalid);
+  .regex(EMAIL_RE, MESSAGES.emailInvalid)
+  .refine(value => /[A-Za-z]/.test(value.split("@")[0]), MESSAGES.emailNeedsLetters);
 
 export const zNewPassword = z
   .string()
@@ -244,7 +256,7 @@ export function zPersonName(label = "Name") {
   return z
     .string()
     .trim()
-    .transform(value => value.replace(/\s+/g, " "))
+    .transform(normalizePersonName)
     .pipe(
       z
         .string()

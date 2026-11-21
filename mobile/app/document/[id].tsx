@@ -1,20 +1,11 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
+import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { design, elevation } from "../../src/theme/design";
-import {
-  View,
-  Image,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from "react-native";
+import { View, Image, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { CognifyIcon } from "../../src/components/ui/CognifyIcon";
 import { useState, useRef, useEffect } from "react";
 import { Linking } from "react-native";
 import { trpc } from "../../src/lib/api";
@@ -25,14 +16,16 @@ import { useChatVoice, VoiceCapture } from "../../src/lib/useChatVoice";
 import { FlippingFlashcard } from "../../src/components/FlippingFlashcard";
 import { oldestFirstById } from "../../src/lib/chatHistory";
 import { AssistantMessage } from "../../src/components/AssistantMessage";
+import { SaveResponseNote } from "../../src/components/study/SaveResponseNote";
 import { AudioRecapCard } from "../../src/components/study/AudioRecapCard";
 import { PracticeMistakes } from "../../src/components/study/PracticeMistakes";
 import { WebView } from "react-native-webview";
 import { documentPreviewKind } from "../../../shared/documentPreview";
 import { DocumentProcessingStatus } from "../../src/components/study/DocumentProcessingStatus";
 import { OfflineDownloadButton } from "../../src/components/study/OfflineDownloadButton";
+import { DocumentLearningReader } from "../../src/components/study/DocumentLearningReader";
 
-type Tab = "notes" | "chat" | "flashcards" | "quiz" | "recap";
+type Tab = "notes" | "chat" | "flashcards" | "quiz" | "recap" | "presentation" | "video";
 
 export default function DocumentDetailScreen() {
   const {
@@ -160,7 +153,7 @@ export default function DocumentDetailScreen() {
       </View>
       <View style={styles.tabBar}>
         <View style={styles.tabTrack}>
-          {(["notes", "chat", "flashcards", "quiz", "recap"] as Tab[]).map(t => (
+          {(["chat", "flashcards", "quiz", "recap", "presentation", "video"] as const).map(t => (
             <TouchableOpacity
               key={t}
               style={[styles.tab, activeTab === t && styles.tabActive]}
@@ -169,13 +162,17 @@ export default function DocumentDetailScreen() {
             >
               <Ionicons
                 name={
-                  t === "notes" ? "document-text-outline" : t === "chat"
+                  t === "chat"
                     ? "chatbubble-ellipses"
                     : t === "flashcards"
                       ? "layers"
                       : t === "quiz"
                         ? "help-circle"
-                        : "headset"
+                        : t === "presentation"
+                          ? "albums"
+                          : t === "video"
+                            ? "play-circle"
+                            : "headset"
                 }
                 size={15}
                 color={activeTab === t ? colors.primary : colors.textMuted}
@@ -183,7 +180,7 @@ export default function DocumentDetailScreen() {
               <Text
                 style={[styles.tabText, activeTab === t && styles.tabTextActive]}
               >
-                {t.charAt(0).toUpperCase() + t.slice(1)}
+                {t === "presentation" ? "Slides" : t === "video" ? "Video" : t.charAt(0).toUpperCase() + t.slice(1)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -192,7 +189,7 @@ export default function DocumentDetailScreen() {
 
       {/* Tab content */}
       {activeTab === "notes" && <NotesTab doc={doc} url={docUrl} openOriginal={openDocument} />}
-      {activeTab === "chat" && <ChatTab docId={docId} />}
+      {activeTab === "chat" && <ChatTab docId={docId} courseId={doc.courseId ?? undefined} />}
       {activeTab === "flashcards" && <FlashcardsTab docId={docId} />}
       {activeTab === "quiz" && (
         <QuizTab
@@ -201,6 +198,8 @@ export default function DocumentDetailScreen() {
         />
       )}
       {activeTab === "recap" && <RecapTab docId={docId} />}
+      {activeTab === "presentation" && <PresentationTab docId={docId} />}
+      {activeTab === "video" && <VideoTab docId={docId} />}
     </SafeAreaView>
   );
 }
@@ -210,20 +209,25 @@ function NotesTab({ doc, url, openOriginal }: {
   url: string;
   openOriginal: () => Promise<void>;
 }) {
+  const { page, revision } = useLocalSearchParams<{ page?: string; revision?: string }>();
   const kind = documentPreviewKind(doc);
   const preview = trpc.documents.preview.useQuery({ id: doc.id }, {
     enabled: kind !== "pdf" && kind !== "image", retry: false, staleTime: Infinity,
   });
   if (kind === "image") return <Image source={{ uri: url }} resizeMode="contain" style={{ flex: 1 }} accessibilityLabel={doc.title} />;
-  if (kind === "pdf" && Platform.OS === "web") return <iframe title={doc.title} src={url} style={{ flex: 1, width: "100%", border: 0 }} />;
-  if (preview.isLoading && kind !== "pdf") return <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />;
+  if (kind === "pdf") {
+    if (url.includes("/uploads/")) return <DocumentLearningReader documentId={doc.id} page={page} revision={revision} />;
+    if (Platform.OS === "web") return <iframe title={doc.title} src={url} style={{ flex: 1, width: "100%", border: 0 }} />;
+    return <View style={{ padding: 24 }}><TouchableOpacity onPress={() => void openOriginal()}><Text style={{ color: colors.primary }}>Open original PDF</Text></TouchableOpacity></View>;
+  }
+  if (preview.isLoading) return <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />;
   if (preview.data?.html) {
     if (Platform.OS === "web") return <iframe title={doc.title} srcDoc={preview.data.html} sandbox="" style={{ flex: 1, width: "100%", border: 0 }} />;
     return <WebView source={{ html: preview.data.html }} javaScriptEnabled={false} style={{ flex: 1 }} originWhitelist={["*"]} onShouldStartLoadWithRequest={request => request.url === "about:blank" || request.url.startsWith("data:")} />;
   }
   return <View style={{ padding: 24, gap: 16 }}>
-    <Text style={{ color: colors.text }}>{kind === "pdf" ? "Open the PDF in your device's document viewer." : preview.error?.message ?? "Preview unavailable."}</Text>
-    {kind !== "pdf" && <TouchableOpacity onPress={() => void preview.refetch()}><Text style={{ color: colors.primary }}>Retry preview</Text></TouchableOpacity>}
+    <Text style={{ color: colors.text }}>{preview.error?.message ?? "Preview unavailable."}</Text>
+    <TouchableOpacity onPress={() => void preview.refetch()}><Text style={{ color: colors.primary }}>Retry preview</Text></TouchableOpacity>
     <TouchableOpacity onPress={() => void openOriginal()}><Text style={{ color: colors.primary }}>Open original document</Text></TouchableOpacity>
   </View>;
 }
@@ -234,10 +238,10 @@ function RecapTab({ docId }: { docId: number }) {
     <ScrollView contentContainerStyle={styles.tabContent}>
       <AudioRecapCard documentId={docId} />
       {summary ? (
-        <View style={styles.summaryCard}>
+        <SolutionCard style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>Summary</Text>
           <AssistantMessage content={summary.summary} />
-        </View>
+        </SolutionCard>
       ) : null}
     </ScrollView>
   );
@@ -245,7 +249,8 @@ function RecapTab({ docId }: { docId: number }) {
 
 // ─── Chat Tab ────────────────────────────────────────────────────────────────
 
-function ChatTab({ docId }: { docId: number }) {
+function ChatTab({ docId, courseId }: { docId: number; courseId?: number }) {
+  const [scope, setScope] = useState<"assistant" | "document" | "course" | "enrolled">("assistant");
   const [message, setMessage] = useState("");
   const scrollRef = useRef<ScrollView>(null);
   const utils = trpc.useUtils();
@@ -287,6 +292,9 @@ function ChatTab({ docId }: { docId: number }) {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
+        <ScrollView horizontal style={{ flexGrow: 0, maxHeight: 58 }} contentContainerStyle={{ padding: 8, gap: 8 }} accessibilityLabel="Answer sources">
+          {([['assistant', 'Learning assistant'], ['document', 'This document'], ['course', 'This course'], ['enrolled', 'My courses']] as const).map(([key, label]) => <TouchableOpacity key={key} accessibilityRole="button" accessibilityState={{ selected: scope === key, disabled: key === 'course' && !courseId }} disabled={sendMsg.isPending || (key === 'course' && !courseId)} onPress={() => setScope(key)} style={{ minHeight: 44, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10, backgroundColor: scope === key ? colors.primary : colors.primaryLight, opacity: key === 'course' && !courseId ? .45 : 1 }}><Text style={{ color: scope === key ? colors.white : colors.primary }}>{label}</Text></TouchableOpacity>)}
+        </ScrollView>
         {isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
         ) : (
@@ -335,7 +343,7 @@ function ChatTab({ docId }: { docId: number }) {
                   ]}
                 >
                   {item.role === "assistant" ? (
-                    <AssistantMessage content={item.content} />
+                    <View><AssistantMessage content={item.content} /><SaveResponseNote content={item.content} documentId={docId} /></View>
                   ) : (
                     <Text style={[styles.bubbleText, styles.bubbleTextUser]}>
                       {item.content}
@@ -412,7 +420,7 @@ function ChatTab({ docId }: { docId: number }) {
             onPress={() => {
               if (voice.listening) voice.stopListening();
               voice.stopSpeaking();
-              sendMsg.mutate({ documentId: docId, message: message.trim() });
+                sendMsg.mutate({ documentId: docId, message: message.trim(), ...(!message.trim().startsWith('/') && scope !== 'assistant' ? { retrievalScope: scope === 'document' ? { type: 'document' as const, documentId: docId } : scope === 'course' && courseId ? { type: 'course' as const, courseId } : { type: 'enrolled' as const } } : {}) });
             }}
             accessibilityLabel="Send"
           >
@@ -432,6 +440,177 @@ function ChatTab({ docId }: { docId: number }) {
         </View>
       </KeyboardAvoidingView>
     </>
+  );
+}
+
+// ─── Presentation Tab ───────────────────────────────────────────────────────
+
+function PresentationTab({ docId }: { docId: number }) {
+  const utils = trpc.useUtils();
+  const { data, isLoading } = trpc.presentations.get.useQuery({
+    documentId: docId,
+  });
+  const generate = trpc.presentations.generate.useMutation({
+    onSuccess: () => utils.presentations.get.invalidate({ documentId: docId }),
+    onError: err => Alert.alert("Error", err.message),
+  });
+  const deck = data?.presentation ?? null;
+  const remote = (url: string) => (url.startsWith("http") ? url : `${API_URL}${url}`);
+
+  if (isLoading)
+    return <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />;
+
+  if (!deck) {
+    return (
+      <ScrollView contentContainerStyle={styles.tabContent}>
+        <View style={styles.emptyBox}>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="albums" size={28} color={colors.primary} />
+          </View>
+          <Text style={styles.emptyTitle}>No presentation yet</Text>
+          <Text style={styles.emptyText}>
+            Generate a slide deck from this document as a PowerPoint (.pptx) file.
+          </Text>
+          <TouchableOpacity
+            style={styles.genBtn}
+            onPress={() => generate.mutate({ documentId: docId })}
+            disabled={generate.isPending}
+          >
+            {generate.isPending ? (
+              <ActivityIndicator color={colors.white} size="small" />
+            ) : (
+              <Text style={styles.genBtnText}>Generate slides</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.tabContent}>
+      <View style={styles.flashcardHeader}>
+        <View>
+          <Text style={styles.sectionEyebrow}>Deck</Text>
+          <Text style={styles.flashcardCount}>{deck.slideCount} slides</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.genBtnSmall}
+          onPress={() => generate.mutate({ documentId: docId })}
+          disabled={generate.isPending}
+        >
+          {generate.isPending ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="refresh" size={16} color={colors.primary} />
+          )}
+          <Text style={styles.genBtnSmallText}>
+            {generate.isPending ? "Generating…" : "Regenerate"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+      {deck.subtitle ? (
+        <Text style={[styles.emptyText, { marginBottom: 4 }]}>{deck.subtitle}</Text>
+      ) : null}
+      <TouchableOpacity
+        style={styles.genBtn}
+        onPress={() =>
+          Linking.openURL(remote(deck.fileUrl)).catch(() =>
+            Alert.alert("Error", "Could not open the presentation.")
+          )
+        }
+      >
+        <Ionicons name="download-outline" size={17} color={colors.white} />
+        <Text style={styles.genBtnText}>Open / download .pptx</Text>
+      </TouchableOpacity>
+      <Text style={[styles.emptyText, { marginTop: 8 }]}>
+        Opens in your browser to download or open in PowerPoint.
+      </Text>
+    </ScrollView>
+  );
+}
+
+// ─── Video Tab ───────────────────────────────────────────────────────────────
+
+function VideoTab({ docId }: { docId: number }) {
+  const utils = trpc.useUtils();
+  const { data, isLoading } = trpc.videos.get.useQuery({ documentId: docId });
+  const generate = trpc.videos.generate.useMutation({
+    onSuccess: () => utils.videos.get.invalidate({ documentId: docId }),
+    onError: err => Alert.alert("Error", err.message),
+  });
+  const video = data?.video ?? null;
+  const remote = (url: string) => (url.startsWith("http") ? url : `${API_URL}${url}`);
+
+  if (isLoading)
+    return <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />;
+
+  if (!video) {
+    return (
+      <View style={styles.emptyBox}>
+        <View style={styles.emptyIcon}>
+          <Ionicons name="play-circle" size={28} color={colors.primary} />
+        </View>
+        <Text style={styles.emptyTitle}>No video yet</Text>
+        <Text style={styles.emptyText}>
+          Generate a narrated study video from this document. The AI writes a
+          scene-by-scene script, narrates it, and builds an auto-playing video.
+        </Text>
+        <TouchableOpacity
+          style={styles.genBtn}
+          onPress={() => generate.mutate({ documentId: docId })}
+          disabled={generate.isPending}
+        >
+          {generate.isPending ? (
+            <ActivityIndicator color={colors.white} size="small" />
+          ) : (
+            <Text style={styles.genBtnText}>Generate video</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <WebView
+        source={{ uri: remote(video.playerUrl) }}
+        javaScriptEnabled
+        style={{ flex: 1, borderRadius: 12 }}
+        originWhitelist={["*"]}
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+      />
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          gap: 8,
+        }}
+      >
+        <Text style={styles.emptyText}>
+          {video.sceneCount} scenes · {Math.round(video.durationSeconds ?? 0)}s
+          {video.audioUrl ? "" : " · silent"}
+        </Text>
+        <TouchableOpacity
+          style={styles.genBtnSmall}
+          onPress={() => generate.mutate({ documentId: docId })}
+          disabled={generate.isPending}
+        >
+          {generate.isPending ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="refresh" size={16} color={colors.primary} />
+          )}
+          <Text style={styles.genBtnSmallText}>
+            {generate.isPending ? "Generating…" : "Regenerate"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
@@ -603,12 +782,13 @@ function QuizTab({
             >
               <View style={styles.scoreRing} />
               <View style={styles.scoreIcon}>
-                <Ionicons
+                <CognifyIcon
                   name={
                     score >= 70 ? "trophy" : score >= 50 ? "book" : "barbell"
                   }
                   size={24}
                   color="#fbbf24"
+                  motion={score >= 70 ? "success" : "none"}
                 />
               </View>
               <Text style={styles.scoreValue}>{score.toFixed(0)}%</Text>
@@ -633,7 +813,7 @@ function QuizTab({
               const userAns = answers[q.id];
               const isCorrect = userAns === q.correctAnswer;
               return (
-                <View
+                <SolutionCard
                   key={q.id}
                   style={[
                     styles.reviewCard,
@@ -652,10 +832,11 @@ function QuizTab({
                           : styles.resultBadgeWrong,
                       ]}
                     >
-                      <Ionicons
+                      <CognifyIcon
                         name={isCorrect ? "checkmark-circle" : "close-circle"}
                         size={13}
                         color={isCorrect ? colors.success : colors.error}
+                        motion={isCorrect ? "success" : "none"}
                       />
                       <Text
                         style={[
@@ -699,7 +880,7 @@ function QuizTab({
                       </Text>
                     </View>
                   ) : null}
-                </View>
+                </SolutionCard>
               );
             })}
 
@@ -746,7 +927,7 @@ function QuizTab({
             </View>
 
             {questions.map((q, idx) => (
-              <View key={q.id} style={styles.questionCard}>
+              <SolutionCard key={q.id} style={styles.questionCard}>
                 <View style={[styles.qChip, { marginBottom: 10 }]}>
                   <Text style={styles.qChipText}>Question {idx + 1}</Text>
                 </View>
@@ -784,7 +965,7 @@ function QuizTab({
                     </TouchableOpacity>
                   )
                 )}
-              </View>
+              </SolutionCard>
             ))}
 
             <TouchableOpacity
@@ -818,7 +999,7 @@ function QuizTab({
 
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
-      <View style={styles.genCard}>
+      <SolutionCard style={styles.genCard}>
         <View style={styles.genCardIcon}>
           <Ionicons name="sparkles" size={20} color={colors.primary} />
         </View>
@@ -828,7 +1009,7 @@ function QuizTab({
             Generate a 5-question quiz from this document.
           </Text>
         </View>
-      </View>
+      </SolutionCard>
       <TouchableOpacity
         style={[styles.genBtn, generate.isPending && styles.genBtnDisabled]}
         onPress={() => generate.mutate({ documentId: docId, questionCount: 5 })}

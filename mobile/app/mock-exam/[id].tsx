@@ -1,18 +1,8 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
+import { FormInput } from "../../src/components/ui/FormInput";
+import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  AppState,
-  BackHandler,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, AppState, BackHandler, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -188,7 +178,7 @@ function Sitting({ exam }: { exam: Exam }) {
       <KeyboardAvoidingView style={st.sheet} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
           {exam.questions.map((q, index) => (
-            <View key={q.id} style={st.qCard}>
+            <SolutionCard key={q.id} style={st.qCard}>
               <View style={st.qHead}>
                 <Text style={st.qNumber}>Question {index + 1}</Text>
                 <Text style={st.marks}>
@@ -216,7 +206,7 @@ function Sitting({ exam }: { exam: Exam }) {
                 })
               ) : (
                 <>
-                  <TextInput
+                  <FormInput
                     style={st.input}
                     multiline
                     placeholder="Write your answer in a few sentences."
@@ -233,7 +223,7 @@ function Sitting({ exam }: { exam: Exam }) {
                   </Text>
                 </>
               )}
-            </View>
+            </SolutionCard>
           ))}
           <View style={{ height: 90 }} />
         </ScrollView>
@@ -275,7 +265,7 @@ function Results({ exam }: { exam: Exam }) {
           )}
 
           {topics.length > 1 ? (
-            <View style={st.qCard}>
+            <SolutionCard style={st.qCard}>
               <Text style={st.sectionTitle}>By topic</Text>
               {topics.map((t) => (
                 <View key={t.topic} style={{ gap: 4, marginTop: 8 }}>
@@ -294,7 +284,7 @@ function Results({ exam }: { exam: Exam }) {
                   />
                 </View>
               ))}
-            </View>
+            </SolutionCard>
           ) : null}
 
           <Text style={[st.sectionTitle, { marginVertical: 10 }]}>Answer review</Text>
@@ -303,7 +293,7 @@ function Results({ exam }: { exam: Exam }) {
             const none = (q.awardedMarks ?? 0) === 0;
             const tone = full ? colors.success : none ? colors.error : colors.warning;
             return (
-              <View key={q.id} style={[st.qCard, { borderLeftWidth: 4, borderLeftColor: tone }]}>
+              <SolutionCard key={q.id} style={[st.qCard, { borderLeftWidth: 4, borderLeftColor: tone }]}>
                 <View style={st.qHead}>
                   <Text style={st.qNumber}>Q{index + 1}</Text>
                   <Text style={[st.marks, { color: tone }]}>
@@ -332,7 +322,7 @@ function Results({ exam }: { exam: Exam }) {
                   </View>
                 ) : null}
                 {q.documentTitle ? <Text style={[design.caption, { marginTop: 6 }]}>From {q.documentTitle}</Text> : null}
-              </View>
+              </SolutionCard>
             );
           })}
           <View style={{ height: 30 }} />

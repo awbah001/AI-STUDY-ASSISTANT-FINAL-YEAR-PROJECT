@@ -153,8 +153,8 @@ function vitePluginManusDebugCollector(): Plugin {
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
 
 export default defineConfig({
-  // Required for Capacitor (assets load from capacitor:// / file paths)
-  base: "./",
+  // Web deep links need root asset paths; packaged Capacitor builds use relative paths.
+  base: process.env.CAPACITOR_BUILD === "true" ? "./" : "/",
   plugins,
   resolve: {
     alias: {

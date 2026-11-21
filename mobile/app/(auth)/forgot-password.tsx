@@ -1,16 +1,8 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
+import { FormPanel } from "../../src/components/ui/FormPanel";
+import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { design } from "../../src/theme/design";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -64,12 +56,12 @@ export default function ForgotPasswordScreen() {
             has been sent.
           </Text>
 
-          <View style={s.tipCard}>
+          <SolutionCard style={s.tipCard}>
             <Ionicons name="time-outline" size={16} color={colors.primary} />
             <Text style={s.tipText}>
               The link may take a minute to arrive. Check your spam folder too.
             </Text>
-          </View>
+          </SolutionCard>
 
           {/* Dev convenience: show the reset token directly */}
           {devToken && (
@@ -129,6 +121,7 @@ export default function ForgotPasswordScreen() {
             Enter your email and we'll send you a reset link.
           </Text>
 
+          <FormPanel>
           <Text style={s.label}>Email address</Text>
           <View style={s.fieldGroup}>
             <View style={[s.inputWrap, focused && s.inputFocused, !!emailError && s.inputError]}>
@@ -168,6 +161,7 @@ export default function ForgotPasswordScreen() {
             pending={mutation.isPending}
             onPress={submit}
           />
+          </FormPanel>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -258,10 +252,15 @@ const s = StyleSheet.create({
   fieldGroup: { marginBottom: 18 },
   inputError: { borderColor: FIELD_ERROR_COLOR },
   inputWrap: {
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 2,
     flexDirection: "row",
     alignItems: "center",
     height: 52,
-    borderRadius: 14,
+    borderRadius: 20,
     borderWidth: 1.2,
     borderColor: colors.border,
     backgroundColor: colors.surface,

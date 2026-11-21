@@ -1,16 +1,8 @@
+import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
+import { FormInput } from "../../src/components/ui/FormInput";
+import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -107,7 +99,7 @@ export default function DiscussionThreadScreen() {
         ) : (
           <>
             <ScrollView contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
-              <View style={st.card}>
+              <SolutionCard style={st.card}>
                 <Text style={st.title}>{t.title}</Text>
                 <View style={st.metaRow}>
                   <Text style={st.meta}>{t.author}</Text>
@@ -115,10 +107,10 @@ export default function DiscussionThreadScreen() {
                   <Text style={st.meta}>· {timeAgo(t.createdAt)}</Text>
                 </View>
                 <Text style={st.body}>{t.body}</Text>
-              </View>
+              </SolutionCard>
 
               {t.ai.status !== "none" ? (
-                <View style={[st.card, t.ai.endorsed ? st.endorsedCard : st.aiCard]}>
+                <SolutionCard style={[st.card, t.ai.endorsed ? st.endorsedCard : st.aiCard]}>
                   <View style={st.aiHead}>
                     <Ionicons name="sparkles" size={16} color={colors.info} />
                     <Text style={st.aiTitle}>AI suggested answer</Text>
@@ -160,14 +152,14 @@ export default function DiscussionThreadScreen() {
                       ) : null}
                     </>
                   ) : null}
-                </View>
+                </SolutionCard>
               ) : null}
 
               <Text style={st.section}>
                 {t.replies.length} repl{t.replies.length === 1 ? "y" : "ies"}
               </Text>
               {t.replies.map((r) => (
-                <View key={r.id} style={[st.card, r.isEndorsed && st.endorsedCard]}>
+                <SolutionCard key={r.id} style={[st.card, r.isEndorsed && st.endorsedCard]}>
                   <View style={st.metaRow}>
                     <Text style={[st.meta, { color: colors.text, fontWeight: "700" }]}>{r.author}</Text>
                     <RoleTag role={r.authorRole} isLecturer={r.isLecturer} />
@@ -202,13 +194,13 @@ export default function DiscussionThreadScreen() {
                       ) : null}
                     </View>
                   ) : null}
-                </View>
+                </SolutionCard>
               ))}
               <View style={{ height: 16 }} />
             </ScrollView>
             <View style={[st.composer, { paddingBottom: Math.max(insets.bottom, 10) + 4 }]}>
               <View style={st.composerRow}>
-                <TextInput
+                <FormInput
                   style={[st.replyInput, replyError ? { borderColor: "#d93a3a" } : null]}
                   placeholder="Write a reply..."
                   placeholderTextColor={colors.textPlaceholder}

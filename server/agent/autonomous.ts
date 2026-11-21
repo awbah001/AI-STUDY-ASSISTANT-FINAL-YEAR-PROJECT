@@ -772,6 +772,9 @@ export async function runAutonomousSweep(
 
 const CHECK_EVERY_MS = 15 * 60 * 1000;
 let schedulerTimer: ReturnType<typeof setInterval> | null = null;
+function unrefTimer(timer: unknown) {
+  if (timer && typeof timer === "object" && "unref" in timer && typeof timer.unref === "function") timer.unref();
+}
 
 /**
  * Wakes up every 15 minutes; each student is only processed once their interval has passed,
@@ -789,8 +792,8 @@ export function startAutonomousAgentScheduler() {
       .catch((error) => console.error("[autonomous-agent] Sweep failed", error));
   };
   const first = setTimeout(tick, 60 * 1000);
-  first.unref?.();
+  unrefTimer(first);
   schedulerTimer = setInterval(tick, CHECK_EVERY_MS);
-  schedulerTimer.unref?.();
+  unrefTimer(schedulerTimer);
   console.log("[autonomous-agent] Scheduler started (checks every 15 minutes)");
 }

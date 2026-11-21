@@ -11,7 +11,9 @@ export function withDocumentSources(answer: string, chunks: RetrievedChunk[]): s
   if (!unique.length) return answer;
   const references = unique.map((chunk, index) => {
     const title = escapeMarkdown(chunk.documentTitle || "Document");
-    return `${index + 1}. [${title} — view source excerpt](/document/${chunk.documentId}?tab=notes&source=${sourceId(chunk.chunk)})\n\n   > ${escapeMarkdown(chunk.chunk.slice(0, 700))}`;
+    const location = chunk.page && chunk.revision ? `page ${chunk.page}` : "view source excerpt";
+    const target = chunk.page && chunk.revision ? `page=${chunk.page}&revision=${chunk.revision}` : `source=${sourceId(chunk.chunk)}`;
+    return `${index + 1}. [${title} — ${location}](/document/${chunk.documentId}?tab=notes&${target})\n\n   > ${escapeMarkdown(chunk.chunk.slice(0, 700))}`;
   });
   return `${answer}\n\n**Material excerpts used**\n\n${references.join("\n\n")}`;
 }

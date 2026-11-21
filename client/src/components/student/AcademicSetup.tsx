@@ -120,7 +120,7 @@ export function AcademicSetup({ profile, catalogue, onDone }: { profile: Profile
   const busy = complete.isPending;
   return (
     <form
-      className="student-panel space-y-5 rounded-2xl border bg-card p-5 shadow-sm"
+      className="form-surface student-panel space-y-5 rounded-2xl border bg-card p-5 shadow-sm"
       noValidate
       onSubmit={e => {
         e.preventDefault();

@@ -205,7 +205,7 @@ export default function StudentAccount({
               <User />
             </div>
           )}
-          <button
+          <button className="web-button"
             aria-label="Change photo"
             onClick={() => fileRef.current?.click()}
             disabled={uploading || update.isPending}
@@ -223,6 +223,7 @@ export default function StudentAccount({
           <label htmlFor="student-display-name">Display name</label>
           <Input
             id="student-display-name"
+            autoComplete="name"
             value={name}
             maxLength={100}
             aria-invalid={Boolean(errors.name)}
@@ -444,7 +445,7 @@ export default function StudentAccount({
                   {notifications.error && (
                     <p role="alert">
                       Could not load preferences.{" "}
-                      <button onClick={() => notifications.refetch()}>
+                      <button className="web-button" onClick={() => notifications.refetch()}>
                         Retry
                       </button>
                     </p>
@@ -469,6 +470,7 @@ export default function StudentAccount({
                     Display name
                     <Input
                       className="mt-2"
+                      autoComplete="name"
                       value={name}
                       aria-invalid={Boolean(errors.name)}
                       onChange={e => {
@@ -570,7 +572,7 @@ export default function StudentAccount({
                     </button>
                     {passwordOpen && (
                       <form
-                        className="space-y-4 mt-5"
+                        className="form-surface space-y-4 mt-5"
                         noValidate
                         onSubmit={async e => {
                           e.preventDefault();

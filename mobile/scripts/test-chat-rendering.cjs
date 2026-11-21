@@ -55,4 +55,8 @@ assert.equal(render(''), '<div></div>');
 render('[Notes — view source excerpt](/document/7?tab=notes&source=0123456789abcdef01234567)');
 linkActions.at(-1)();
 assert.deepEqual(sourceRoutes.at(-1), { pathname: '/document/[id]', params: { id: '7', tab: 'notes', source: '0123456789abcdef01234567' } });
+const revision = 'a'.repeat(64);
+render(`[Source: page 2](/document/7?tab=notes&page=2&revision=${revision})`);
+linkActions.at(-1)();
+assert.deepEqual(sourceRoutes.at(-1), { pathname: '/document/[id]', params: { id: '7', tab: 'notes', page: '2', revision } });
 console.log('Chat rendering checks passed: table cards, formatting, lists, code, escaped pipes, incomplete text, and inert HTML.');

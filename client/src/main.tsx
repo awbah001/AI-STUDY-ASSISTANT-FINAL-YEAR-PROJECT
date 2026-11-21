@@ -16,6 +16,13 @@ import "./student-course.css";
 import "./secondary-accents.css";
 import "./motion.css";
 import "./premium.css";
+import "./professional.css";
+import "./buttons.css";
+import "./cards.css";
+import "./forms.css";
+import "./loading.css";
+import "./dashboard-overview.css";
+import "./workspace-components.css";
 import { MotionConfig } from "framer-motion";
 
 const queryClient = new QueryClient({
