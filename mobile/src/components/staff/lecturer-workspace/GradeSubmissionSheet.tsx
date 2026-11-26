@@ -1,3 +1,4 @@
+import { openFileUrl } from "../../../lib/privateFiles";
 import { FormInput } from "../../ui/FormInput";
 import { design } from "../../../theme/design";
 import { useStaffStyles } from "../../../contexts/StaffAppearance";
@@ -151,7 +152,7 @@ function GradeForm({
   };
 
   const openFile = (url: string) =>
-    void Linking.openURL(resolveFileUrl(url)).catch(() =>
+    void openFileUrl(resolveFileUrl(url)).catch(() =>
       Alert.alert("Cannot open file", "No app is available to open this file.")
     );
 

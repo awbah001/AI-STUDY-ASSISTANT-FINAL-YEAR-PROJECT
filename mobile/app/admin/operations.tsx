@@ -1,3 +1,4 @@
+import { openFileUrl } from "../../src/lib/privateFiles";
 import { design } from "../../src/theme/design";
 import { useEffect, useState } from "react";
 import {
@@ -544,7 +545,7 @@ export default function AdminOperations() {
                 label="Open file"
                 hint="View the original upload"
                 onPress={() =>
-                  Linking.openURL(resolveFileUrl(doc.fileUrl)).catch(() =>
+                  openFileUrl(resolveFileUrl(doc.fileUrl)).catch(() =>
                     Alert.alert(
                       "Cannot open file",
                       "No app is available to open this file."

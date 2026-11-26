@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors, gradients } from "../../theme/colors";
-import { design, elevation, radius } from "../../theme/design";
+import { design, elevation, layout, radius, spacing } from "../../theme/design";
 import { ICON_TONES, solidIcon, toneForIcon, withAlpha, type IconToneName } from "./icons";
 import { CognifyIcon, resolveCognifyIcon, type CognifyIconMotion, type CognifyIconName } from "./CognifyIcon";
 
@@ -106,7 +106,7 @@ export function HeaderIconButton({
       style={k.iconBtn}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={badge && badge > 0 ? `${label}, ${badge} unread` : label}
       activeOpacity={0.75}
     >
       <CognifyIcon name={icon} size={20} color={colors.text} motion="press" />
@@ -132,9 +132,9 @@ export function SectionHeader({
 }) {
   return (
     <View style={[k.section, style]}>
-      <Text style={k.sectionTitle}>{title}</Text>
+      <Text accessibilityRole="header" style={k.sectionTitle}>{title}</Text>
       {action && onAction ? (
-        <TouchableOpacity onPress={onAction} hitSlop={10} style={k.sectionAction}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${action}: ${title}`} onPress={onAction} activeOpacity={0.75} style={k.sectionAction}>
           <Text style={k.sectionActionText}>{action}</Text>
           <CognifyIcon name="next" size={14} color={colors.primary} motion="press" />
         </TouchableOpacity>
@@ -207,7 +207,7 @@ export function ProgressBar({
 }) {
   const pct = Math.max(0, Math.min(100, value));
   return (
-    <View style={[k.track, { height, borderRadius: height, backgroundColor: track }]}>
+    <View accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: pct }} style={[k.track, { height, borderRadius: height, backgroundColor: track }]}>
       <View
         style={{
           width: `${pct}%`,
@@ -260,7 +260,7 @@ export function EmptyCard({
       <Text style={k.emptyTitle}>{title}</Text>
       {body ? <Text style={k.emptyBody}>{body}</Text> : null}
       {action && onAction ? (
-        <TouchableOpacity style={k.emptyBtn} onPress={onAction} activeOpacity={0.85}>
+        <TouchableOpacity accessibilityRole="button" style={k.emptyBtn} onPress={onAction} activeOpacity={0.85}>
           <Text style={k.emptyBtnText}>{action}</Text>
         </TouchableOpacity>
       ) : null}
@@ -331,7 +331,7 @@ const k = StyleSheet.create({
   eyebrow: { ...design.eyebrow, color: colors.primary, marginBottom: 6 },
   title: { ...design.screenTitle },
   subtitle: { ...design.caption, fontSize: 13.5, lineHeight: 20, marginTop: 4 },
-  iconBtn: { ...design.iconButton, borderRadius: 22 },
+  iconBtn: { ...design.iconButton, width: layout.touchTarget, height: layout.touchTarget, borderRadius: radius.pill },
   badge: {
     position: "absolute",
     top: -2,
@@ -351,10 +351,12 @@ const k = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   sectionTitle: { ...design.sectionTitle },
-  sectionAction: { flexDirection: "row", alignItems: "center", gap: 2 },
+  sectionAction: { minHeight: layout.touchTarget, paddingHorizontal: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.xs },
   sectionActionText: { fontSize: 13, fontWeight: "700", color: colors.primary },
   iconTile: { alignItems: "center", justifyContent: "center" },
   track: { width: "100%", overflow: "hidden" },
@@ -378,7 +380,9 @@ const k = StyleSheet.create({
   emptyTitle: { ...design.cardTitle, marginTop: 6, textAlign: "center" },
   emptyBody: { ...design.caption, textAlign: "center", maxWidth: 260 },
   emptyBtn: {
-    marginTop: 8,
+    marginTop: spacing.sm,
+    minHeight: layout.touchTarget,
+    justifyContent: "center",
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: radius.pill,

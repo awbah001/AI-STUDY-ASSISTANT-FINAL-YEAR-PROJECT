@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
@@ -26,6 +27,7 @@ const input = () => ({
 });
 beforeEach(async () => {
   file = `tmp/personal-notes-${randomUUID()}.db`;
+  mkdirSync("tmp", { recursive: true });
   client = createClient({ url: `file:./${file}` });
   vi.mocked(getDb).mockResolvedValue(drizzle(client));
   await runPersonalNotesMigration(client);
@@ -39,7 +41,7 @@ beforeEach(async () => {
     INSERT INTO generalChatMessages VALUES (10,1,'assistant','General explanation',NULL,1,NULL);`);
 });
 afterEach(async () => {
-  client.close();
+  client?.close();
   await unlink(file).catch(() => {});
 });
 describe("private personal notes", () => {

@@ -43,11 +43,12 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
 
 describe("auth.logout", () => {
   it("reports success", async () => {
-    const { ctx } = createAuthContext();
+    const { ctx, clearedCookies } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
     const result = await caller.auth.logout();
 
     expect(result).toEqual({ success: true });
+    expect(clearedCookies).toContainEqual({ name: "cognify_files", options: { path: "/uploads" } });
   });
 });

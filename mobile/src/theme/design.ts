@@ -28,6 +28,9 @@ export const elevation = {
 
 export const radius = { sm: 10, md: 14, lg: 18, xl: 24, pill: 999 } as const;
 
+export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
+export const layout = { contentMaxWidth: 760, phoneGutter: 20, wideGutter: 32, touchTarget: 48 } as const;
+
 /** Shared visual language for learning, teaching, and administration. */
 export const design = {
   page: { backgroundColor: colors.bg } satisfies ViewStyle,

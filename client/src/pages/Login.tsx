@@ -93,8 +93,7 @@ export default function Login() {
 
   return (
     <AuthLayout
-      title="Welcome Back 👋"
-      subtitle="Sign in to your Course-Specific AI Learning Assistant account."
+      title="Welcome back"
       noScroll
     >
       <form onSubmit={onSubmit} className="space-y-4" noValidate aria-busy={login.isPending || googleLogin.isPending}>
@@ -193,9 +192,7 @@ export default function Login() {
 
         <GoogleSignInButton onCredential={onGoogleCredential} pending={googleLogin.isPending} />
 
-        <p className="text-center text-xs text-neutral-gray">
-          Use your <span className="font-semibold text-burgundy">@{ALLOWED_EMAIL_DOMAIN}</span> email. New students can continue with Google.
-        </p>
+        <p className="text-center text-xs text-neutral-gray">Use your @{ALLOWED_EMAIL_DOMAIN} email.</p>
       </form>
     </AuthLayout>
   );

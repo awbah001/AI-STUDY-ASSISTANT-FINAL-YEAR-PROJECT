@@ -1,5 +1,9 @@
 .student-shell {
-  --student-muted: #73809a;
+  --student-muted: var(--muted-foreground);
+  --student-space-sm: 0.5rem;
+  --student-space-md: 1rem;
+  --student-space-lg: 1.5rem;
+  --student-space-xl: 2rem;
   color: #102131;
   padding: 6.8px;
   background: #003e35;
@@ -2371,3 +2375,52 @@
 .student-shell .sidebar-nav-item { min-height:41px; padding-block:5px; }
 .student-shell .dashboard-workspace { margin-left: var(--student-sidebar); border-radius: 0; box-shadow: none; }
 @media (max-width: 767px) { .student-shell .dashboard-workspace { margin-left: 0; } .student-shell .cognify-sidebar { width: 238px; } }
+
+/* Student workspace refinement: use the existing semantic theme in both modes. */
+.student-shell .student-page-dashboard { gap: var(--student-space-lg); }
+.student-shell .student-page-dashboard .student-hero-dashboard {
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border-radius: var(--radius-xl);
+  border-left-color: var(--primary);
+  background: linear-gradient(110deg, var(--card), color-mix(in srgb, var(--primary) 10%, var(--card)));
+}
+.student-shell .student-page-dashboard .student-hero-copy { min-width: 0; padding-right: 15rem; }
+.student-shell .student-page-dashboard .student-hero h1 { color: var(--foreground); overflow-wrap: anywhere; }
+.student-shell .student-page-dashboard :is(.student-description, .student-stat small, .student-task p) { color: var(--student-muted); }
+.student-shell .student-page-dashboard .student-hero-dashboard blockquote { color: var(--muted-foreground); background: var(--card); width: 13rem; }
+.student-shell .student-page-dashboard :is(.student-panel, .student-task > div, .student-recent-course > div) { min-width: 0; }
+.student-shell .student-page-dashboard :is(.student-task h3, .student-recent-course h3, .student-task p) { overflow-wrap: anywhere; white-space: normal; }
+.student-shell .student-page-dashboard .student-task { flex-wrap: wrap; gap: var(--student-space-md); }
+.student-shell .student-page-dashboard .student-go { min-height: 44px; gap: var(--student-space-sm); justify-content: center; }
+.student-shell .student-page-dashboard .student-recent-course { border-radius: var(--radius); transition: background-color 150ms ease; }
+.student-shell .student-page-dashboard .student-recent-course:hover { background: var(--muted); }
+.student-shell :is(a, button, input):focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 3px; }
+.student-shell .cognify-sidebar :is(a, button):focus-visible { outline-color: var(--accent-on-sidebar, #a7f3d0); outline-offset: -3px; }
+.student-shell .sidebar-nav-item { min-height: 44px; }
+.student-shell .dashboard-topbar button { min-width: 44px; min-height: 44px; }
+.workspace-nav-close { display: flex; align-items: center; justify-content: center; gap: .5rem; margin: .5rem 1rem 0; min-height: 44px; border: 1px solid currentColor; border-radius: var(--radius); color: #ecfdf5; }
+.workspace-nav-close:hover { background: rgb(255 255 255 / 12%); }
+@media (max-width: 1100px) {
+  .student-shell .student-page-dashboard .student-hero-copy { padding-right: 0; }
+  .student-shell .student-page-dashboard .student-hero-dashboard blockquote { display: none; }
+}
+@media (max-width: 767px) {
+  .student-shell .dashboard-topbar { padding-inline: var(--student-space-md); gap: var(--student-space-sm); }
+  .student-shell .dashboard-topbar > div:first-child { gap: var(--student-space-sm); }
+  .student-shell .dashboard-page { padding-inline: var(--student-space-md); }
+  .student-shell .student-page-dashboard .student-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--student-space-md); }
+  .student-shell .student-page-dashboard .student-stat { padding: var(--student-space-md); flex-wrap: wrap; }
+  .student-shell .student-page-dashboard .student-stat strong { font-size: clamp(1.5rem, 6vw, 2rem); overflow-wrap: anywhere; }
+  .student-shell .student-page-dashboard .student-hero h1 { font-size: clamp(1.75rem, 7vw, 2.25rem); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .student-shell .student-page-dashboard .student-recent-course { transition: none; }
+}
+
+.student-shell .student-page-dashboard .student-go--primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.dark .student-shell .student-page-dashboard .student-go--primary { color: var(--background); }
+.student-shell .student-page-dashboard .student-go--primary::before { display: none; }
+.student-shell .student-page-dashboard .student-go--primary:hover { filter: brightness(.94); }

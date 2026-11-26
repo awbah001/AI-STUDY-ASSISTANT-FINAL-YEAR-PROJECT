@@ -1,3 +1,4 @@
+import { openFileUrl } from "@/lib/privateFiles";
 import { Spinner as Loader2 } from "@/components/ui/spinner";
 import { getLecturerQuizLength } from "@/lib/lecturerPreferences";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -186,7 +187,7 @@ export default function LecturerCourseDetail() {
   const genPresentation = trpc.lecturer.materials.generatePresentation.useMutation({
     onSuccess: (deck) => {
       toast.success(`Presentation generated (${deck.slideCount} slides)`);
-      window.open(deck.fileUrl, "_blank");
+      void openFileUrl(deck.fileUrl).catch(error => toast.error(error.message));
     },
     onError: (e) => toast.error(e.message),
   });

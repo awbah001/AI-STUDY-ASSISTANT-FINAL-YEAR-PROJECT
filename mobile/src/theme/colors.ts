@@ -30,9 +30,18 @@ export const colors = {
   // Text
   text: "#0f1d18",
   textSub: "#35433e",
-  textMuted: "#6b7280",
+  textMuted: "#626c68",
   textLight: "#9aa8a2",
   textPlaceholder: "#9aa8a2",
+  // Readable foregrounds for tinted status surfaces and the brand hero.
+  errorText: "#b42332",
+  warningText: "#92400e",
+  infoText: "#1d4ed8",
+  tealText: "#0f766e",
+  tealSoft: "#e6f7f5",
+  onBrandMuted: "#d1fae5",
+  onBrandTrack: "#ffffff22",
+  onBrandSurface: "#ffffff14",
 
   // Borders / dividers
   border: "#dfe7e3",

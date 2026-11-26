@@ -29,6 +29,8 @@ import {
   Zap,
 } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
+import Lenis from "lenis";
+import "lenis/dist/lenis.css";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link } from "wouter";
 import "../landing.css";
@@ -45,79 +47,58 @@ const NAV = [
 const SECTION_IDS = ["home", "why", "features", "how", "roles", "faq"];
 
 const trustPoints = [
-  "Answers from your lecture notes",
+  "Study with your course materials",
   "Web portal + mobile app",
   "Role-based, secure access",
 ] as const;
 
-const highlights: Array<[string, string, Icon, string]> = [
-  ["Grounded answers", "Every reply comes from notes your lecturers uploaded", FileText, "green"],
-  ["8 study tools", "Chat, flashcards, quizzes, summaries, planner and more", Layers, "violet"],
-  ["Always on", "An AI study coach that checks in between classes", Zap, "amber"],
-  ["Anywhere", "Same account on the web, Android and iOS", Smartphone, "sky"],
-];
-
-const generic = [
-  "Answers from the open internet",
-  "May contradict what your lecturer taught",
-  "Knows nothing about your deadlines",
-  "Can invent sources that don't exist",
-];
-
-const ours = [
-  "Answers from your own course notes",
-  "Names the exact lecture it used",
-  "Knows your assignments, quizzes and progress",
-  "Says clearly when the notes don't cover a topic",
-];
-
 const features: Array<{ title: string; body: string; icon: Icon; tone: string; wide?: boolean }> = [
   {
     title: "Ask AI about your notes",
-    body: "Ask anything about a lecture and get a clear explanation drawn from the document itself — with the source named so you can check it.",
+    body: "Ask questions about your course materials.",
     icon: MessageSquare,
     tone: "green",
     wide: true,
   },
   {
     title: "AI study coach",
-    body: "Works in the background: reminds you before deadlines and prepares flashcards when new notes arrive.",
+    body: "Get study reminders and flashcards.",
     icon: Bot,
     tone: "violet",
   },
   {
     title: "Smart flashcards",
-    body: "Generated from your notes and scheduled with spaced repetition so you review at the right time.",
+    body: "Review your notes with spaced repetition.",
     icon: Layers,
     tone: "pink",
   },
   {
     title: "Practice quizzes",
-    body: "Course-specific questions with instant marking to show what you really know.",
+    body: "Test your understanding with course questions.",
     icon: CheckCircle2,
     tone: "amber",
   },
   {
     title: "Instant summaries",
-    body: "Turn a long lecture into key points in seconds.",
+    body: "Find the key points in your notes.",
     icon: FileText,
     tone: "sky",
   },
   {
     title: "Study planner",
-    body: "Build a revision timetable around your exams and assignments.",
+    body: "Plan study around your deadlines.",
     icon: CalendarDays,
     tone: "orange",
   },
   {
     title: "Voice questions",
-    body: "Tap the mic and speak — your words are typed for you.",
+    body: "Ask questions using your voice.",
     icon: Mic,
     tone: "teal",
   },
   {
     title: "Progress tracking",
-    body: "See quiz scores, streaks and weak topics at a glance.",
+    body: "See your activity and quiz results.",
     icon: BarChart3,
     tone: "indigo",
   },
@@ -125,7 +106,7 @@ const features: Array<{ title: string; body: string; icon: Icon; tone: string; w
 
 const steps: Array<[string, string, Icon, string]> = [
   ["Lecturers upload notes", "PDFs, slides and documents are added to each course by the lecturer.", Upload, "burgundy"],
-  ["The AI learns the course", "Materials are read and indexed so answers can be traced back to them.", Sparkles, "violet"],
+  ["Materials are prepared", "Documents are processed so students can study and ask questions about them.", Sparkles, "violet"],
   ["Students learn and practise", "Ask questions, review flashcards, take quizzes and follow their progress.", GraduationCap, "green"],
 ];
 
@@ -162,11 +143,11 @@ const roles = [
 const faqs = [
   {
     q: "Where does the AI get its answers?",
-    a: "From the lecture notes and documents in the courses you are enrolled in. It searches those materials first and names the document it used, instead of answering from the open internet.",
+    a: "You can ask about a selected document or choose a source for your question. Depending on the selected mode, the assistant can use your course materials or provide general study help.",
   },
   {
     q: "What happens if my notes don't cover a question?",
-    a: "The assistant tells you the uploaded notes don't cover it, then gives a clearly labelled general explanation — so you always know what came from your course and what didn't.",
+    a: "The assistant may indicate when it cannot find relevant material. Check the source and your lecture notes, and ask your lecturer when you need clarification.",
   },
   {
     q: "What is the AI study coach?",
@@ -185,10 +166,6 @@ const faqs = [
     a: "Access is role-based. Students only see courses they are enrolled in, lecturers see their own classes, and administrators manage the platform. All requests are authenticated.",
   },
 ] as const;
-
-function scrollToId(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
 
 function SlideTabs({ active, onNavigate }: { active: string; onNavigate: (href: string) => void }) {
   const navRef = useRef<HTMLElement>(null);
@@ -380,6 +357,33 @@ export default function Home() {
   const [active, setActive] = useState("home");
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const lenisRef = useRef<Lenis | null>(null);
+
+  useEffect(() => {
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotion = () => {
+      lenisRef.current?.destroy();
+      lenisRef.current = preference.matches ? null : new Lenis({ autoRaf: true, allowNestedScroll: true });
+    };
+    updateMotion();
+    preference.addEventListener("change", updateMotion);
+    return () => {
+      preference.removeEventListener("change", updateMotion);
+      lenisRef.current?.destroy();
+      lenisRef.current = null;
+    };
+  }, []);
+
+  const scrollToId = (id: string) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    if (lenisRef.current) {
+      const headerHeight = document.querySelector<HTMLElement>(".lp-nav")?.offsetHeight ?? 0;
+      lenisRef.current.scrollTo(target, { offset: -headerHeight - 12 });
+    } else {
+      target.scrollIntoView({ behavior: "instant", block: "start" });
+    }
+  };
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -462,11 +466,10 @@ export default function Home() {
         <div className="lp-copy">
           <span className="lp-eyebrow"><Sparkles size={14} /> Built on your lecturers' own notes</span>
           <h1>
-            Study smarter with an AI that knows <span className="lp-highlight">your course</span>
+            Your course materials. <span className="lp-highlight">More ways to learn.</span>
           </h1>
           <p>
-            Ask questions about your lecture notes, turn them into flashcards and quizzes, and get reminders before
-            deadlines — all grounded in the material your lecturers actually teach.
+            Your notes, questions and study tools, all in one place.
           </p>
           <div className="lp-hero-actions">
             <Link href={getLoginUrl()} className="lp-btn lp-btn-primary lp-btn-lg">
@@ -485,96 +488,50 @@ export default function Home() {
 
         <div className="lp-stage">
           <div className="lp-stage-glow" aria-hidden="true" />
-          <img className="lp-stage-bot" src="/cognify-auth-bot.png" alt="Course-Specific AI Learning Assistant mascot" />
-          <HeroChat />
-          <div className="lp-chip lp-chip-1 tone-pink" aria-hidden="true">
-            <span><Layers size={16} /></span>
-            <div><b>10 flashcards ready</b><small>From Week 3 notes</small></div>
-          </div>
-          <div className="lp-chip lp-chip-2 tone-amber" aria-hidden="true">
-            <span><CheckCircle2 size={16} /></span>
-            <div><b>Quiz score 86%</b><small>Up 12% this week</small></div>
-          </div>
-          <div className="lp-chip lp-chip-3 tone-violet" aria-hidden="true">
-            <span><Bot size={16} /></span>
-            <div><b>Study coach</b><small>Assignment due tomorrow</small></div>
-          </div>
+          <img className="lp-hero-student" src="/landing-student.png" alt="Student holding a laptop and study notebooks" />
         </div>
       </section>
 
-      <section className="lp-highlights" aria-label="Highlights" data-reveal>
-        {highlights.map(([title, body, IconCmp, tone]) => (
-          <article key={title} className={`tone-${tone}`}>
-            <span><IconCmp size={20} /></span>
-            <div>
-              <h3>{title}</h3>
-              <p>{body}</p>
-            </div>
-          </article>
-        ))}
-      </section>
-
-      <section className="lp-section" id="why" data-reveal>
-        <span className="lp-kicker">WHY COURSE-SPECIFIC</span>
-        <h2>Not just another chatbot</h2>
-        <p className="lp-lead">
-          General AI tools guess. This assistant reads your course first, so what you learn matches what you'll be
-          assessed on.
-        </p>
-        <div className="lp-compare">
-          <article className="lp-compare-card lp-compare-generic">
-            <header>
-              <span><Bot size={20} /></span>
-              <h3>Generic AI chatbot</h3>
-            </header>
-            <ul>
-              {generic.map((item) => (
-                <li key={item}><XCircle size={17} /> {item}</li>
-              ))}
-            </ul>
-          </article>
-          <article className="lp-compare-card lp-compare-ours">
-            <header>
-              <span><Sparkles size={20} /></span>
-              <h3>Course-Specific AI Learning Assistant</h3>
-            </header>
-            <ul>
-              {ours.map((item) => (
-                <li key={item}><CheckCircle2 size={17} /> {item}</li>
-              ))}
-            </ul>
-          </article>
-        </div>
-      </section>
+      <div className="lp-editorial-band" aria-label="Ways to learn">
+        <span>YOUR NOTES</span><span aria-hidden="true">?</span><span>YOUR QUESTIONS</span><span aria-hidden="true">?</span><span>YOUR PROGRESS</span>
+      </div>
 
       <section className="lp-section" id="features">
-        <span className="lp-kicker" data-reveal>EVERYTHING IN ONE PLACE</span>
-        <h2 data-reveal>Every tool you need to master a course</h2>
-        <p className="lp-lead" data-reveal>From the first lecture to the final exam — all powered by the same course notes.</p>
+        <div className="lp-feature-intro" data-reveal>
+          <span className="lp-kicker">EVERYTHING IN ONE PLACE</span>
+          <h2>Everything you need to learn, in one place.</h2>
+          <p className="lp-lead">From your first question to your final review.</p>
+          <Link href={getLoginUrl()} className="lp-btn lp-btn-primary"><span className="lp-btn-face">Get started <ArrowRight size={16} /></span></Link>
+        </div>
         <div className="lp-bento">
-          {features.map(({ title, body, icon: IconCmp, tone, wide }) => (
-            <article key={title} className={`lp-feature tone-${tone}${wide ? " lp-feature-wide" : ""}`} data-reveal>
+          {features.map(({ title, body, icon: IconCmp, tone }) => (
+            <article key={title} className={`lp-feature tone-${tone}`} data-reveal>
               <span className="lp-feature-icon"><IconCmp size={20} /></span>
               <h3>{title}</h3>
               <p>{body}</p>
-              {wide && (
-                <div className="lp-feature-demo" aria-hidden="true">
-                  <p className="lp-bubble lp-bubble-user">Summarise the key formulas from Week 1</p>
-                  <div className="lp-bubble lp-bubble-ai">
-                    <p>Linear regression models <strong>y = β₀ + β₁x</strong>, fitted by minimising the squared error…</p>
-                    <span className="lp-source"><FileText size={12} /> Week 1 · Linear Regression.pdf</span>
-                  </div>
-                </div>
-              )}
             </article>
           ))}
         </div>
       </section>
 
+      <section className="lp-section" id="why" data-reveal>
+        <span className="lp-kicker">WHY COURSE-SPECIFIC</span>
+        <h2>Your notes have more to say.</h2>
+        <div className="lp-study-story">
+          <div className="lp-study-copy">
+            <h3>Ask questions about your notes</h3>
+            <p>Open a document, explore a topic and practise what you've learned.</p>
+          </div>
+          <figure className="lp-study-example">
+            <HeroChat />
+            <figcaption>Illustrative example of a question about course material.</figcaption>
+          </figure>
+        </div>
+      </section>
+
       <section className="lp-section" id="how">
         <span className="lp-kicker" data-reveal>HOW IT WORKS</span>
-        <h2 data-reveal>From lecture notes to learning, in three steps</h2>
-        <p className="lp-lead" data-reveal>No setup for students — sign in and your courses are ready.</p>
+        <h2 data-reveal>A simpler way to study.</h2>
         <ol className="lp-steps">
           {steps.map(([title, body, IconCmp, tone], i) => (
             <li key={title} className={`tone-${tone}`} data-reveal>
@@ -593,10 +550,7 @@ export default function Home() {
         <div className="lp-showcase-copy">
           <span className="lp-kicker">WEB AND MOBILE</span>
           <h2>Learn at your desk or on the go</h2>
-          <p>
-            The web portal serves students, lecturers and administrators. Students also get the mobile app, with the same
-            account, courses and progress everywhere.
-          </p>
+          <p>Use the web portal or take your learning with you on mobile.</p>
           <ul>
             <li className="tone-green"><span><Monitor size={16} /></span> Full web portal for every role</li>
             <li className="tone-sky"><span><Smartphone size={16} /></span> Android and iOS app for students</li>
@@ -620,7 +574,6 @@ export default function Home() {
       <section className="lp-section" id="roles">
         <span className="lp-kicker" data-reveal>WHO IT'S FOR</span>
         <h2 data-reveal>One platform, three portals</h2>
-        <p className="lp-lead" data-reveal>Each role gets a workspace designed around what they need to do.</p>
         <div className="lp-role-grid">
           {roles.map((role) => (
             <article key={role.id} id={role.id} className={`lp-role tone-${role.tone}`} data-reveal>
@@ -628,7 +581,7 @@ export default function Home() {
               <h3>{role.title}</h3>
               <p>{role.blurb}</p>
               <ul>
-                {role.points.map((point) => (
+                {role.points.slice(0, 2).map((point) => (
                   <li key={point}><CheckCircle2 size={15} /> {point}</li>
                 ))}
               </ul>
@@ -645,7 +598,6 @@ export default function Home() {
           <div>
             <span className="lp-kicker">FAQ</span>
             <h2>Questions, answered</h2>
-            <p className="lp-lead">Everything you need to know before you sign in.</p>
             <div className="lp-faq-help tone-violet">
               <span><Users size={18} /></span>
               <p>Need an account or help signing in? <b>Contact your administrator.</b></p>
@@ -666,7 +618,7 @@ export default function Home() {
         <div className="lp-cta-glow" aria-hidden="true" />
         <div className="lp-cta-copy">
           <h2>Make every study session count</h2>
-          <p>Sign in to open your courses, ask your first question and let the study coach keep you on track.</p>
+          <p>Open your courses and start learning.</p>
           <div className="lp-cta-actions">
             <Link href={getLoginUrl()} className="lp-btn lp-btn-light lp-btn-lg">
               <span className="lp-btn-face">Get started <ArrowRight size={18} /></span>

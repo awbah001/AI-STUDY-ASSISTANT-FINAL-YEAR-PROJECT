@@ -20,6 +20,8 @@ import { verifyReaderSelection } from "../documentReader";
 import { localMaterialRevision } from "./materialRevision";
 import { getAiService } from "../ai";
 import { parseJsonFromLlmContent } from "../llmUtils";
+import { embedText } from "./embeddings";
+import { mapConcurrent } from "../../shared/mapConcurrent";
 import { retrieveRelevantChunkHits } from "./index";
 import { loadVectorStore } from "./faissFlat";
 import { sourceId, withDocumentSources } from "../documentSources";
@@ -148,13 +150,14 @@ export async function retrieveScopedEvidence(
         "The selection was processed as OCR text only; image meaning and diagram structure were not interpreted."
       );
   } else {
-    for (const doc of docs) {
+    let queryVector: Promise<number[]> | undefined;
+    await mapConcurrent(docs, 4, async doc => {
       const store = await loadVectorStore(doc.id);
       if (!store?.revision) {
         warnings.push(
           "Some materials need reprocessing to add verified source versions. Ask the material owner to retry processing."
         );
-        continue;
+        return;
       }
       let revision: string | null;
       try {
@@ -166,9 +169,10 @@ export async function retrieveScopedEvidence(
         warnings.push(
           "Some material has changed or is unavailable and must be reprocessed before it can support an answer."
         );
-        continue;
+        return;
       }
-      const hits = await retrieveRelevantChunkHits(doc.id, query, 4);
+      queryVector ??= embedText(query);
+      const hits = await retrieveRelevantChunkHits(doc.id, query, 4, await queryVector);
       for (const hit of hits)
         sources.push({
           documentId: doc.id,
@@ -180,10 +184,10 @@ export async function retrieveScopedEvidence(
           ...(hit.page ? { page: hit.page } : {}),
           revision,
         });
-    }
+    });
   }
   return {
-    sources: sources.sort((a, b) => b.score - a.score).slice(0, 6),
+    sources: sources.sort((a, b) => b.score - a.score || a.documentId - b.documentId || a.sourceId.localeCompare(b.sourceId)).slice(0, 6),
     warnings: [...new Set(warnings)],
   };
 }

@@ -878,7 +878,7 @@ function ApiCard({ settings, save, saving }: SaveProps) {
   return (
     <SettingsCard
       title="API"
-      description="tRPC HTTP API. The rate limit is stored for when a global limiter is enabled."
+      description="tRPC HTTP API. The rate limit applies to API requests per client address. Login, uploads, and transcription also have protective limits."
     >
       <DetailRow label="Version" value={draft.version} />
       <NumberSetting

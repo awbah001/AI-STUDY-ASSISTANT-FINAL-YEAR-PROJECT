@@ -56,14 +56,15 @@ export type RetrievedChunkHit = {
 export async function retrieveRelevantChunkHits(
   documentId: number,
   query: string,
-  topK?: number
+  topK?: number,
+  queryVector?: number[]
 ): Promise<RetrievedChunkHit[]> {
   const rag = await getRagSettings();
   const k = topK ?? rag.topK;
   const store = await loadVectorStore(documentId);
   if (!store || store.chunks.length === 0) return [];
 
-  const qVec = await embedText(query);
+  const qVec = queryVector ?? await embedText(query);
   const overFetchK = Math.min(k * OVER_FETCH_MULTIPLIER, store.chunks.length);
   const hits = searchFaissFlat(qVec, store, overFetchK, rag.similarityThreshold);
   if (hits.length === 0) return [];

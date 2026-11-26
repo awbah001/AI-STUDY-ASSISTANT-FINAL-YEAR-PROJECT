@@ -15,6 +15,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    setupFiles: ["./server/testFixtures/isolateDatabase.ts"],
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
   },
 });

@@ -33,7 +33,7 @@ async function initializeDb() {
       const filePath = dbPath.replace("file:", "");
       
       // Ensure directory exists
-      if (filePath.startsWith("/")) {
+      if (dbPath.startsWith("file:") && filePath !== ":memory:") {
         mkdirSync(dirname(filePath), { recursive: true });
       }
       

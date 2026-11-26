@@ -1,3 +1,5 @@
+import { limitAuthAction } from "./_core/requestLimits";
+import { clearFileSession } from "./privateUploads";
 import { ONE_YEAR_MS } from "../shared/const";
 import { EMAIL_DOMAIN_ERROR, isAllowedEmail } from "../shared/emailDomain";
 import { LIMITS, MESSAGES, zEmail, zLoginPassword, zNewPassword, zOptionalText, zPersonName, zReason, zText } from "../shared/validation";
@@ -114,8 +116,9 @@ export const appRouter = router({
           totpCode: z.string().trim().min(6, MESSAGES.codeInvalid).max(64, MESSAGES.codeInvalid).optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const email = normalizeEmail(input.email);
+        limitAuthAction("login", ctx.req.ip ?? ctx.req.socket?.remoteAddress ?? "unknown", email);
         if (!isAllowedEmail(email)) {
           throw new TRPCError({ code: "FORBIDDEN", message: EMAIL_DOMAIN_ERROR });
         }
@@ -261,7 +264,10 @@ export const appRouter = router({
         });
         return { token, user: stripSensitiveUser(user) } as const;
       }),
-    logout: publicProcedure.mutation(() => ({ success: true } as const)),
+    logout: publicProcedure.mutation(({ ctx }) => {
+      clearFileSession(ctx.res);
+      return { success: true } as const;
+    }),
 
     savePushToken: studentProcedure
       .input(z.object({ token: z.string().max(300) }))
@@ -350,9 +356,10 @@ export const appRouter = router({
 
     forgotPassword: publicProcedure
       .input(z.object({ email: zEmail }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { nanoid } = await import("nanoid");
         const email = input.email.toLowerCase().trim();
+        limitAuthAction("reset", ctx.req.ip ?? ctx.req.socket?.remoteAddress ?? "unknown", email);
         if (!isAllowedEmail(email)) return { success: true as const };
         const user = await db.getUserByEmail(email);
         // Always return success to prevent email enumeration

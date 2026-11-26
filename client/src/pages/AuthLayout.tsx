@@ -16,7 +16,7 @@ export default function AuthLayout(props: { title: string; subtitle?: string; ch
           if ((event.target as HTMLElement).closest("button, a, input, textarea, select, label, [role='button'], [role='checkbox']")) return;
           setSwapped(value => !value);
         }}
-        className="auth-card-shell relative z-10 grid w-full max-w-[1040px] overflow-hidden rounded-[30px] border border-white/70 bg-white shadow-[0_24px_80px_rgba(3,60,53,0.2)] lg:grid-cols-[.96fr_1fr]">
+        className={cn("auth-card-shell relative z-10 grid w-full max-w-[1040px] overflow-hidden rounded-[30px] border border-white/70 bg-white shadow-[0_24px_80px_rgba(3,60,53,0.2)] lg:grid-cols-[.96fr_1fr]", props.noScroll && "auth-card-shell-compact")}>
         <aside className="auth-panel auth-swap-hero relative hidden min-h-[620px] overflow-hidden p-11 text-white lg:flex lg:flex-col">
           <button type="button" aria-label="Swap panels" aria-pressed={swapped}
             onClick={() => setSwapped(value => !value)}
@@ -30,13 +30,13 @@ export default function AuthLayout(props: { title: string; subtitle?: string; ch
               <img src="/cognify-auth-bot.png?v=2" alt="" />
             </div>
             <h1 className="text-4xl font-bold leading-tight tracking-tight">Learn Smarter,<br /><span className="text-emerald-300">Achieve More.</span></h1>
-            <p className="mt-4 max-w-xs text-sm leading-6 text-emerald-50/90">Your AI-powered companion for personalized learning, deeper understanding, and academic success.</p>
+            {!props.noScroll && <p className="mt-4 max-w-xs text-sm leading-6 text-emerald-50/90">Your AI-powered companion for personalized learning, deeper understanding, and academic success.</p>}
           </div>
-          <p className="relative z-10 text-xs text-emerald-100/80">Learn. Practice. Progress.</p>
+          {!props.noScroll && <p className="relative z-10 text-xs text-emerald-100/80">Learn. Practice. Progress.</p>}
         </aside>
         <div className={cn(
           "auth-swap-form relative flex min-h-[620px] items-center justify-center bg-white p-6 sm:p-8",
-          props.noScroll ? "overflow-hidden" : "overflow-y-auto",
+          "overflow-y-auto",
           className
         )}>
           <Link

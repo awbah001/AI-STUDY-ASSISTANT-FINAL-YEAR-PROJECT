@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
@@ -11,6 +12,7 @@ let client: Client;
 let file: string;
 beforeEach(async () => {
   file = `tmp/chat-persistence-${randomUUID()}.db`;
+  mkdirSync("tmp", { recursive: true });
   client = createClient({ url: `file:./${file}` });
   vi.mocked(getDb).mockResolvedValue(drizzle(client));
   await client.execute(
@@ -18,7 +20,7 @@ beforeEach(async () => {
   );
 });
 afterEach(async () => {
-  client.close();
+  client?.close();
   await unlink(file).catch(() => {});
 });
 describe("concurrent document-chat persistence", () => {

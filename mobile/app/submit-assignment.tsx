@@ -1,3 +1,4 @@
+import { openFileUrl } from "../src/lib/privateFiles";
 import { WifiLoader as ActivityIndicator } from "../src/components/ui/WifiLoader";
 import { FormInput } from "../src/components/ui/FormInput";
 import { SolutionCard } from "../src/components/ui/SolutionCard";
@@ -254,7 +255,7 @@ export default function SubmitAssignmentScreen() {
                 const url = fileUrl.startsWith("http")
                   ? fileUrl
                   : `${API_URL}${fileUrl}`;
-                void Linking.openURL(url);
+                void openFileUrl(url);
               }}
               style={s.briefChip}
               activeOpacity={0.8}

@@ -1,3 +1,4 @@
+import { openFileUrl } from "../lib/privateFiles";
 import { memo, useMemo, type ReactNode } from "react";
 import { Alert, Linking, Platform, StyleSheet, Text, View } from "react-native";
 import { Lexer, type Token, type MarkedToken } from "marked";
@@ -17,7 +18,7 @@ async function openLink(url: string) {
   }
   if (!/^(https?:\/\/|mailto:)/i.test(url)) return;
   try {
-    await Linking.openURL(url);
+    await openFileUrl(url);
   } catch {
     Alert.alert("Unable to open link", "Please try again later.");
   }

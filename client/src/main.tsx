@@ -1,3 +1,5 @@
+import { accessibleFileUrl, openFileUrl } from "@/lib/privateFiles";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -84,3 +86,20 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </trpc.Provider>
 );
+
+// File links need bearer authorization even when opened in a new browser tab.
+document.addEventListener("click", event => {
+  const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+  if (!(anchor instanceof HTMLAnchorElement)) return;
+  const url = new URL(anchor.href);
+  const base = new URL(apiUrl("/"), window.location.origin);
+  if (url.origin !== base.origin || !url.pathname.startsWith("/uploads/") || url.searchParams.has("ticket")) return;
+  event.preventDefault();
+  if (anchor.hasAttribute("download")) {
+    void accessibleFileUrl(anchor.href).then(url => {
+      const link = document.createElement("a"); link.href = url; link.download = anchor.download;
+      // Direct click avoids re-entering this delegated handler.
+      link.addEventListener("click", e => e.stopPropagation()); link.click();
+    }).catch(error => toast.error(error.message));
+  } else void openFileUrl(anchor.href).catch(error => toast.error(error.message));
+}, true);

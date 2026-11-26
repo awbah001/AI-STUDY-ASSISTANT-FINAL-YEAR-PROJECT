@@ -1,7 +1,7 @@
 import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
 import { SolutionCard } from "../../src/components/ui/SolutionCard";
-import { design } from "../../src/theme/design";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, Image } from "react-native";
+import { design, elevation, layout, radius, spacing } from "../../src/theme/design";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, Image, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useEffect, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -28,25 +28,28 @@ const cognifyBot = require("../../assets/cognify-auth-bot.png");
 
 const QUICK_LINKS = [
   { href: "/(tabs)/library", label: "Library", icon: "folder-open-outline", color: colors.primary, bg: colors.primaryLight },
-  { href: "/(tabs)/flashcards", label: "Flashcards", icon: "layers-outline", color: colors.info, bg: colors.infoSoft },
+  { href: "/(tabs)/flashcards", label: "Flashcards", icon: "layers-outline", color: colors.infoText, bg: colors.infoSoft },
   { href: "/(tabs)/quizzes", label: "Quizzes", icon: "help-circle-outline", color: colors.violet, bg: colors.violetSoft },
-  { href: "/(tabs)/progress", label: "Progress", icon: "stats-chart-outline", color: colors.warning, bg: colors.warningSoft },
+  { href: "/(tabs)/progress", label: "Progress", icon: "stats-chart-outline", color: colors.warningText, bg: colors.warningSoft },
 ] as const;
 
 const EVENT_TONES: Record<string, { fg: string; bg: string }> = {
-  exam: { fg: colors.error, bg: colors.errorSoft },
-  test: { fg: "#c2410c", bg: colors.warningSoft },
+  exam: { fg: colors.errorText, bg: colors.errorSoft },
+  test: { fg: colors.warningText, bg: colors.warningSoft },
   quiz: { fg: colors.violet, bg: colors.violetSoft },
   study: { fg: colors.primary, bg: colors.primaryLight },
 };
 
 const DOC_TONES = [
-  { fg: "#e5484d", bg: "#fdecec" },
-  { fg: "#0d9488", bg: "#e6f7f5" },
-  { fg: colors.info, bg: colors.infoSoft },
+  { fg: colors.errorText, bg: colors.errorSoft },
+  { fg: colors.tealText, bg: colors.tealSoft },
+  { fg: colors.infoText, bg: colors.infoSoft },
 ];
 
 export default function DashboardScreen() {
+  const { width, fontScale } = useWindowDimensions();
+  const expandedText = fontScale > 1.2;
+  const compactHero = width < 430 || expandedText;
   const { user } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -198,9 +201,9 @@ export default function DashboardScreen() {
   };
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
+    <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <ScrollView
-        contentContainerStyle={s.scroll}
+        contentContainerStyle={[s.scroll, { paddingHorizontal: width >= 600 ? layout.wideGutter : layout.phoneGutter }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -215,6 +218,7 @@ export default function DashboardScreen() {
           <TouchableOpacity
             onPress={() => router.push("/(tabs)/profile" as any)}
             style={s.avatarRing}
+            accessibilityRole="button"
             accessibilityLabel="Open profile"
           >
             {user?.avatarUrl ? (
@@ -236,7 +240,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={s.eyebrow}>{hello}</Text>
-            <Text style={s.greeting} numberOfLines={1}>
+            <Text style={s.greeting}>
               Hi, {firstName}
             </Text>
           </View>
@@ -252,6 +256,8 @@ export default function DashboardScreen() {
         <TouchableOpacity
           activeOpacity={0.92}
           onPress={() => router.push("/(tabs)/planner" as any)}
+          accessibilityRole="button"
+          accessibilityLabel={`Today's study: ${todayMins} of ${dailyGoalMins} minutes, ${goalPct}% complete. Open planner.`}
           style={s.goalWrap}
         >
           <HeroGradient style={s.goalCard}>
@@ -260,7 +266,7 @@ export default function DashboardScreen() {
                 <View style={s.goalLabelDot} />
                 <Text style={s.goalLabel}>Today's study</Text>
               </View>
-              <View style={s.goalTopRow}>
+              <View style={[s.goalTopRow, expandedText && s.stack]}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <View style={s.goalFractionRow}>
                     <Text style={s.goalNum}>{todayMins}</Text>
@@ -282,7 +288,7 @@ export default function DashboardScreen() {
                 />
               </View>
               <View style={s.goalFooter}>
-                <Text style={s.goalQuote} numberOfLines={2}>
+                <Text style={s.goalQuote}>
                   {goalPct >= 100
                     ? "Daily goal complete. Great work."
                     : todayMins > 0
@@ -294,21 +300,24 @@ export default function DashboardScreen() {
                 </View>
               </View>
             </View>
-            <Image
+            {!compactHero && <Image
+              accessible={false}
+              importantForAccessibility="no"
               source={cognifyBot}
               style={s.goalBot}
               resizeMode="contain"
               accessibilityIgnoresInvertColors
-            />
+            />}
           </HeroGradient>
         </TouchableOpacity>
 
         {/* ── Quick access ── */}
-        <View style={s.quickRow}>
+        <View style={[s.quickRow, expandedText && s.quickRowExpanded]}>
           {QUICK_LINKS.map(link => (
             <TouchableOpacity
               key={link.href}
-              style={s.quickItem}
+              accessibilityRole="button"
+              style={[s.quickItem, expandedText && s.quickItemExpanded]}
               activeOpacity={0.8}
               onPress={() => router.push(link.href as any)}
             >
@@ -333,6 +342,7 @@ export default function DashboardScreen() {
                   <TouchableOpacity
                     key={event.id}
                     style={[s.agendaRow, i < list.length - 1 && s.agendaDivider]}
+                    accessibilityRole="button"
                     activeOpacity={0.8}
                     onPress={() => router.push("/(tabs)/planner" as any)}
                   >
@@ -345,7 +355,7 @@ export default function DashboardScreen() {
                       </Text>
                     </View>
                     <View style={{ flex: 1, gap: 4 }}>
-                      <Text style={s.agendaTitle} numberOfLines={1}>
+                      <Text style={s.agendaTitle}>
                         {event.title}
                       </Text>
                       <View style={s.agendaMeta}>
@@ -368,14 +378,14 @@ export default function DashboardScreen() {
 
         {/* ── Overview ── */}
         <View style={s.sectionRow}>
-          <Text style={s.sectionTitle}>Overview</Text>
+          <Text accessibilityRole="header" style={s.sectionTitle}>Overview</Text>
           <View style={s.weekPill}>
             <Ionicons name="trending-up" size={13} color={colors.primary} />
             <Text style={s.weekPillText}>{thisWeekMins}m this week</Text>
           </View>
         </View>
 
-        <View style={s.statsGrid}>
+        <View style={[s.statsGrid, expandedText && s.statsGridExpanded]}>
           <StatTile
             icon="time-outline"
             label="Study time"
@@ -399,7 +409,7 @@ export default function DashboardScreen() {
             change={
               totalFlashcards > 0 ? `${totalFlashcards} reviewed` : "None yet"
             }
-            accent={colors.info}
+            accent={colors.infoText}
             accentBg={colors.infoSoft}
           />
           <StreakTile streak={streak} />
@@ -431,6 +441,7 @@ export default function DashboardScreen() {
             const tone = DOC_TONES[idx % DOC_TONES.length];
             return (
               <SolutionCard component="touchable"
+                accessibilityRole="button"
                 key={doc.id}
                 style={s.learnCard}
                 onPress={() =>
@@ -451,7 +462,7 @@ export default function DashboardScreen() {
                 />
 
                 <View style={s.learnInfo}>
-                  <Text style={s.learnTitle} numberOfLines={1}>
+                  <Text style={s.learnTitle}>
                     {doc.title}
                   </Text>
                   <Text style={s.learnSubtitle} numberOfLines={1}>
@@ -507,7 +518,7 @@ function StatTile({
           <Ionicons name={icon as any} size={18} color={accent} />
         </View>
         <View style={[s.changeBadge, { backgroundColor: accentBg }]}>
-          <Text style={[s.changeText, { color: accent }]} numberOfLines={1}>
+          <Text style={[s.changeText, { color: accent }]}>
             {change}
           </Text>
         </View>
@@ -524,10 +535,10 @@ function StreakTile({ streak }: { streak: number }) {
     <SolutionCard style={[s.statTile, s.streakTile]}>
       <View style={s.statTopRow}>
         <View style={[s.statIcon, { backgroundColor: colors.warningSoft }]}>
-          <Ionicons name="flame" size={18} color={colors.warning} />
+          <Ionicons name="flame" size={18} color={colors.warningText} />
         </View>
         <View style={[s.changeBadge, { backgroundColor: colors.warningSoft }]}>
-          <Text style={[s.changeText, { color: "#c2710c" }]}>
+          <Text style={[s.changeText, { color: colors.warningText }]}>
             {streak > 0 ? "On a roll" : "Start today"}
           </Text>
         </View>
@@ -541,7 +552,11 @@ function StreakTile({ streak }: { streak: number }) {
 // ── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  scroll: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 32 },
+  scroll: { width: "100%", maxWidth: layout.contentMaxWidth, alignSelf: "center", paddingTop: spacing.md, paddingBottom: spacing.xxl },
+  stack: { flexDirection: "column", alignItems: "flex-start", gap: spacing.md },
+  quickRowExpanded: { flexWrap: "wrap", gap: spacing.lg },
+  quickItemExpanded: { flexBasis: "40%" },
+  statsGridExpanded: { flexDirection: "column" },
 
   header: {
     flexDirection: "row",
@@ -573,22 +588,17 @@ const s = StyleSheet.create({
   greeting: { ...design.screenTitle, fontSize: 24, lineHeight: 30 },
 
   goalWrap: {
-    marginBottom: 22,
-    borderRadius: 24,
-    shadowColor: colors.primaryDark,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 8,
+    marginBottom: spacing.xl,
+    borderRadius: radius.xl,
+    ...elevation.md,
   },
   goalCard: {
-    padding: 20,
-    paddingRight: 8,
+    padding: spacing.xl,
     minHeight: 168,
     flexDirection: "row",
     alignItems: "center",
   },
-  goalContent: { flex: 1, gap: 14, zIndex: 2 },
+  goalContent: { flex: 1, minWidth: 0, gap: spacing.lg, zIndex: 2 },
   goalBot: {
     width: 96,
     height: 128,
@@ -609,10 +619,10 @@ const s = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1.2,
     textTransform: "uppercase",
-    color: "#d1fae5",
+    color: colors.onBrandMuted,
   },
   goalTopRow: { flexDirection: "row", alignItems: "center" },
-  goalFractionRow: { flexDirection: "row", alignItems: "baseline", gap: 6 },
+  goalFractionRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", gap: 6 },
   goalNum: {
     fontSize: 40,
     lineHeight: 46,
@@ -621,15 +631,16 @@ const s = StyleSheet.create({
     color: colors.white,
     fontVariant: ["tabular-nums"],
   },
-  goalDenom: { fontSize: 15, fontWeight: "600", color: "#a7d8c6" },
-  goalMeta: { fontSize: 12.5, color: "#bfe3d6", marginTop: 2 },
+  goalDenom: { fontSize: 15, fontWeight: "600", color: colors.onBrandMuted },
+  goalMeta: { fontSize: 12.5, color: colors.onBrandMuted, marginTop: 2 },
   ringOuter: {
-    width: 60,
-    height: 60,
+    minWidth: 60,
+    minHeight: 60,
+    padding: spacing.sm,
     borderRadius: 30,
     borderWidth: 4,
     borderColor: colors.accent,
-    backgroundColor: "#ffffff14",
+    backgroundColor: colors.onBrandSurface,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -639,18 +650,18 @@ const s = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
     textTransform: "uppercase",
-    color: "#bfe3d6",
+    color: colors.onBrandMuted,
     marginTop: -1,
   },
   goalBarBg: {
     height: 7,
     borderRadius: 4,
-    backgroundColor: "#ffffff22",
+    backgroundColor: colors.onBrandTrack,
     overflow: "hidden",
   },
   goalBarFill: { height: "100%", borderRadius: 4, backgroundColor: colors.accent },
   goalFooter: { flexDirection: "row", alignItems: "center", gap: 12 },
-  goalQuote: { flex: 1, fontSize: 13, lineHeight: 19, color: "#d9f0e7" },
+  goalQuote: { flex: 1, fontSize: 13, lineHeight: 19, color: colors.onBrandMuted },
   goalCta: {
     width: 32,
     height: 32,
@@ -665,10 +676,11 @@ const s = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     paddingVertical: 16,
-    paddingHorizontal: 10,
-    marginBottom: 24,
+    paddingHorizontal: spacing.sm,
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
   },
-  quickItem: { flex: 1, alignItems: "center", gap: 8 },
+  quickItem: { flex: 1, minHeight: layout.touchTarget, alignItems: "center", gap: 8 },
   quickLabel: { fontSize: 12, fontWeight: "600", color: colors.textSub },
 
   agenda: { ...design.card, paddingHorizontal: 14, marginBottom: 24 },
@@ -683,9 +695,11 @@ const s = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   dateBlock: {
-    width: 48,
-    height: 52,
-    borderRadius: 14,
+    minWidth: 48,
+    paddingHorizontal: spacing.xs,
+    minHeight: 52,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -697,14 +711,16 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
   },
   agendaTitle: { ...design.cardTitle, fontSize: 14.5 },
-  agendaMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
+  agendaMeta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
   agendaTime: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
 
   sectionRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   sectionTitle: design.sectionTitle,
   weekPill: {
@@ -726,17 +742,19 @@ const s = StyleSheet.create({
   },
   statTile: {
     ...design.card,
-    width: "47.9%",
+    flexBasis: "47%",
+    minWidth: 0,
     flexGrow: 1,
     padding: 14,
   },
-  streakTile: { backgroundColor: "#fffbf3", borderColor: "#fdecc8" },
+  streakTile: { backgroundColor: colors.warningSoft, borderColor: colors.border },
   statTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 6,
-    marginBottom: 14,
+    gap: spacing.sm,
+    flexWrap: "wrap",
+    marginBottom: spacing.md,
   },
   statIcon: {
     width: 36,
@@ -763,7 +781,7 @@ const s = StyleSheet.create({
     padding: 14,
     marginBottom: 12,
   },
-  learnInfo: { flex: 1, gap: 3 },
+  learnInfo: { flex: 1, minWidth: 0, gap: spacing.xs },
   learnTitle: design.cardTitle,
   learnSubtitle: design.caption,
   learnBarRow: {

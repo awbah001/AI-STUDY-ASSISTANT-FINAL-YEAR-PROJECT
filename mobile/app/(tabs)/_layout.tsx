@@ -8,6 +8,7 @@ import { Redirect, Tabs, router } from "expo-router";
 import { View, TouchableOpacity, StyleSheet, Platform, Text } from "react-native";
 import { trpc } from "../../src/lib/api";
 import { Ionicons } from "@expo/vector-icons";
+import { design, layout, spacing } from "../../src/theme/design";
 import { colors } from "../../src/theme/colors";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { homeForRole } from "../../src/lib/roleHome";
@@ -22,10 +23,11 @@ export default function TabLayout() {
   if (user && user.role !== "user")
     return <Redirect href={homeForRole(user.role) as any} />;
   if (profile.isError) return (
-    <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 16 }}>
-      <Text>Unable to load your profile. Check your connection and try again.</Text>
-      <TouchableOpacity accessibilityRole="button" onPress={() => profile.refetch()}><Text>Retry</Text></TouchableOpacity>
-      <TouchableOpacity accessibilityRole="button" onPress={() => router.push("/offline-study" as any)}><Text>Study downloaded materials</Text></TouchableOpacity>
+    <View style={styles.recovery}>
+      <Text accessibilityRole="header" style={design.sectionTitle}>Let's reconnect</Text>
+      <Text accessibilityRole="alert" style={design.body}>Unable to load your profile. Check your connection and try again.</Text>
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: profile.isFetching, busy: profile.isFetching }} disabled={profile.isFetching} style={[styles.retry, profile.isFetching && styles.disabled]} onPress={() => profile.refetch()}><Text style={design.actionText}>{profile.isFetching ? "Retrying?" : "Try again"}</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" style={styles.offline} onPress={() => router.push("/offline-study" as any)}><Text style={styles.offlineText}>Study downloaded materials</Text></TouchableOpacity>
     </View>
   );
   if (!profile.data) return <ActivityIndicator color={colors.primary} />;
@@ -64,3 +66,11 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  recovery: { flex: 1, justifyContent: "center", padding: spacing.xl, gap: spacing.lg, backgroundColor: colors.bg },
+  retry: { ...design.action, minHeight: layout.touchTarget },
+  disabled: { opacity: 0.6 },
+  offline: { ...design.card, minHeight: layout.touchTarget, padding: spacing.md, alignItems: "center", justifyContent: "center" },
+  offlineText: { ...design.body, color: colors.primary, fontWeight: "700", textAlign: "center" },
+});

@@ -14,6 +14,8 @@ import { HttpError } from "../../shared/_core/errors";
 import { UPLOADS_ROOT, resolveUploadPath, sanitizeUploadKey } from "./uploads";
 import { transcribeStudentAudio } from "../voice";
 import { startAutonomousAgentScheduler } from "../agent/autonomous";
+import { registerPrivateUploads } from "../privateUploads";
+import { apiRequestLimit } from "./requestLimits";
 import { registerDocumentReaderHttp } from "../documentReaderHttp";
 
 function assertJwtSecret() {
@@ -45,6 +47,9 @@ async function startServer() {
   assertJwtSecret();
   const app = express();
   const server = createServer(app);
+  // Configure only for a known reverse proxy; never trust arbitrary forwarded IPs.
+  const proxyHops = Number(process.env.TRUST_PROXY_HOPS ?? "0");
+  if (Number.isInteger(proxyHops) && proxyHops > 0) app.set("trust proxy", proxyHops);
 
   // CORS — allow mobile app (ngrok tunnel, LAN, Capacitor, or production domain)
   app.use((req, res, next) => {
@@ -58,6 +63,14 @@ async function startServer() {
     next();
   });
 
+  app.use("/api", apiRequestLimit);
+
+  // Reject unauthorized binary/audio requests before buffering their bodies.
+  app.use(["/api/storage/put", "/api/voice/transcribe"], async (req, res, next) => {
+    try { res.locals.uploadUser = await sdk.authenticateRequest(req); next(); }
+    catch { res.status(401).json({ error: "Sign in to continue" }); }
+  });
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -65,13 +78,18 @@ async function startServer() {
   // Local storage fallback (no external S3/Forge required)
   registerDocumentReaderHttp(app);
   fs.mkdirSync(UPLOADS_ROOT, { recursive: true });
-  app.use("/uploads", express.static(UPLOADS_ROOT));
+  registerPrivateUploads(app);
   app.post("/api/storage/put", express.raw({ type: "*/*", limit: "60mb" }), async (req, res) => {
     try {
-      const user = await sdk.authenticateRequest(req);
+      const user = res.locals.uploadUser ?? await sdk.authenticateRequest(req);
       if (user.isBanned) {
         res.status(403).json({ error: "Account is banned" });
         return;
+      }
+      const { getSystemSettings } = await import("../settings");
+      const cfg = await getSystemSettings();
+      if (!Buffer.isBuffer(req.body) || req.body.length > cfg.content.maxUploadMb * 1024 * 1024) {
+        res.status(413).json({ error: `File exceeds the ${cfg.content.maxUploadMb} MB upload limit.` }); return;
       }
       const requestedKey = String(req.query.key ?? "");
       if (!requestedKey) {
@@ -107,7 +125,7 @@ async function startServer() {
 
   app.post("/api/voice/transcribe", async (req, res) => {
     try {
-      const user = await sdk.authenticateRequest(req);
+      const user = res.locals.uploadUser ?? await sdk.authenticateRequest(req);
       if (user.isBanned) {
         res.status(403).json({ error: "Account is banned" });
         return;

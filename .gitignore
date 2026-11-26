@@ -127,3 +127,7 @@ output/
 
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
+
+# Browser regression artifacts
+playwright-report/
+test-results/

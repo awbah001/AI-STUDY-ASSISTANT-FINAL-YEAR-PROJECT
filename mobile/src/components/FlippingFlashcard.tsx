@@ -88,6 +88,9 @@ export function FlippingFlashcard({
 
   return (
     <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={showingAnswer ? "Show question" : "Reveal answer"}
+      accessibilityState={{ expanded: showingAnswer }}
       activeOpacity={0.96}
       onPress={handlePress}
       style={[styles.wrap, faceSize, style]}

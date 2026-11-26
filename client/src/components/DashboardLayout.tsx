@@ -135,6 +135,25 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const reduced = useReducedMotion();
   const searchRef = useRef<HTMLInputElement>(null);
   const pageRef = useRef<HTMLElement>(null);
+  const navigationRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!isMobile || !mobileOpen) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const drawer = navigationRef.current;
+    const focusable = () => Array.from(drawer?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), [tabindex="0"]') ?? []).filter(node => node.getClientRects().length > 0);
+    focusable()[0]?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setMobileOpen(false); }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => { document.removeEventListener("keydown", handleKey); previousFocus?.focus(); };
+  }, [isMobile, mobileOpen]);
   useEffect(() => {
     if (reduced) { pageAnimation.set({ opacity: 1 }); return; }
     pageAnimation.set({ opacity: .55 });
@@ -173,7 +192,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
       )}
 
-      <aside className={[
+      <aside ref={navigationRef} id="workspace-navigation" aria-label="Workspace navigation" role={isMobile && mobileOpen ? "dialog" : undefined} aria-modal={isMobile && mobileOpen ? true : undefined} inert={isMobile && !mobileOpen ? true : undefined} className={[
         "fixed z-40 flex w-[248px] flex-col overflow-hidden rounded-[28px] border border-white/10",
         "top-3 bottom-3 left-3 transition-transform duration-300",
         "cognify-sidebar shadow-[0_18px_50px_rgba(0,20,18,0.28)]",
@@ -195,7 +214,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <nav className="cognify-sidebar-scroll flex-1 overflow-y-auto px-3 py-4">
+        {isMobile && <button type="button" className="workspace-nav-close" aria-label="Close navigation" onClick={() => setMobileOpen(false)}><AppIcon name="X" size={20} />Close</button>}
+        <nav aria-label="Main navigation" className="cognify-sidebar-scroll flex-1 overflow-y-auto px-3 py-4">
           {sections.map((section) => (
             <div key={section} className="mb-4 last:mb-0">
               <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-100/45">
@@ -275,7 +295,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className={[
+      <div inert={isMobile && mobileOpen ? true : undefined} className={[
         "dashboard-workspace flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-[#f4f8f6] shadow-sm",
         isMobile ? "" : "ml-[260px]",
       ].join(" ")}>
@@ -285,7 +305,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               {collapsed ? <AppIcon name="PanelLeftOpen" size={16} /> : <AppIcon name="PanelLeftClose" size={16} />}
             </button>}
             {isMobile && (
-              <button type="button" aria-label="Open navigation" onClick={() => setMobileOpen(true)}
+              <button type="button" aria-label="Open navigation" aria-expanded={mobileOpen} aria-controls="workspace-navigation" onClick={() => setMobileOpen(true)}
                 className="mr-1 flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
                 <AppIcon name="Menu" size={20} className="h-5 w-5" />
               </button>

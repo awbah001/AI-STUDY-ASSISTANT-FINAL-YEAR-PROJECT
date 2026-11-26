@@ -1,3 +1,4 @@
+import { openFileUrl } from "../../src/lib/privateFiles";
 import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
 import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { design, elevation } from "../../src/theme/design";
@@ -473,7 +474,7 @@ export default function CourseDetailScreen() {
                         {asgn.fileUrl ? (
                           <TouchableOpacity
                             onPress={() =>
-                              void Linking.openURL(mediaUrl(asgn.fileUrl))
+                              void openFileUrl(mediaUrl(asgn.fileUrl))
                             }
                             style={st.linkRow}
                           >

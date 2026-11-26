@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
@@ -51,6 +52,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   delete process.env.OCR_LANG_PATH;
   dbFile = `tmp/reader-${randomUUID()}.db`;
+  mkdirSync("tmp", { recursive: true });
   client = createClient({ url: `file:./${dbFile}` });
   vi.mocked(getDb).mockResolvedValue(drizzle(client));
   await runDocumentReaderMigration(client);
@@ -94,7 +96,7 @@ beforeEach(async () => {
   };
 });
 afterEach(async () => {
-  client.close();
+  client?.close();
   await unlink(file);
   for (const suffix of ["", "-shm", "-wal"])
     await unlink(dbFile + suffix).catch(() => undefined);

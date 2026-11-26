@@ -1,15 +1,15 @@
+import { usePrivateFileUrl } from "@/hooks/usePrivateFileUrl";
 import { getStudentPreferences } from "@/lib/studentPreferences";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
 import DashboardLayout from "@/components/DashboardLayout";
-import { EmptyState, ErrorState, LoadingState } from "@/components/QueryState";
+
 import { DashboardLayoutSkeleton } from "@/components/DashboardLayoutSkeleton";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { trpc } from "@/lib/trpc";
-import { storagePut } from "@/lib/storage";
-import { apiUrl } from "@/lib/apiBaseUrl";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,146 +21,32 @@ import { SaveResponseNote } from "@/components/SaveResponseNote";
 import { DocumentLearningReader } from "@/components/DocumentLearningReader";
 import { DocumentProcessingStatus } from "@/components/DocumentProcessingStatus";
 import { AnimatedCard } from "@/components/motion/AnimatedCard";
-import { AnimatedStatValue } from "@/components/motion/AnimatedStatValue";
+
 import { AnimatedPage } from "@/components/motion/AnimatedPage";
-import { documentPreviewKind, DOCUMENT_ACCEPT } from "@shared/documentPreview";
+import { documentPreviewKind } from "@shared/documentPreview";
 import { FlashcardComponent } from "@/components/FlashcardComponent";
 import { QuizComponent } from "@/components/QuizComponent";
 import { AcademicSetup } from "@/components/student/AcademicSetup";
-import {
-  LIMITS,
-  titleFromFileName,
-  validateCourseCode,
-  validateFutureDate,
-  validateNumber,
-  validateText,
-} from "@shared/validation";
+import { LIMITS, validateCourseCode, validateText } from "@shared/validation";
 import { FieldError } from "@/components/FieldError";
-import { useFieldErrors } from "@/lib/formValidation";
 
 import FlashcardReview from "./FlashcardReview";
 import { MockExamLauncher, MockExamPage } from "./MockExam";
 import { CourseDiscussion, DiscussionThread } from "@/components/CourseDiscussion";
 import { AudioRecap } from "@/components/AudioRecap";
-import { StudentHero, StudentRing } from "@/components/StudentUi";
-import { DashboardHeading, DashboardShortcuts } from "@/components/DashboardOverview";
-import { useAuth } from "@/_core/hooks/useAuth";
-import {
-  BookOpen,
-  Target,
-  Flame,
-  Clock,
-  CalendarDays,
-  FileText,
-  ArrowRight,
-  Bell,
-  Upload,
-  Sparkles,
-  BarChart3,
-  ClipboardList,
-  Mail,
-  Plus,
-  Search,
-  Layers,
-  Maximize2,
-  Megaphone,
-  Minimize2,
-  ChevronRight,
-  MessageSquareText,
-  MessagesSquare,
-} from "lucide-react";
-import { AppIcon } from "@/components/icons/AppIcon";
-import {
-  courseCoverSrc,
-  CourseCard,
-  CourseEmpty,
-  CourseHeader,
-  MaterialTile,
-  Tile,
-  ViewAll,
-} from "@/components/student/CoursePage";
+import { StudentHero } from "@/components/StudentUi";
 
-const panel =
-  "student-panel rounded-2xl border bg-card p-5 shadow-sm space-y-4";
-const grid = "grid gap-4 md:grid-cols-2 xl:grid-cols-3";
-const fail = (error: { message: string }) => toast.error(error.message);
-export function studentHref(href: string) {
-  return href.replace("/(tabs)/", "/student/");
-}
-function fileHref(url: string) {
-  return /^https?:\/\//i.test(url) ? url : apiUrl(url);
-}
-function Box({ title, children }: { title: string; children: ReactNode }) {
-  const Icon =
-    title.includes("focus") ||
-    title.includes("calendar") ||
-    title === "Calendar"
-      ? CalendarDays
-      : title.includes("goals") || title.includes("revisit")
-        ? Target
-        : title.includes("tasks")
-          ? ClipboardList
-          : title.includes("AI") || title.includes("Quick")
-            ? Sparkles
-            : title.includes("progress") || title.includes("summary")
-              ? BarChart3
-              : title.includes("Join")
-                ? Plus
-                : title.includes("Upload")
-                  ? Upload
-                  : title.includes("Recent")
-                    ? Clock
-                    : title.includes("Filters")
-                      ? Search
-                      : BookOpen;
-  return (
-    <section className={panel}>
-      <h2 className="student-panel-title">
-        <span className="student-icon">
-          <Icon />
-        </span>
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
-function State({
-  query,
-}: {
-  query: {
-    isLoading: boolean;
-    error: { message: string } | null;
-    refetch: () => unknown;
-  };
-}) {
-  if (query.isLoading)
-    return <LoadingState />;
-  if (query.error)
-    return <ErrorState message={query.error.message} onRetry={() => query.refetch()} />;
-  return null;
-}
-function Go({
-  href,
-  children,
-  tone = "primary",
-}: {
-  href: string;
-  children: ReactNode;
-  tone?: "primary" | "accent" | "neutral";
-}) {
-  return (
-    <Link
-      href={studentHref(href)}
-      className={`student-go student-go--${tone} inline-flex items-center rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800`}
-    >
-      {children}
-    </Link>
-  );
-}
-function Empty({ children }: { children: ReactNode }) {
-  return <EmptyState>{children}</EmptyState>;
-}
+import { useAuth } from "@/_core/hooks/useAuth";
+import { BookOpen, Target, Clock, FileText, ArrowRight, Bell, Upload, Sparkles, BarChart3, ClipboardList, Search, Maximize2, Megaphone, Minimize2, ChevronRight, MessageSquareText, MessagesSquare } from "lucide-react";
+import { AppIcon } from "@/components/icons/AppIcon";
+import { courseCoverSrc, CourseCard, CourseEmpty, CourseHeader, MaterialTile, Tile, ViewAll } from "@/components/student/CoursePage";
+
+import { Box, State, Go, Empty, panel, grid, fail, upload, fileHref, studentHref } from "./workspaceShared";
+export { studentHref } from "./workspaceShared";
+const Dashboard = lazy(() => import("./StudentDashboard"));
+const Library = lazy(() => import("./StudentLibrary"));
+const Progress = lazy(() => import("./StudentProgress"));
+const Planner = lazy(() => import("./StudentPlanner"));
 
 export default function StudentPortal() {
   const { loading, isAllowed } = useRoleGuard("user");
@@ -276,161 +162,6 @@ function Onboarding() {
   );
 }
 
-function Dashboard() {
-  const query = trpc.studentLearning.dashboard.useQuery();
-  const courses = trpc.studentCourses.list.useQuery();
-  if (!query.data) return <State query={query} />;
-  const d = query.data;
-  const hour = new Date().getHours();
-  return (
-    <>
-      <StudentHero
-        kind="dashboard"
-        eyebrow={
-          hour < 12
-            ? "Good morning,"
-            : hour < 18
-              ? "Good afternoon,"
-              : "Good evening,"
-        }
-        title={`${d.student.name || "Student"} 👋`}
-        description="Your learning journey continues. Stay consistent and keep making progress!"
-      >
-        <Go href={d.continueLearning?.href || "/student/courses"}>
-          ▷ &nbsp; Continue learning
-        </Go>
-        <blockquote>
-          A little progress
-          <br />
-          every day adds up
-          <br />
-          to big results.
-        </blockquote>
-      </StudentHero>
-      <DashboardHeading title="Make room for progress" description="Your learning activity, next steps, and useful shortcuts in one place." />
-      <Stats data={d.progress} />
-      <DashboardShortcuts items={[
-        { title: "Ask AI", description: "A fresh way to understand", href: "/student/askai", icon: "Sparkles" },
-        { title: "Upload material", description: "Turn your notes into knowledge", href: "/student/library", icon: "Upload" },
-        { title: "Plan your study", description: "Make time for your next goal", href: "/student/planner", icon: "CalendarDays" },
-        { title: "View progress", description: "See how far you've come", href: "/student/progress", icon: "BarChart3" },
-      ]} />
-      <div className="student-dashboard-grid">
-        <Box title="Today's focus">
-          <Link className="student-view" href="/student/planner">
-            View all →
-          </Link>
-          {d.today.map(t => (
-            <div key={t.id} className="student-task">
-              <span className="student-icon">
-                <BookOpen />
-              </span>
-              <div>
-                <h3>{t.title}</h3>
-                <p>{t.detail}</p>
-              </div>
-              <Go href={t.href}>Open</Go>
-            </div>
-          ))}
-          {!d.today.length && (
-            <Empty>
-              Join a course or upload a document to start your study plan.
-            </Empty>
-          )}
-        </Box>
-        <Box title="Recent courses">
-          <Link className="student-view" href="/student/courses">
-            View all →
-          </Link>
-          <State query={courses} />
-          {courses.data?.slice(0, 2).map(c => (
-            <Link
-              className="student-recent-course"
-              key={c.id}
-              href={`/course/${c.id}`}
-            >
-              <span className="student-course-thumb">
-                <img src={courseCoverSrc(c.coverImageUrl)} alt="" />
-              </span>
-              <div>
-                <h3>{c.title}</h3>
-                <div className="student-course-progress">
-                  <div>
-                    <span style={{ width: `${c.progressPct}%` }} />
-                  </div>
-                  <small>{c.progressPct}%</small>
-                </div>
-              </div>
-            </Link>
-          ))}
-          {courses.data?.length === 0 && (
-            <Empty>Your enrolled courses will appear here.</Empty>
-          )}
-        </Box>
-      </div>
-      {d.upcoming.length > 0 && (
-        <Box title="Upcoming assignments">
-          {d.upcoming.map(a => (
-            <div className="student-task" key={a.id}>
-              <div>
-                <h3>{a.title}</h3>
-                <p>
-                  {a.courseTitle} · {a.status}
-                  {a.dueDate
-                    ? ` · ${new Date(a.dueDate).toLocaleDateString()}`
-                    : ""}
-                </p>
-              </div>
-              <Go href={a.href} tone="accent">View course</Go>
-            </div>
-          ))}
-        </Box>
-      )}
-    </>
-  );
-}
-function Stats({
-  data,
-}: {
-  data: {
-    courses: number;
-    quizAccuracy: number | null;
-    streak: number;
-    studyMinutes: number;
-  };
-}) {
-  return (
-    <div className="student-stats">
-      {[
-        [
-          "Enrolled courses",
-          data.courses,
-          "Keep exploring new courses",
-          BookOpen,
-        ],
-        [
-          "Quiz accuracy",
-          data.quizAccuracy === null ? "—" : `${data.quizAccuracy}%`,
-          "Across your quiz attempts",
-          Target,
-        ],
-        ["Day streak", data.streak, "Keep going!", Flame],
-        ["Study minutes", data.studyMinutes, "Stay consistent", Clock],
-      ].map(([label, value, hint, Icon]: any, index: number) => (
-        <AnimatedCard as="section" className="student-panel student-stat" key={label} delay={index * .05}>
-          <span className="student-icon">
-            <Icon />
-          </span>
-          <div>
-            <p>{label}</p>
-            <strong><AnimatedStatValue value={value} /></strong>
-            <small>{hint}</small>
-          </div>
-        </AnimatedCard>
-      ))}
-    </div>
-  );
-}
 function Courses() {
   const query = trpc.studentCourses.list.useQuery();
   const utils = trpc.useUtils();
@@ -902,20 +633,6 @@ function DiscussionPage({ id }: { id: number }) {
     />
   );
 }
-async function upload(file: File) {
-  const stored = await storagePut(
-    `uploads/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`,
-    await file.arrayBuffer(),
-    file.type || "application/octet-stream"
-  );
-  return {
-    fileUrl: stored.url,
-    fileKey: stored.key,
-    fileName: file.name,
-    fileSize: file.size,
-    mimeType: file.type,
-  };
-}
 function Assignment({
   assignment: a,
   courseId,
@@ -1028,150 +745,6 @@ function Assignment({
   );
 }
 
-function Library({ mode }: { mode?: "flashcards" }) {
-  const query = trpc.documents.list.useQuery(undefined, { refetchInterval: query => query.state.data?.some(d => d.processingStatus === "pending" || d.processingStatus === "processing") ? 2500 : false });
-  const [search, setSearch] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [category, setCategory] = useState("All materials");
-  const { errors: uploadErrors, check: checkUpload, clear: clearUpload } = useFieldErrors<"title" | "file">();
-  const create = trpc.documents.createOwn.useMutation();
-  const utils = trpc.useUtils();
-  const [, navigate] = useLocation();
-  const visibleDocuments = query.data?.filter(
-    d =>
-      `${d.title} ${d.fileName}`.toLowerCase().includes(search.toLowerCase()) &&
-      (category === "All materials" ||
-        (category === "Slides"
-          ? /\.pptx?$/i
-          : category === "Notes"
-            ? /\.txt$/i
-            : category === "Images"
-              ? /\.(png|jpe?g|webp)$/i
-              : /\.(pdf|docx?)$/i
-        ).test(d.fileName))
-  );
-  return (
-    <>
-      {mode && <FlashcardReview />}
-      {!mode && (
-        <Box title="Upload study material">
-          <p className="student-muted">
-            Add your notes, slides, or any learning resources.
-          </p>
-          <form
-            className="flex flex-wrap gap-3"
-            onSubmit={async e => {
-              e.preventDefault();
-              const form = new FormData(e.currentTarget);
-              const file = form.get("file") as File;
-              const title = String(form.get("title") || "");
-              const ok = checkUpload({
-                title: validateText(title, { label: "Title", required: false, ...LIMITS.title }),
-                file: file?.size ? null : "Choose a file to upload.",
-              });
-              if (!ok) return;
-              setBusy(true);
-              try {
-                const doc = await create.mutateAsync({
-                  title: title.trim() || titleFromFileName(file.name),
-                  ...(await upload(file)),
-                });
-                await utils.documents.list.invalidate();
-                navigate(`/document/${doc.id}`);
-              } catch (error) {
-                fail(error as Error);
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <div className="w-full max-w-xs space-y-1.5">
-              <Input
-                name="title"
-                aria-label="Document title"
-                placeholder="Document title (optional)"
-                maxLength={LIMITS.title.max}
-                aria-invalid={Boolean(uploadErrors.title)}
-                onChange={() => clearUpload("title")}
-              />
-              <FieldError message={uploadErrors.title} />
-            </div>
-            <div className="w-full max-w-xs space-y-1.5">
-              <Input
-                name="file"
-                aria-label="Study material file"
-                type="file"
-                accept={DOCUMENT_ACCEPT}
-                aria-invalid={Boolean(uploadErrors.file)}
-                onChange={() => clearUpload("file")}
-              />
-              <FieldError message={uploadErrors.file} />
-            </div>
-            <Button disabled={busy}>
-              {busy ? "Uploading..." : "Upload document"}
-            </Button>
-          </form>
-        </Box>
-      )}
-      <div className="student-toolbar">
-        {!mode && (
-          <div className="student-tabs">
-            {["All materials", "Documents", "Slides", "Notes", "Images"].map(
-              type => (
-                <button
-                  key={type}
-                  className={category === type ? "active" : ""}
-                  onClick={() => setCategory(type)}
-                >
-                  {type}
-                </button>
-              )
-            )}
-          </div>
-        )}
-        <Input
-          aria-label="Search documents"
-          placeholder="Search your study materials..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
-      <State query={query} />
-      <div className={`${grid} student-material-grid`}>
-        {visibleDocuments?.map(d => (
-          <Box title={d.title} key={d.id}>
-            <p className="text-sm text-muted-foreground">{d.fileName}</p>
-            <DocumentProcessingStatus doc={d} />
-            <div className="student-material-meta">
-              <span>
-                <CalendarDays />
-                {new Date(d.createdAt).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-              </span>
-              <span>
-                <FileText />
-                {d.fileSize
-                  ? `${(d.fileSize / 1048576).toFixed(1)} MB`
-                  : "Size unavailable"}
-              </span>
-            </div>
-            <Go href={`/document/${d.id}${mode ? "?tab=flashcards" : ""}`} tone="accent">
-              {mode ? "Review flashcards" : "Open workspace"}
-            </Go>
-          </Box>
-        ))}
-      </div>
-      {query.data && !visibleDocuments?.length && (
-        <Empty>
-          No materials found. Upload a document or join a course to get started.
-        </Empty>
-      )}
-    </>
-  );
-}
 function Notes({
   doc,
 }: {
@@ -1185,6 +758,7 @@ function Notes({
   };
 }) {
   const url = fileHref(doc.fileUrl);
+  const imageUrl = usePrivateFileUrl(documentPreviewKind(doc) === "image" ? doc.fileUrl : null);
   const kind = documentPreviewKind(doc);
   const preview = trpc.documents.preview.useQuery({ id: doc.id }, {
     enabled: kind !== "pdf" && kind !== "image",
@@ -1239,7 +813,7 @@ function Notes({
           <iframe title={doc.title} src={`${url}#view=FitH&navpanes=0`} className="h-full w-full rounded-xl border bg-white" />
         ) : kind === "image" ? (
           <div className="flex h-full items-center justify-center overflow-auto rounded-xl border bg-white">
-            <img src={url} alt={doc.title} className="max-h-full max-w-full" />
+            <img src={imageUrl} alt={doc.title} className="max-h-full max-w-full" />
           </div>
         ) : preview.data?.html ? (
           <iframe
@@ -1580,6 +1154,7 @@ function Video({ id }: { id: number }) {
     onError: fail,
   });
   const video = query.data?.video ?? null;
+  const playerUrl = usePrivateFileUrl(video?.playerUrl);
   const isPending = generate.isPending || (query.data?.generating ?? false);
   return (
     <Box title="Narrated video">
@@ -1605,7 +1180,7 @@ function Video({ id }: { id: number }) {
             <iframe
               key={video.playerUrl}
               title="Narrated study video"
-              src={fileHref(video.playerUrl)}
+              src={playerUrl}
               className="h-full w-full"
               allow="autoplay"
               sandbox="allow-scripts allow-same-origin"
@@ -1985,94 +1560,6 @@ function AskAI() {
     </>
   );
 }
-function Progress() {
-  const courses = trpc.studentCourses.list.useQuery();
-  const query = trpc.studentLearning.dashboard.useQuery();
-  if (!query.data) return <State query={query} />;
-  const d = query.data;
-  return (
-    <>
-      <Stats data={d.progress} />
-      <div className="student-progress-grid">
-        <Box title="Overall learning progress">
-          <div className="student-progress-body">
-            <StudentRing value={d.progress.completedPct} label="Complete" />
-            <div>
-              <h3>Learning activity</h3>
-              <p>
-                {d.progress.quizAttempts} quiz attempts ·{" "}
-                {d.progress.completedPct}% learning progress
-              </p>
-              <div className="h-3 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full bg-emerald-600"
-                  style={{ width: `${d.progress.completedPct}%` }}
-                />
-              </div>
-              <p className="student-muted">
-                Complete more quizzes and review materials to improve your
-                progress.
-              </p>
-            </div>
-          </div>
-        </Box>
-        <Box title="Progress by course">
-          <Link className="student-view" href="/student/courses">
-            View all →
-          </Link>
-          <State query={courses} />
-          {courses.data?.map(c => (
-            <Link
-              className="student-progress-course"
-              href={`/course/${c.id}`}
-              key={c.id}
-            >
-              <span className="student-icon">
-                <BookOpen />
-              </span>
-              <div>
-                <h3>{c.title}</h3>
-                <div className="student-course-progress">
-                  <div>
-                    <span style={{ width: `${c.progressPct}%` }} />
-                  </div>
-                  <small>{c.progressPct}%</small>
-                </div>
-              </div>
-              <ArrowRight />
-            </Link>
-          ))}
-          {courses.data?.length === 0 && (
-            <Empty>Join a course to start tracking your learning.</Empty>
-          )}
-        </Box>
-      </div>
-      <Box title="Topics to revisit">
-        {d.weakTopics.map((t, i) => (
-          <div
-            key={i}
-            className="flex flex-wrap items-center justify-between gap-3"
-          >
-            <div>
-              <p className="font-semibold">{t.topic}</p>
-              <p className="text-sm text-muted-foreground">
-                {t.misses} missed questions out of {t.attempts}
-              </p>
-            </div>
-            {t.documentId && (
-              <Go href={`/document/${t.documentId}`} tone="accent">Review topic</Go>
-            )}
-          </div>
-        ))}
-        {!d.weakTopics.length && (
-          <Empty>
-            Complete quizzes to discover which topics need more practice.
-          </Empty>
-        )}
-      </Box>
-    </>
-  );
-}
 function Notifications() {
   const preferences = trpc.admin.settings.preferences.useQuery();
   const query = trpc.notifications.list.useQuery();
@@ -2219,305 +1706,6 @@ function Notifications() {
           </Button>
         </Box>
       </aside>
-    </div>
-  );
-}
-
-function Planner() {
-  const query = trpc.planner.today.useQuery();
-  const utils = trpc.useUtils();
-  const { errors, check, clear } = useFieldErrors<
-    "minutes" | "cards" | "quizzes" | "eventTitle" | "eventDate" | "eventNotes" | "planMessage"
-  >();
-  const [month, setMonth] = useState(() =>
-    new Date().toISOString().slice(0, 7)
-  );
-  const [year, m] = month.split("-").map(Number);
-  const calendar = trpc.planner.calendar.useQuery({
-    from: new Date(year, m - 1, 1).getTime(),
-    to: new Date(year, m, 0, 23, 59, 59).getTime(),
-  });
-  const refresh = () => utils.planner.invalidate();
-  const goal = trpc.planner.updateGoal.useMutation({
-    onSuccess: () => {
-      void refresh();
-      toast.success("Goals saved");
-    },
-    onError: fail,
-  });
-  const create = trpc.planner.createEvent.useMutation({
-    onSuccess: refresh,
-    onError: fail,
-  });
-  const remove = trpc.planner.deleteEvent.useMutation({
-    onSuccess: refresh,
-    onError: fail,
-  });
-  const generate = trpc.planner.generatePlan.useMutation({
-    onSuccess: result => {
-      void refresh();
-      toast.success(`${result.created} study events added`);
-    },
-    onError: fail,
-  });
-  return (
-    <div className="student-planner-grid">
-      <State query={query} />
-      {query.data && (
-        <Box title="Daily study goals">
-          <p>
-            {query.data.completedMinutes} minutes studied today ·{" "}
-            {query.data.completedQuizzes} quizzes completed ·{" "}
-            {query.data.dueFlashcards} flashcards due
-          </p>
-          <form
-            key={JSON.stringify(query.data.goal)}
-            className="flex flex-wrap items-end gap-4"
-            onSubmit={e => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              const ok = check({
-                minutes: validateNumber(String(f.get("minutes") ?? ""), { label: "Study minutes", min: 5, max: 480, integer: true }),
-                cards: validateNumber(String(f.get("cards") ?? ""), { label: "Flashcards", min: 1, max: 100, integer: true }),
-                quizzes: validateNumber(String(f.get("quizzes") ?? ""), { label: "Quizzes", min: 1, max: 20, integer: true }),
-              });
-              if (!ok) return;
-              goal.mutate({
-                dailyStudyMinutes: Number(f.get("minutes")),
-                dailyFlashcards: Number(f.get("cards")),
-                dailyQuizzes: Number(f.get("quizzes")),
-              });
-            }}
-            noValidate
-          >
-            {[
-              [
-                "minutes",
-                "Study minutes",
-                5,
-                480,
-                query.data.goal.dailyStudyMinutes,
-              ],
-              ["cards", "Flashcards", 1, 100, query.data.goal.dailyFlashcards],
-              ["quizzes", "Quizzes", 1, 20, query.data.goal.dailyQuizzes],
-            ].map(([name, label, min, max, value]) => {
-              const key = name as "minutes" | "cards" | "quizzes";
-              return (
-                <label key={key} className="space-y-1.5">
-                  {label}
-                  <Input
-                    name={key}
-                    className="mt-2 w-32"
-                    type="number"
-                    inputMode="numeric"
-                    min={Number(min)}
-                    max={Number(max)}
-                    defaultValue={value}
-                    aria-invalid={Boolean(errors[key])}
-                    onChange={() => clear(key)}
-                  />
-                  <FieldError message={errors[key]} className="max-w-40" />
-                </label>
-              );
-            })}
-            <Button variant="accent" disabled={goal.isPending}>Save goals</Button>
-          </form>
-        </Box>
-      )}
-      {query.data && (
-        <Box title="Today's progress">
-          <div className="student-today-rings">
-            <div>
-              <StudentRing
-                value={
-                  (query.data.completedMinutes /
-                    query.data.goal.dailyStudyMinutes) *
-                  100
-                }
-              />
-              <h3>Study minutes</h3>
-              <p>
-                {query.data.completedMinutes} /{" "}
-                {query.data.goal.dailyStudyMinutes} min
-              </p>
-            </div>
-            <div>
-              <StudentRing
-                value={
-                  (query.data.completedQuizzes / query.data.goal.dailyQuizzes) *
-                  100
-                }
-              />
-              <h3>Quizzes</h3>
-              <p>
-                {query.data.completedQuizzes} / {query.data.goal.dailyQuizzes}{" "}
-                quizzes
-              </p>
-            </div>
-            <div>
-              <span className="student-icon">
-                <Layers />
-              </span>
-              <h3>Flashcards due</h3>
-              <p>{query.data.dueFlashcards} cards</p>
-            </div>
-          </div>
-        </Box>
-      )}
-      <Box title="Today's tasks">
-        {query.data?.tasks.map(t => (
-          <div key={t.id} className="flex flex-wrap justify-between gap-3">
-            <div>
-              <p className="font-medium">{t.title}</p>
-              <p className="text-sm text-muted-foreground">{t.detail}</p>
-            </div>
-            <Go href={t.href}>Start</Go>
-          </div>
-        ))}
-        {query.data?.tasks.length === 0 && (
-          <Empty>No pending tasks. Add a study session below.</Empty>
-        )}
-      </Box>
-      <div className="student-planner-forms">
-        <Box title="Add to your calendar">
-          <form
-            className="form-surface space-y-3"
-            onSubmit={async e => {
-              e.preventDefault();
-              const form = e.currentTarget;
-              const f = new FormData(form);
-              const title = String(f.get("title") ?? "");
-              const date = String(f.get("date") ?? "");
-              const notes = String(f.get("notes") ?? "");
-              const ok = check({
-                eventTitle: validateText(title, { label: "Event title", min: 2, max: 160 }),
-                eventDate: validateFutureDate(date, { label: "Date and time", required: true }),
-                eventNotes: validateText(notes, { label: "Notes", required: false, max: 500 }),
-              });
-              if (!ok) return;
-              try {
-                await create.mutateAsync({
-                  title: title.trim(),
-                  type: String(f.get("type")) as "study",
-                  startsAt: new Date(date).getTime(),
-                  notes: notes.trim(),
-                  reminderMinutes: 30,
-                });
-                form.reset();
-                toast.success("Event added");
-              } catch {}
-            }}
-          >
-            <Input
-              aria-label="Event title"
-              name="title"
-              placeholder="Event title"
-              maxLength={160}
-              aria-invalid={Boolean(errors.eventTitle)}
-              onChange={() => clear("eventTitle")}
-            />
-            <FieldError message={errors.eventTitle} />
-            <select
-              aria-label="Event type"
-              name="type"
-              className="w-full rounded-lg border bg-background p-2"
-            >
-              {["study", "exam", "test", "quiz", "other"].map(t => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>
-            <Input
-              aria-label="Event date and time"
-              name="date"
-              type="datetime-local"
-              aria-invalid={Boolean(errors.eventDate)}
-              onChange={() => clear("eventDate")}
-            />
-            <FieldError message={errors.eventDate} />
-            <Textarea
-              aria-label="Event notes"
-              name="notes"
-              placeholder="Notes (optional)"
-              maxLength={500}
-              aria-invalid={Boolean(errors.eventNotes)}
-              onChange={() => clear("eventNotes")}
-            />
-            <FieldError message={errors.eventNotes} />
-            <Button variant="accent" disabled={create.isPending}>Add event</Button>
-          </form>
-        </Box>
-        <Box title="Plan with AI">
-          <p className="student-muted">
-            Get a personalized study plan based on your goals, upcoming
-            deadlines, and learning style.
-          </p>
-          <form
-            className="form-surface space-y-3"
-            onSubmit={e => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              const message = String(f.get("message") ?? "");
-              const ok = check({
-                planMessage: validateText(message, { label: "Your request", min: 8, max: 500 }),
-              });
-              if (ok) generate.mutate({ message: message.trim() });
-            }}
-          >
-            <Textarea
-              aria-label="Study plan request"
-              name="message"
-              placeholder="Plan three revision sessions for my biology exam next Friday..."
-              maxLength={500}
-              aria-invalid={Boolean(errors.planMessage)}
-              onChange={() => clear("planMessage")}
-            />
-            <FieldError message={errors.planMessage} />
-            <Button disabled={generate.isPending}>
-              {generate.isPending ? "Planning..." : "Generate study plan"}
-            </Button>
-          </form>
-        </Box>
-      </div>
-      <Box title="Calendar">
-        <Input
-          aria-label="Calendar month"
-          className="max-w-xs"
-          type="month"
-          required
-          value={month}
-          onChange={e => {
-            if (e.target.value) setMonth(e.target.value);
-          }}
-        />
-        <State query={calendar} />
-        {calendar.data?.events.map(event => (
-          <div
-            key={event.id}
-            className="flex flex-wrap items-center justify-between gap-3 border-b pb-3"
-          >
-            <div>
-              <p className="font-semibold">{event.title}</p>
-              <p className="text-sm text-muted-foreground">
-                {new Date(event.startsAt).toLocaleString()} · {event.type}
-              </p>
-              <p>{event.notes}</p>
-            </div>
-            <Button
-              variant="outline"
-              disabled={remove.isPending}
-              onClick={() => {
-                if (window.confirm(`Delete ${event.title}?`))
-                  remove.mutate({ id: event.id });
-              }}
-            >
-              Delete
-            </Button>
-          </div>
-        ))}
-        {calendar.data?.events.length === 0 && (
-          <Empty>No events this month.</Empty>
-        )}
-      </Box>
     </div>
   );
 }

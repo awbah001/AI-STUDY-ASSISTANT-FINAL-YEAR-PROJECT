@@ -1,0 +1,35 @@
+appId: com.cognify.studyassistant
+---
+# Run only against a dedicated test account with published material and due cards.
+# STUDENT_EMAIL, STUDENT_PASSWORD, COURSE_TITLE and MATERIAL_TITLE are supplied at runtime.
+- launchApp:
+    clearState: true
+- tapOn: "name@central.edu.sl"
+- inputText: ${STUDENT_EMAIL}
+- tapOn: "Enter your password"
+- inputText: ${STUDENT_PASSWORD}
+- hideKeyboard
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "My courses"
+    timeout: 30000
+- tapOn: "My courses"
+- tapOn: ${COURSE_TITLE}
+- tapOn: ${MATERIAL_TITLE}
+- tapOn: "Open document"
+- assertVisible: "Open document"
+- tapOn: "Chat"
+- tapOn: "Learning assistant"
+- tapOn: "This document"
+- tapOn:
+    id: "study-question"
+- inputText: "Explain the main idea and cite the source material."
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "Save to notes"
+    timeout: 90000
+- tapOn: "Flashcards"
+- tapOn:
+    text: "Reveal answer"
+    index: 0
+- assertVisible: "Show question"

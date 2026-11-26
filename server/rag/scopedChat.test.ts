@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
@@ -8,6 +9,7 @@ import * as queries from "../queries";
 import { getAiService } from "../ai";
 import { retrieveRelevantChunkHits } from "./index";
 import { loadVectorStore } from "./faissFlat";
+import { embedText } from "./embeddings";
 import {
   resolveScopedDocuments,
   retrieveScopedEvidence,
@@ -28,6 +30,7 @@ vi.mock("../queries", () => ({
   createGeneralChatMessage: vi.fn(),
 }));
 vi.mock("../ai", () => ({ getAiService: vi.fn() }));
+vi.mock("./embeddings", () => ({ embedText: vi.fn(async () => [1, 0]) }));
 vi.mock("./index", () => ({ retrieveRelevantChunkHits: vi.fn() }));
 vi.mock("./faissFlat", () => ({ loadVectorStore: vi.fn() }));
 
@@ -42,7 +45,9 @@ const generate = vi.fn();
 
 beforeEach(async () => {
   vi.resetAllMocks();
+  vi.mocked(embedText).mockResolvedValue([1, 0]);
   dbFile = `tmp/scoped-rag-${randomUUID()}.db`;
+  mkdirSync("tmp", { recursive: true });
   client = createClient({ url: `file:./${dbFile}` });
   vi.mocked(getDb).mockResolvedValue(drizzle(client));
   await client.executeMultiple(`
@@ -126,7 +131,7 @@ beforeEach(async () => {
   vi.mocked(getAiService).mockReturnValue({ generate } as any);
 });
 afterEach(async () => {
-  client.close();
+  client?.close();
   await Promise.all(files.map(f => unlink(f)));
   for (const suffix of ["", "-wal", "-shm"])
     await unlink(dbFile + suffix).catch(() => undefined);
@@ -198,6 +203,14 @@ describe("scoped course authority and isolation", () => {
 });
 
 describe("fresh evidence, context and references", () => {
+  it("embeds a scoped question once across multiple authorized materials", async () => {
+    await client.execute("UPDATE documents SET userId=7 WHERE id=3");
+    const result = await retrieveScopedEvidence(student, { type: "enrolled" }, "Photosynthesis");
+    expect(result.sources.map(source => source.documentId)).toEqual([1, 3]);
+    expect(embedText).toHaveBeenCalledTimes(1);
+    expect(retrieveRelevantChunkHits).toHaveBeenCalledTimes(2);
+    for (const call of vi.mocked(retrieveRelevantChunkHits).mock.calls) expect(call[3]).toEqual([1, 0]);
+  });
   it("does not call the model without supporting retrieval", async () => {
     vi.mocked(retrieveRelevantChunkHits).mockResolvedValue([]);
     const result = await runScopedChat(student, {

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
+vi.mock("./studentActivity", () => ({ recordStudentActivity: vi.fn(async () => undefined) }));
+
 vi.mock("./agent", () => ({
   runLearningAgent: vi.fn(async () => ({
     response: "Grounded from your lecture notes.",

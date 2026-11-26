@@ -1,3 +1,5 @@
+import { accessibleFileUrl } from "../../src/lib/privateFiles";
+import { openFileUrl } from "../../src/lib/privateFiles";
 import { WifiLoader as ActivityIndicator } from "../../src/components/ui/WifiLoader";
 import { SolutionCard } from "../../src/components/ui/SolutionCard";
 import { design, elevation } from "../../src/theme/design";
@@ -99,7 +101,7 @@ export default function DocumentDetailScreen() {
     try {
       const canOpen = await Linking.canOpenURL(docUrl);
       if (canOpen) {
-        await Linking.openURL(docUrl);
+        await openFileUrl(docUrl);
       } else {
         Alert.alert("Cannot open", "No app available to open this document.");
       }
@@ -210,11 +212,14 @@ function NotesTab({ doc, url, openOriginal }: {
   openOriginal: () => Promise<void>;
 }) {
   const { page, revision } = useLocalSearchParams<{ page?: string; revision?: string }>();
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  useEffect(() => { let active = true; accessibleFileUrl(url).then(value => { if (active) setImageUrl(value); }).catch(() => { if (active) setImageUrl(null); }); return () => { active = false; }; }, [url]);
   const kind = documentPreviewKind(doc);
   const preview = trpc.documents.preview.useQuery({ id: doc.id }, {
     enabled: kind !== "pdf" && kind !== "image", retry: false, staleTime: Infinity,
   });
-  if (kind === "image") return <Image source={{ uri: url }} resizeMode="contain" style={{ flex: 1 }} accessibilityLabel={doc.title} />;
+  if (kind === "image" && !imageUrl) return <View style={{ padding: 24 }}><TouchableOpacity onPress={() => void openOriginal()}><Text>Open original image</Text></TouchableOpacity></View>;
+  if (kind === "image") return <Image source={{ uri: imageUrl! }} resizeMode="contain" style={{ flex: 1 }} accessibilityLabel={doc.title} />;
   if (kind === "pdf") {
     if (url.includes("/uploads/")) return <DocumentLearningReader documentId={doc.id} page={page} revision={revision} />;
     if (Platform.OS === "web") return <iframe title={doc.title} src={url} style={{ flex: 1, width: "100%", border: 0 }} />;
@@ -391,6 +396,7 @@ function ChatTab({ docId, courseId }: { docId: number; courseId?: number }) {
               style={styles.chatInput}
               value={message}
               onChangeText={setMessage}
+              testID="study-question"
               placeholder={
                 voice.listening ? "Listening…" : "Ask about this document…"
               }
@@ -515,7 +521,7 @@ function PresentationTab({ docId }: { docId: number }) {
       <TouchableOpacity
         style={styles.genBtn}
         onPress={() =>
-          Linking.openURL(remote(deck.fileUrl)).catch(() =>
+          openFileUrl(remote(deck.fileUrl)).catch(() =>
             Alert.alert("Error", "Could not open the presentation.")
           )
         }
@@ -540,6 +546,13 @@ function VideoTab({ docId }: { docId: number }) {
     onError: err => Alert.alert("Error", err.message),
   });
   const video = data?.video ?? null;
+  const [playerUrl, setPlayerUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setPlayerUrl(null);
+    if (video?.playerUrl) accessibleFileUrl(video.playerUrl).then(url => { if (active) setPlayerUrl(url); }).catch(() => { if (active) Alert.alert("Video unavailable", "Check your access and try again."); });
+    return () => { active = false; };
+  }, [video?.playerUrl]);
   const remote = (url: string) => (url.startsWith("http") ? url : `${API_URL}${url}`);
 
   if (isLoading)
@@ -574,7 +587,7 @@ function VideoTab({ docId }: { docId: number }) {
   return (
     <View style={{ flex: 1 }}>
       <WebView
-        source={{ uri: remote(video.playerUrl) }}
+        source={{ uri: playerUrl ?? "about:blank" }}
         javaScriptEnabled
         style={{ flex: 1, borderRadius: 12 }}
         originWhitelist={["*"]}
